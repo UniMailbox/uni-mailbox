@@ -122,6 +122,127 @@ p {
   background: #e5dfd2;
 }
 
+.setup-board {
+  margin: 24px 0;
+  border: 2px solid #111313;
+  background: #fffaf0;
+  box-shadow: 6px 6px 0 #111313;
+}
+
+.setup-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 18px;
+  align-items: end;
+  padding: 20px;
+  border-bottom: 2px solid #111313;
+}
+
+.setup-summary h2 {
+  max-width: 760px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.7rem, 4vw, 3.2rem);
+  font-weight: 500;
+  line-height: 1;
+}
+
+.progress-meter {
+  display: grid;
+  gap: 10px;
+}
+
+.progress-meter span {
+  font-size: 1.4rem;
+  font-weight: 800;
+  text-align: right;
+}
+
+.progress-meter div {
+  height: 12px;
+  border: 2px solid #111313;
+  background: #e5dfd2;
+}
+
+.progress-meter i {
+  display: block;
+  height: 100%;
+  background: #b43b24;
+}
+
+.setup-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr);
+  gap: 0;
+}
+
+.setup-fields {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border-right: 2px solid #111313;
+}
+
+.setup-fields label {
+  display: grid;
+  gap: 6px;
+}
+
+.setup-fields label span,
+.setup-note {
+  color: #55544d;
+  font-size: 0.85rem;
+}
+
+.setup-note {
+  padding-top: 6px;
+}
+
+.setup-tasks {
+  display: grid;
+  gap: 0;
+}
+
+.setup-task {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  min-height: 92px;
+  padding: 16px;
+  border-bottom: 1px solid #111313;
+  color: #111313;
+  text-align: left;
+  background: transparent;
+}
+
+.setup-task:last-child {
+  border-bottom: 0;
+}
+
+.setup-task svg {
+  width: 24px;
+  height: 24px;
+  color: #b43b24;
+}
+
+.setup-task strong,
+.setup-task small {
+  display: block;
+}
+
+.setup-task strong {
+  margin-bottom: 6px;
+}
+
+.setup-task small {
+  color: #55544d;
+  line-height: 1.45;
+}
+
+.setup-task.done {
+  background: #dfe9d8;
+}
+
 .resource-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -227,8 +348,15 @@ input {
   }
 
   .hero,
+  .setup-summary,
+  .setup-grid,
   .workspace {
     grid-template-columns: 1fr;
+  }
+
+  .setup-fields {
+    border-right: 0;
+    border-bottom: 2px solid #111313;
   }
 
   .resource-grid {

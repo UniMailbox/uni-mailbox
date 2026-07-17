@@ -4,7 +4,9 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 import { PermissionGate } from "./components/PermissionGate";
 import { RoleSwitcher } from "./components/RoleSwitcher";
+import { SetupGuide } from "./components/SetupGuide";
 import { useApi } from "./hooks/useApi";
+import { useSetupState } from "./hooks/useSetupState";
 
 const userId = "local-user";
 
@@ -18,6 +20,7 @@ export function App() {
   const files = useApi<StoredFile[]>();
   const uploadFile = useApi<StoredFile>();
   const [notice, setNotice] = useState("");
+  const [setup, setSetup] = useSetupState();
 
   const requestOptions = useMemo(() => ({ role, userId }), [role]);
 
@@ -79,6 +82,8 @@ export function App() {
       </section>
 
       {notice && <p className="notice">{notice}</p>}
+
+      <SetupGuide setup={setup} onChange={setSetup} />
 
       <section className="resource-grid" aria-label="Cloudflare resources">
         <article>
