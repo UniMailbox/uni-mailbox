@@ -1,6 +1,7 @@
 import type { ApiResult, Profile, Role, SessionPayload, StoredFile } from "@cf-startup/shared";
+import { API_BASE_URL_STORAGE_KEY } from "./setup";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787";
+const DEFAULT_API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787";
 
 type RequestOptions = {
   role: Role;
@@ -20,12 +21,20 @@ async function request<T>(
     headers.set("content-type", "application/json");
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
     ...init,
     headers
   });
 
   return (await response.json()) as ApiResult<T>;
+}
+
+export function getApiBaseUrl(): string {
+  if (typeof window === "undefined") {
+    return DEFAULT_API_BASE_URL;
+  }
+
+  return window.localStorage.getItem(API_BASE_URL_STORAGE_KEY) || DEFAULT_API_BASE_URL;
 }
 
 export const api = {

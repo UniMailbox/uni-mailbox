@@ -22,6 +22,12 @@ packages/
 npm install
 ```
 
+Copy the example environment file if you want to override the local API URL:
+
+```bash
+cp .env.example .env
+```
+
 ## Local Development
 
 Run the API:
@@ -69,3 +75,32 @@ This starter uses a development-friendly header identity:
 - `x-user-role`: `viewer`, `editor`, or `admin`
 
 Replace `src/auth.ts` with real authentication before production. Authorization checks are already centralized through shared permissions.
+
+## Initial Setup UI
+
+The React app includes an initial setup panel for wiring the first deployment. It tracks:
+
+- Worker API URL used by frontend requests.
+- Cloudflare Pages project name.
+- D1 database name.
+- KV namespace id.
+- R2 bucket name.
+- Setup checklist progress.
+
+The panel stores only non-sensitive local setup state in the browser. Cloudflare API tokens must stay in GitHub Secrets or Cloudflare-managed configuration.
+
+## Deployment
+
+Deployment automation lives in `.github/workflows/deploy.yml`.
+
+Required GitHub repository secrets:
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+
+Required GitHub repository variable:
+
+- `CLOUDFLARE_PAGES_PROJECT_NAME`
+- `VITE_API_BASE_URL`
+
+See `docs/deployment.md` for the full deployment checklist and workflow behavior.
