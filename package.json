@@ -1,0 +1,20 @@
+{
+  "name": "cf-startup",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace @cf-startup/api",
+    "dev:web": "npm run dev --workspace @cf-startup/web",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "2.1.9"
+  }
+}
