@@ -1,0 +1,6 @@
+name = "cf-startup-web"
+compatibility_date = "2024-12-18"
+pages_build_output_dir = "dist"
+
+[vars]
+VITE_API_BASE_URL = "https://cf-startup-api.example.workers.dev"
