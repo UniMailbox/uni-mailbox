@@ -4,7 +4,7 @@ Basic framework for a Cloudflare-native app:
 
 - **Backend**: Cloudflare Worker, TypeScript, Hono, D1 migrations, KV, R2, RBAC.
 - **Frontend**: Cloudflare Pages, React, Vite, shared RBAC contract.
-- **Shared**: roles, permissions, and API response types in `packages/shared`.
+- **Shared**: roles, permissions, and API response types in `shared`.
 
 ## Structure
 
@@ -12,14 +12,18 @@ Basic framework for a Cloudflare-native app:
 apps/
   api/        Worker API using Hono
   web/        React app deployed with Cloudflare Pages
-packages/
-  shared/     RBAC and DTO types shared by API and web
+shared/       RBAC and DTO types shared by API and web
+e2e/          Playwright tests for local end-to-end coverage
+docs/
+  rules/      Agent rules for this repo
+  plans/      Agent implementation plans
+  skills/     Project-specific agent skills
 ```
 
 ## Install
 
 ```bash
-npm install
+pnpm install
 ```
 
 Copy the example environment file if you want to override the local API URL:
@@ -33,19 +37,19 @@ cp .env.example .env
 Run the API:
 
 ```bash
-npm run dev:api
+pnpm dev:api
 ```
 
 Run the web app:
 
 ```bash
-npm run dev:web
+pnpm dev:web
 ```
 
 The web app defaults to `http://127.0.0.1:8787` for API calls. Override with:
 
 ```bash
-VITE_API_BASE_URL=http://127.0.0.1:8787 npm run dev:web
+VITE_API_BASE_URL=http://127.0.0.1:8787 pnpm dev:web
 ```
 
 ## D1 Setup
@@ -53,9 +57,9 @@ VITE_API_BASE_URL=http://127.0.0.1:8787 npm run dev:web
 Create a D1 database and replace the placeholder database id in `apps/api/wrangler.toml`.
 
 ```bash
-npx wrangler d1 create cf-startup-db
-npx wrangler d1 migrations apply cf-startup-db --local --config apps/api/wrangler.toml
-npx wrangler d1 migrations apply cf-startup-db --remote --config apps/api/wrangler.toml
+pnpm --filter @cf-startup/api exec wrangler d1 create cf-startup-db
+pnpm --filter @cf-startup/api exec wrangler d1 migrations apply cf-startup-db --local --config wrangler.toml
+pnpm --filter @cf-startup/api exec wrangler d1 migrations apply cf-startup-db --remote --config wrangler.toml
 ```
 
 ## KV and R2 Setup
@@ -63,9 +67,25 @@ npx wrangler d1 migrations apply cf-startup-db --remote --config apps/api/wrangl
 Create Cloudflare resources and replace placeholder ids/names in `apps/api/wrangler.toml`.
 
 ```bash
-npx wrangler kv namespace create APP_KV
-npx wrangler r2 bucket create cf-startup-files
+pnpm --filter @cf-startup/api exec wrangler kv namespace create APP_KV
+pnpm --filter @cf-startup/api exec wrangler r2 bucket create cf-startup-files
 ```
+
+## E2E Tests
+
+Install Playwright browsers once:
+
+```bash
+pnpm e2e:install
+```
+
+Run local E2E tests:
+
+```bash
+pnpm e2e
+```
+
+The Playwright config starts the Vite frontend automatically unless `E2E_BASE_URL` is provided.
 
 ## RBAC
 

@@ -10,9 +10,9 @@ This project deploys two Cloudflare surfaces:
 Create the resources once:
 
 ```bash
-npx wrangler d1 create cf-startup-db
-npx wrangler kv namespace create APP_KV
-npx wrangler r2 bucket create cf-startup-files
+pnpm --filter @cf-startup/api exec wrangler d1 create cf-startup-db
+pnpm --filter @cf-startup/api exec wrangler kv namespace create APP_KV
+pnpm --filter @cf-startup/api exec wrangler r2 bucket create cf-startup-files
 ```
 
 Copy the generated ids into `apps/api/wrangler.toml`:
@@ -24,8 +24,8 @@ Copy the generated ids into `apps/api/wrangler.toml`:
 Apply the initial D1 migration:
 
 ```bash
-npx wrangler d1 migrations apply cf-startup-db --local --config apps/api/wrangler.toml
-npx wrangler d1 migrations apply cf-startup-db --remote --config apps/api/wrangler.toml
+pnpm --filter @cf-startup/api exec wrangler d1 migrations apply cf-startup-db --local --config wrangler.toml
+pnpm --filter @cf-startup/api exec wrangler d1 migrations apply cf-startup-db --remote --config wrangler.toml
 ```
 
 ## GitHub Settings
@@ -46,11 +46,11 @@ The workflow is defined in `.github/workflows/deploy.yml`.
 
 On pushes to `main` or `master`, GitHub Actions will:
 
-1. Install dependencies with `npm ci`.
-2. Run `npm run typecheck`.
-3. Run `npm run test`.
-4. Run `npm run build`.
-5. Run `npm audit --omit=dev`.
+1. Install dependencies with `pnpm install --frozen-lockfile`.
+2. Run `pnpm typecheck`.
+3. Run `pnpm test`.
+4. Run `pnpm build`.
+5. Run `pnpm audit --prod`.
 6. Apply remote D1 migrations.
 7. Deploy the Worker API.
 8. Deploy the Pages frontend.
