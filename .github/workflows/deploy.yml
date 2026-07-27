@@ -38,28 +38,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Typecheck
-        run: npm run typecheck
+        run: pnpm typecheck
 
       - name: Test
-        run: npm run test
+        run: pnpm test
 
       - name: Build
         env:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
-        run: npm run build
+        run: pnpm build
 
       - name: Production dependency audit
-        run: npm audit --omit=dev
+        run: pnpm audit --prod
 
       - name: Upload Pages artifact
         uses: actions/upload-artifact@v4
@@ -77,21 +82,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Apply D1 migrations
         if: ${{ github.event_name == 'push' || inputs.apply_migrations }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: yes | npx wrangler d1 migrations apply cf-startup-db --remote --config apps/api/wrangler.toml
+        run: yes | pnpm --filter @cf-startup/api exec wrangler d1 migrations apply cf-startup-db --remote --config wrangler.toml
 
       - name: Deploy Worker
         uses: cloudflare/wrangler-action@v3

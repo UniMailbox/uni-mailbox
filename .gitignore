@@ -7,4 +7,6 @@ dist
 .env.*
 !.env.example
 coverage
+playwright-report
+test-results
 *.local
