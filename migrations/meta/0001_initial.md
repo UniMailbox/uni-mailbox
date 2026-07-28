@@ -6,6 +6,8 @@
 - Backfill: none; this migration targets an empty database.
 - Verification: run `migrations/meta/0001_initial.verify.sql` and confirm
   `PRAGMA foreign_key_check` returns no rows.
-- Recovery: stop deployment before traffic promotion. For a failed new install,
-  delete the provisioned empty D1 database and deploy again. Do not restore or
-  replace an existing production database automatically.
+- Recovery: stop deployment before traffic promotion. A failed remote
+  multi-statement migration can be retried through the release-managed atomic
+  SQL-file bootstrap when the database has no application schema. Do not
+  restore, replace, or automatically adopt an untracked non-empty production
+  database.
