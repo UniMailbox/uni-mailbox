@@ -19,11 +19,19 @@ import { AdminApplicationService } from "./modules/administration";
 import { resolveRuntimeConfig, type Env } from "./platform/config";
 import { CredentialCipher } from "./platform/crypto";
 import { StructuredLogger } from "./platform/logger";
+import {
+  createAttachmentStore,
+  detectStorageBackend,
+  type AttachmentStore,
+  type StorageBackend,
+} from "./platform/attachment-store";
 
 export interface AppContext extends HttpAppContext {
   env: Env;
   providers: ProviderRegistry;
   credentials: CredentialCipher;
+  attachmentStore: AttachmentStore;
+  storageBackend: StorageBackend;
 }
 
 export async function createAppContext(
@@ -34,7 +42,9 @@ export async function createAppContext(
   const installation = new InstallationService(
     new D1InstallationRepository(env.DB),
   );
-  const health = new HealthService(env);
+  const attachmentStore = createAttachmentStore(env);
+  const storageBackend = detectStorageBackend(env).backend;
+  const health = new HealthService(env, storageBackend);
   const tokens = new TokenService(runtime.AUTH_SIGNING_KEY);
   const identity = new IdentityApplicationService(env, tokens);
   const mailboxes = new MailboxApplicationService(env);
@@ -45,6 +55,8 @@ export async function createAppContext(
     ),
     credentials: new CredentialCipher(runtime.CREDENTIAL_ENCRYPTION_KEY),
     logger: new StructuredLogger(),
+    attachmentStore,
+    storageBackend,
   };
   const messages = new MessageApplicationService(
     partialContext,
@@ -54,6 +66,7 @@ export async function createAppContext(
   const attachments = new AttachmentApplicationService(
     env,
     new UploadTokenCodec(runtime.AUTH_SIGNING_KEY),
+    attachmentStore,
   );
   const drafts = new DraftApplicationService(partialContext, mailboxes);
   const webhooks = new WebhookApplicationService(partialContext);

@@ -42,6 +42,18 @@ function doctor() {
   }
 
   const wranglerConfig = readJsonc("wrangler.jsonc");
+  const r2TopLevel = wranglerConfig.r2_buckets?.some(
+    (binding) => binding.binding === "ATTACHMENTS",
+  );
+  const r2InEnv = Object.values(wranglerConfig.env ?? {}).some((entry) =>
+    entry.r2_buckets?.some((binding) => binding.binding === "ATTACHMENTS"),
+  );
+  const storageBackend = r2TopLevel || r2InEnv ? "r2" : "kv";
+  const storageReason = r2TopLevel
+    ? "ATTACHMENTS binding is declared in wrangler.jsonc (top level)"
+    : r2InEnv
+      ? "ATTACHMENTS binding is declared in an env.* block of wrangler.jsonc"
+      : "ATTACHMENTS binding is absent from wrangler.jsonc; KV is the default storage backend";
   const bindingChecks = {
     workerEntrypoint: wranglerConfig.main === "apps/worker/src/index.ts",
     assets: wranglerConfig.assets?.directory === "apps/web/dist",
@@ -51,16 +63,22 @@ function doctor() {
     kv: wranglerConfig.kv_namespaces?.some(
       (binding) => binding.binding === "KV",
     ),
-    r2: wranglerConfig.r2_buckets?.some(
-      (binding) => binding.binding === "ATTACHMENTS",
-    ),
+    r2Optional: storageBackend === "r2",
     queue: wranglerConfig.queues?.producers?.some(
       (binding) => binding.binding === "OUTBOUND_QUEUE",
     ),
     secrets: wranglerConfig.secrets_store_secrets?.length === 3,
     crons: wranglerConfig.triggers?.crons?.length >= 3,
   };
-  if (Object.values(bindingChecks).some((value) => !value)) {
+  if (
+    !bindingChecks.workerEntrypoint ||
+    !bindingChecks.assets ||
+    !bindingChecks.d1 ||
+    !bindingChecks.kv ||
+    !bindingChecks.queue ||
+    !bindingChecks.secrets ||
+    !bindingChecks.crons
+  ) {
     fail(
       "doctor.wrangler_config_invalid",
       "One or more root deployment bindings are missing",
@@ -111,6 +129,10 @@ function doctor() {
     wrangler: wrangler.stdout,
     migrations,
     bindingChecks,
+    storage: {
+      backend: storageBackend,
+      reason: storageReason,
+    },
   });
 }
 

@@ -13,6 +13,7 @@ import { CursorCodec } from "../../src/modules/messages/cursor";
 import { DraftApplicationService } from "../../src/modules/messages/drafts";
 import { ProviderRegistry } from "../../src/integrations/providers";
 import { createBrevoProviderPlugin } from "../../src/integrations/brevo";
+import { createAttachmentStore } from "../../src/platform/attachment-store";
 import type { Env } from "../../src/platform/config";
 
 const principal: Principal = {
@@ -36,17 +37,21 @@ function fullEnv(): Env {
 
 function attachmentsService() {
   const codec = new UploadTokenCodec("k".repeat(32));
-  return new AttachmentApplicationService(fullEnv(), codec);
+  const e = fullEnv();
+  return new AttachmentApplicationService(e, codec, createAttachmentStore(e));
 }
 
 function messageService() {
+  const e = fullEnv();
   const app = {
-    env: fullEnv(),
+    env: e,
     providers: new ProviderRegistry(
       new Map([[BREVO_PROVIDER_KEY, createBrevoProviderPlugin(vi.fn())]]),
     ),
     credentials: { encrypt: vi.fn(), decrypt: vi.fn() } as never,
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+    attachmentStore: createAttachmentStore(e),
+    storageBackend: "r2" as const,
   };
   return new MessageApplicationService(
     app,
@@ -56,13 +61,16 @@ function messageService() {
 }
 
 function draftService() {
+  const e = fullEnv();
   const app = {
-    env: fullEnv(),
+    env: e,
     providers: new ProviderRegistry(
       new Map([[BREVO_PROVIDER_KEY, createBrevoProviderPlugin(vi.fn())]]),
     ),
     credentials: { encrypt: vi.fn(), decrypt: vi.fn() } as never,
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+    attachmentStore: createAttachmentStore(e),
+    storageBackend: "r2" as const,
   };
   return new DraftApplicationService(app, new MailboxApplicationService(fullEnv()));
 }

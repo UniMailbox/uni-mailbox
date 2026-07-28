@@ -5,6 +5,10 @@ import {
   type Principal,
 } from "@unimailbox/contracts";
 import type { Env } from "../../platform/config";
+import {
+  KV_VALUE_LIMIT,
+  type AttachmentStore,
+} from "../../platform/attachment-store";
 import type { UploadTokenCodec } from "./upload-token";
 
 interface UploadRow {
@@ -17,6 +21,10 @@ interface UploadRow {
   disposition: "attachment" | "inline";
   status: "pending" | "uploaded" | "consumed" | "expired";
   expires_at: string;
+}
+
+interface SettingsRow {
+  max_attachment_bytes: number;
 }
 
 const INLINE_MIME_TYPES = new Set([
@@ -38,10 +46,29 @@ function dispositionHeader(
   return `${disposition}; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
 
+async function toBuffer(body: ArrayBuffer | Uint8Array): Promise<ArrayBuffer> {
+  if (body instanceof Uint8Array) {
+    const out = new ArrayBuffer(body.byteLength);
+    new Uint8Array(out).set(body);
+    return out;
+  }
+  return body;
+}
+
+async function weakEtag(body: ArrayBuffer | Uint8Array): Promise<string> {
+  const bytes = await toBuffer(body);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const hex = Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return `W/"${hex.slice(0, 32)}"`;
+}
+
 export class AttachmentApplicationService {
   constructor(
     private readonly env: Env,
     private readonly tokens: UploadTokenCodec,
+    private readonly store: AttachmentStore,
   ) {}
 
   async create(
@@ -59,6 +86,22 @@ export class AttachmentApplicationService {
       );
     }
     await this.env.KV.put(rateKey, String(count + 1), { expirationTtl: 3600 });
+    const settings = await this.env.DB.prepare(
+      "SELECT max_attachment_bytes FROM system_settings WHERE id = 1",
+    ).first<SettingsRow>();
+    const backendLimit = KV_VALUE_LIMIT - 1;
+    const allowedBytes =
+      this.store.backend === "r2"
+        ? settings?.max_attachment_bytes ?? backendLimit
+        : Math.min(settings?.max_attachment_bytes ?? backendLimit, backendLimit);
+    if (input.size > allowedBytes) {
+      throw new DomainError(
+        "ATTACHMENT_TOO_LARGE",
+        `Attachments larger than ${allowedBytes} bytes are not supported on the ${this.store.backend} backend`,
+        413,
+        { limit: allowedBytes, backend: this.store.backend },
+      );
+    }
     const attachmentId = crypto.randomUUID();
     const objectKey = `attachments/${attachmentId}${safeExtension(input.filename)}`;
     const expiresAt = new Date(Date.now() + PRESIGN_TTL_SECONDS * 1000);
@@ -110,7 +153,10 @@ export class AttachmentApplicationService {
         "x-amz-meta-filename": input.filename,
       },
       expiresAt: expiresAt.toISOString(),
-      transport: "worker-r2-binding",
+      transport:
+        this.store.backend === "r2"
+          ? "worker-r2-binding"
+          : "worker-kv-binding",
     };
   }
 
@@ -167,7 +213,7 @@ export class AttachmentApplicationService {
         409,
       );
     }
-    await this.env.ATTACHMENTS.put(row.object_key, request.body, {
+    await this.store.put(row.object_key, request.body, {
       httpMetadata: {
         contentType: row.mime_type,
         contentDisposition: expectedDisposition,
@@ -200,7 +246,9 @@ export class AttachmentApplicationService {
         409,
       );
     }
-    const object = await this.env.ATTACHMENTS.head(row.object_key);
+    // We use get() rather than head() so that customMetadata is available —
+    // the KV-backed store does not expose metadata via its cheaper head path.
+    const object = await this.store.get(row.object_key);
     if (
       !object ||
       object.size !== row.size_bytes ||
@@ -243,7 +291,7 @@ export class AttachmentApplicationService {
         409,
       );
     }
-    await this.env.ATTACHMENTS.delete(row.object_key);
+    await this.store.delete(row.object_key);
     await this.env.DB.prepare(
       `DELETE FROM attachment_uploads
        WHERE id = ? AND user_id = ? AND status != 'consumed'`,
@@ -280,7 +328,7 @@ export class AttachmentApplicationService {
         404,
       );
     }
-    const object = await this.env.ATTACHMENTS.get(attachment.object_key);
+    const object = await this.store.get(attachment.object_key);
     if (!object) {
       throw new DomainError(
         "ATTACHMENT_OBJECT_MISSING",
@@ -288,12 +336,19 @@ export class AttachmentApplicationService {
         503,
       );
     }
+    const body = await toBuffer(
+      object.body instanceof Uint8Array
+        ? object.body
+        : object.body instanceof ArrayBuffer
+          ? object.body
+          : new Uint8Array(await new Response(object.body).arrayBuffer()),
+    );
     const disposition =
       attachment.disposition === "inline" &&
       INLINE_MIME_TYPES.has(attachment.mime_type)
         ? "inline"
         : "attachment";
-    return new Response(object.body, {
+    return new Response(body, {
       headers: {
         "content-type": attachment.mime_type,
         "content-length": String(object.size),
@@ -303,7 +358,7 @@ export class AttachmentApplicationService {
         ),
         "x-content-type-options": "nosniff",
         "cache-control": "private, no-store",
-        etag: object.httpEtag,
+        etag: await weakEtag(body),
       },
     });
   }

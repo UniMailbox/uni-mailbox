@@ -80,7 +80,7 @@ export class DraftApplicationService {
   constructor(
     private readonly context: Pick<
       AppContext,
-      "env" | "providers" | "credentials" | "logger"
+      "env" | "providers" | "credentials" | "logger" | "attachmentStore"
     >,
     private readonly mailboxes: MailboxApplicationService,
   ) {}
@@ -293,7 +293,7 @@ export class DraftApplicationService {
         .bind(attachment.object_key)
         .first();
       if (!referenced) {
-        await this.context.env.ATTACHMENTS.delete(attachment.object_key);
+        await this.context.attachmentStore.delete(attachment.object_key);
       }
     }
     return this.get(principal, draftId);
@@ -312,7 +312,7 @@ export class DraftApplicationService {
       .bind(draftId, principal.userId)
       .run();
     for (const attachment of attachments.results) {
-      await this.context.env.ATTACHMENTS.delete(attachment.object_key);
+      await this.context.attachmentStore.delete(attachment.object_key);
     }
   }
 

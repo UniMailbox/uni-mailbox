@@ -11,7 +11,7 @@ import type { OutboundMailJob } from "../../platform/config";
 
 type OutboundContext = Pick<
   AppContext,
-  "env" | "providers" | "credentials" | "logger"
+  "env" | "providers" | "credentials" | "logger" | "attachmentStore"
 >;
 
 interface JobRow {
@@ -157,7 +157,7 @@ async function loadProviderMessage(
     .all<AttachmentRow>();
   const attachments: ProviderAttachment[] = [];
   for (const attachment of attachmentRows.results) {
-    const object = await context.env.ATTACHMENTS.get(attachment.object_key);
+    const object = await context.attachmentStore.get(attachment.object_key);
     if (!object) {
       throw new DomainError(
         "ATTACHMENT_OBJECT_MISSING",
@@ -165,12 +165,21 @@ async function loadProviderMessage(
         503,
       );
     }
+    const bytes =
+      object.body instanceof Uint8Array
+        ? object.body
+        : object.body instanceof ArrayBuffer
+          ? new Uint8Array(object.body)
+          : new Uint8Array(await new Response(object.body).arrayBuffer());
     attachments.push({
       filename: attachment.filename,
       contentType: attachment.mime_type,
       disposition: attachment.disposition,
       ...(attachment.content_id ? { contentId: attachment.content_id } : {}),
-      content: await object.arrayBuffer(),
+      content: bytes.buffer.slice(
+        bytes.byteOffset,
+        bytes.byteOffset + bytes.byteLength,
+      ) as ArrayBuffer,
     });
   }
   const addresses = (type: RecipientRow["type"]): MailAddress[] =>

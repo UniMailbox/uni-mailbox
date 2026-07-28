@@ -236,7 +236,7 @@ export function MailWorkspace({
           <span className="system-pulse" />
           <div>
             <strong>Systems nominal</strong>
-            <small>D1 · R2 · Queue online</small>
+            <small>D1 · Storage · Queue online</small>
           </div>
         </footer>
       </aside>

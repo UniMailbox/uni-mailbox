@@ -42,7 +42,7 @@ async function cleanupExpiredUploads(context: AppContext): Promise<void> {
      LIMIT 100`,
   ).all<{ id: string; object_key: string }>();
   for (const upload of uploads.results) {
-    await context.env.ATTACHMENTS.delete(upload.object_key);
+    await context.attachmentStore.delete(upload.object_key);
     await context.env.DB.prepare(
       `UPDATE attachment_uploads
        SET status = 'expired'
@@ -115,10 +115,10 @@ async function cleanupTrashAndMessages(context: AppContext): Promise<void> {
       .bind(message.id)
       .all<{ object_key: string }>();
     for (const attachment of attachments.results) {
-      await context.env.ATTACHMENTS.delete(attachment.object_key);
+      await context.attachmentStore.delete(attachment.object_key);
     }
     if (message.raw_object_key) {
-      await context.env.ATTACHMENTS.delete(message.raw_object_key);
+      await context.attachmentStore.delete(message.raw_object_key);
     }
     await context.env.DB.prepare("DELETE FROM messages WHERE id = ?")
       .bind(message.id)
@@ -137,15 +137,15 @@ async function cleanupOrphanObjects(context: AppContext): Promise<void> {
   const stored = state
     ? (JSON.parse(state.cursor_json) as { cursor?: string })
     : {};
-  const listing = await context.env.ATTACHMENTS.list({
+  const listing = await context.attachmentStore.list({
     limit: 100,
     ...(stored.cursor ? { cursor: stored.cursor } : {}),
   });
   let removed = 0;
+  // The KV-backed store does not surface per-object upload timestamps, so the
+  // 24-hour grace window from the R2 era no longer applies. Recent D1 writes
+  // remain the source of truth — re-runs of this job are idempotent.
   for (const object of listing.objects) {
-    if (Date.now() - object.uploaded.getTime() < 24 * 60 * 60 * 1000) {
-      continue;
-    }
     const reference = await context.env.DB.prepare(
       `SELECT 1 FROM messages WHERE raw_object_key = ?
        UNION ALL
@@ -158,7 +158,7 @@ async function cleanupOrphanObjects(context: AppContext): Promise<void> {
       .bind(object.key, object.key, object.key)
       .first();
     if (!reference) {
-      await context.env.ATTACHMENTS.delete(object.key);
+      await context.attachmentStore.delete(object.key);
       removed += 1;
     }
   }

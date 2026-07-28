@@ -68,7 +68,7 @@ export class MessageApplicationService {
   constructor(
     private readonly context: Pick<
       AppContext,
-      "env" | "providers" | "credentials" | "logger"
+      "env" | "providers" | "credentials" | "logger" | "attachmentStore"
     >,
     private readonly mailboxes: MailboxApplicationService,
     private readonly cursors: CursorCodec,

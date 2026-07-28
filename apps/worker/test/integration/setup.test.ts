@@ -29,6 +29,10 @@ function setupService() {
           assets: "ok",
           scheduled: "ok",
         },
+        storage: {
+          backend: "r2",
+          reason: "ATTACHMENTS binding is present in the Worker env",
+        },
       }),
     },
     {
