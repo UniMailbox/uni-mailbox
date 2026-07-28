@@ -25,6 +25,7 @@
     "test:e2e:install": "playwright install chromium",
     "test:coverage": "vitest run --config vitest.coverage.config.ts --coverage",
     "scaffold": "node scripts/scaffold.mjs",
+    "bootstrap:admin": "node scripts/bootstrap-admin.mjs",
     "db:migration:new": "node scripts/migration.mjs new",
     "db:migration:status": "node scripts/migration.mjs status",
     "db:migrate": "node scripts/migration.mjs migrate",

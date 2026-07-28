@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { PasswordService } from "../apps/worker/src/modules/identity";
 import {
+  createAdministratorBootstrapSql,
   createPasswordRecord,
   reconcileRuntimeSecretNames,
   sqlLiteral,
@@ -73,6 +74,27 @@ describe("zero-touch bootstrap helpers", () => {
     expect(sqlLiteral("admin.o'hare@example.com")).toBe(
       "'admin.o''hare@example.com'",
     );
+  });
+
+  it("builds an idempotent administrator bootstrap batch without plaintext credentials", () => {
+    const sql = createAdministratorBootstrapSql({
+      userId: "11111111-1111-4111-8111-111111111111",
+      email: "admin@example.com",
+      displayName: "Administrator",
+      passwordRecord: {
+        algorithm: "pbkdf2-sha256",
+        hash: "derived-password-hash",
+        iterations: 310_000,
+        salt: "random-password-salt",
+      },
+    });
+
+    expect(sql).toContain("INSERT INTO users");
+    expect(sql).toContain("INSERT INTO user_roles");
+    expect(sql).toContain("current_step = 'complete'");
+    expect(sql).toContain("WHERE NOT EXISTS");
+    expect(sql).toContain("derived-password-hash");
+    expect(sql).not.toContain("a-strong-password");
   });
 });
 
