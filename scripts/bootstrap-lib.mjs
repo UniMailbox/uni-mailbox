@@ -64,3 +64,57 @@ export async function createPasswordRecord(
 export function sqlLiteral(value) {
   return `'${String(value).replaceAll("'", "''")}'`;
 }
+
+export function createAdministratorBootstrapSql({
+  userId,
+  email,
+  displayName,
+  passwordRecord,
+}) {
+  const administratorRoleId = "00000000-0000-4000-8000-000000000001";
+  return `INSERT INTO users (
+  id, email, password_hash, password_algorithm, password_salt,
+  password_iterations, status, display_name
+)
+SELECT
+  ${sqlLiteral(userId)},
+  ${sqlLiteral(email)},
+  ${sqlLiteral(passwordRecord.hash)},
+  ${sqlLiteral(passwordRecord.algorithm)},
+  ${sqlLiteral(passwordRecord.salt)},
+  ${Number(passwordRecord.iterations)},
+  'active',
+  ${sqlLiteral(displayName)}
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM users existing_user
+  JOIN user_roles existing_role ON existing_role.user_id = existing_user.id
+  WHERE existing_role.role_id = '${administratorRoleId}'
+);
+
+INSERT INTO user_roles (user_id, role_id)
+SELECT ${sqlLiteral(userId)}, '${administratorRoleId}'
+WHERE EXISTS (
+  SELECT 1 FROM users WHERE id = ${sqlLiteral(userId)}
+)
+AND NOT EXISTS (
+  SELECT 1 FROM user_roles WHERE role_id = '${administratorRoleId}'
+);
+
+UPDATE installation_state
+SET status = 'complete',
+    current_step = 'complete',
+    completed_steps_json = '["admin_bootstrap"]',
+    state_version = state_version + 1,
+    completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = 1
+  AND EXISTS (
+    SELECT 1
+    FROM users administrator
+    JOIN user_roles administrator_role
+      ON administrator_role.user_id = administrator.id
+    WHERE administrator_role.role_id = '${administratorRoleId}'
+  );
+`;
+}
