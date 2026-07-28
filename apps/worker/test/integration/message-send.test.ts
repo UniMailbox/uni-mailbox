@@ -4,6 +4,7 @@ import type { Principal } from "@unimailbox/contracts";
 import { MailboxApplicationService } from "../../src/modules/mailboxes";
 import { CursorCodec } from "../../src/modules/messages/cursor";
 import { MessageApplicationService } from "../../src/modules/messages";
+import { createAttachmentStore } from "../../src/platform/attachment-store";
 
 const userId = "11111111-1111-4111-8111-111111111111";
 const senderId = "33333333-3333-4333-8333-333333333333";
@@ -23,17 +24,19 @@ const principal: Principal = {
 };
 
 function service() {
+  const envRecord = env as unknown as Record<string, unknown>;
+  const baseEnv = {
+    DB: env.DB,
+    KV: env.KV,
+    ATTACHMENTS: envRecord.ATTACHMENTS as R2Bucket | undefined,
+    OUTBOUND_QUEUE: env.OUTBOUND_QUEUE,
+    ASSETS: {} as Fetcher,
+    INSTALLATION_TOKEN: "x".repeat(32),
+    AUTH_SIGNING_KEY: "x".repeat(32),
+    CREDENTIAL_ENCRYPTION_KEY: "x".repeat(32),
+  };
   const app = {
-    env: {
-      DB: env.DB,
-      KV: env.KV,
-      ATTACHMENTS: env.ATTACHMENTS,
-      OUTBOUND_QUEUE: env.OUTBOUND_QUEUE,
-      ASSETS: {} as Fetcher,
-      INSTALLATION_TOKEN: "x".repeat(32),
-      AUTH_SIGNING_KEY: "x".repeat(32),
-      CREDENTIAL_ENCRYPTION_KEY: "x".repeat(32),
-    },
+    env: baseEnv,
     providers: {} as never,
     credentials: {} as never,
     logger: {
@@ -41,6 +44,7 @@ function service() {
       warn: vi.fn(),
       error: vi.fn(),
     },
+    attachmentStore: createAttachmentStore(baseEnv),
   };
   return new MessageApplicationService(
     app,

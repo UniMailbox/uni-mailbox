@@ -22,17 +22,19 @@ const administrator: Principal = {
 
 function service() {
   const brevoPlugin: ProviderPlugin = createBrevoProviderPlugin(vi.fn());
+  const envRecord = env as unknown as Record<string, unknown>;
+  const baseEnv = {
+    DB: env.DB,
+    KV: env.KV,
+    ATTACHMENTS: envRecord.ATTACHMENTS as R2Bucket | undefined,
+    OUTBOUND_QUEUE: env.OUTBOUND_QUEUE,
+    ASSETS: {} as Fetcher,
+    INSTALLATION_TOKEN: "x".repeat(32),
+    AUTH_SIGNING_KEY: "x".repeat(32),
+    CREDENTIAL_ENCRYPTION_KEY: "e".repeat(32),
+  };
   return new AdminApplicationService({
-    env: {
-      DB: env.DB,
-      KV: env.KV,
-      ATTACHMENTS: env.ATTACHMENTS,
-      OUTBOUND_QUEUE: env.OUTBOUND_QUEUE,
-      ASSETS: {} as Fetcher,
-      INSTALLATION_TOKEN: "x".repeat(32),
-      AUTH_SIGNING_KEY: "x".repeat(32),
-      CREDENTIAL_ENCRYPTION_KEY: "e".repeat(32),
-    },
+    env: baseEnv,
     providers: new ProviderRegistry(
       new Map<ProviderKey, ProviderPlugin>([[BREVO_PROVIDER_KEY, brevoPlugin]]),
     ),

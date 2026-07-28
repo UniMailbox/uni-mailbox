@@ -108,8 +108,9 @@ export class InboundMailService {
     const messageId = crypto.randomUUID();
     const rawObjectKey = `raw/${messageId}.eml`;
     const uploadedKeys: string[] = [rawObjectKey];
-    await this.context.env.ATTACHMENTS.put(rawObjectKey, raw, {
+    await this.context.attachmentStore.put(rawObjectKey, raw, {
       httpMetadata: { contentType: "message/rfc822" },
+      customMetadata: { source: "inbound", messageId },
     });
 
     const attachmentRows: Array<{
@@ -127,7 +128,7 @@ export class InboundMailService {
         const objectKey = `attachments/${id}`;
         const bytes = attachmentBytes(attachment);
         uploadedKeys.push(objectKey);
-        await this.context.env.ATTACHMENTS.put(objectKey, bytes, {
+        await this.context.attachmentStore.put(objectKey, bytes, {
           httpMetadata: { contentType: attachment.mimeType },
           customMetadata: {
             filename: attachment.filename ?? "",

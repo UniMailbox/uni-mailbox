@@ -25,11 +25,12 @@ function request(payload: Record<string, unknown>) {
 }
 
 function service() {
+  const envRecord = env as unknown as Record<string, unknown>;
   return new WebhookApplicationService({
     env: {
       DB: env.DB,
       KV: env.KV,
-      ATTACHMENTS: env.ATTACHMENTS,
+      ATTACHMENTS: envRecord.ATTACHMENTS as R2Bucket | undefined,
       OUTBOUND_QUEUE: env.OUTBOUND_QUEUE,
       ASSETS: {} as Fetcher,
       INSTALLATION_TOKEN: "x".repeat(32),

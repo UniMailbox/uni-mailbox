@@ -12,7 +12,7 @@ export async function handleQueueBatch(
     try {
       if (message.body.kind === "orphan_object_cleanup") {
         for (const objectKey of message.body.objectKeys) {
-          await appContext.env.ATTACHMENTS.delete(objectKey);
+          await appContext.attachmentStore.delete(objectKey);
         }
         appContext.logger.info("maintenance.orphan_objects.cleaned", {
           count: message.body.objectKeys.length,

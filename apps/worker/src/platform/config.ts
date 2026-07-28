@@ -23,7 +23,13 @@ export type UniMailboxQueueJob = OutboundMailJob | OrphanObjectCleanupJob;
 export interface Env {
   DB: D1Database;
   KV: KVNamespace;
-  ATTACHMENTS: R2Bucket;
+  /**
+   * Optional R2 binding. When present, raw messages and attachment bytes are
+   * stored in R2; otherwise the KV-backed default backend is used. The runtime
+   * picks the backend automatically based on binding presence — see
+   * `apps/worker/src/platform/attachment-store.ts`.
+   */
+  ATTACHMENTS?: R2Bucket;
   OUTBOUND_QUEUE: Queue<UniMailboxQueueJob>;
   ASSETS: Fetcher;
   INSTALLATION_TOKEN: SecretBinding;

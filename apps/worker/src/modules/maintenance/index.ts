@@ -1,4 +1,5 @@
 import type { Env } from "../../platform/config";
+import type { StorageBackend } from "../../platform/attachment-store";
 
 export interface HealthResult {
   status: "ok" | "degraded";
@@ -10,10 +11,17 @@ export interface HealthResult {
     assets: "ok" | "missing" | "error";
     scheduled: "ok" | "pending" | "stale" | "error";
   };
+  storage: {
+    backend: StorageBackend;
+    reason: string;
+  };
 }
 
 export class HealthService {
-  constructor(private readonly env: Env) {}
+  constructor(
+    private readonly env: Env,
+    private readonly backend: StorageBackend,
+  ) {}
 
   async check(): Promise<HealthResult> {
     const checks: HealthResult["checks"] = {
@@ -53,6 +61,13 @@ export class HealthService {
         ? "ok"
         : "degraded",
       checks,
+      storage: {
+        backend: this.backend,
+        reason:
+          this.backend === "r2"
+            ? "ATTACHMENTS binding is present in the Worker env"
+            : "ATTACHMENTS binding is absent; KV is the default storage backend",
+      },
     };
   }
 }

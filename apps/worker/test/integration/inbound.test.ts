@@ -2,6 +2,7 @@ import { applyD1Migrations, env } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppContext } from "../../src/app-context";
 import { InboundMailService } from "../../src/modules/inbound-mail";
+import { createAttachmentStore } from "../../src/platform/attachment-store";
 
 function emailMessage(
   raw: string,
@@ -21,25 +22,32 @@ function emailMessage(
 
 function context(
   overrides: Partial<AppContext["env"]> = {},
-): Pick<AppContext, "env" | "logger"> {
+): Pick<AppContext, "env" | "logger" | "attachmentStore"> {
+  const envRecord = env as unknown as Record<string, unknown>;
+  const baseEnv: AppContext["env"] = {
+    DB: env.DB,
+    KV: env.KV,
+    ATTACHMENTS: envRecord.ATTACHMENTS as R2Bucket | undefined,
+    OUTBOUND_QUEUE: env.OUTBOUND_QUEUE,
+    ASSETS: {} as Fetcher,
+    INSTALLATION_TOKEN: "x".repeat(32),
+    AUTH_SIGNING_KEY: "x".repeat(32),
+    CREDENTIAL_ENCRYPTION_KEY: "x".repeat(32),
+    ...overrides,
+  };
   return {
-    env: {
-      DB: env.DB,
-      KV: env.KV,
-      ATTACHMENTS: env.ATTACHMENTS,
-      OUTBOUND_QUEUE: env.OUTBOUND_QUEUE,
-      ASSETS: {} as Fetcher,
-      INSTALLATION_TOKEN: "x".repeat(32),
-      AUTH_SIGNING_KEY: "x".repeat(32),
-      CREDENTIAL_ENCRYPTION_KEY: "x".repeat(32),
-      ...overrides,
-    },
+    env: baseEnv,
     logger: {
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
     },
+    attachmentStore: createAttachmentStore(baseEnv),
   };
+}
+
+function envFixture(): AppContext["env"] {
+  return context().env;
 }
 
 async function seedMailbox(): Promise<void> {
@@ -120,12 +128,9 @@ describe("inbound mail persistence", () => {
     }>();
     expect(attachment?.filename).toBeNull();
     expect(attachment?.size_bytes).toBe(5);
-    expect(
-      await env.ATTACHMENTS.head(stored?.raw_object_key ?? ""),
-    ).not.toBeNull();
-    expect(
-      await env.ATTACHMENTS.head(attachment?.object_key ?? ""),
-    ).not.toBeNull();
+    const store = createAttachmentStore(envFixture());
+    expect(await store.head(stored?.raw_object_key ?? "")).not.toBeNull();
+    expect(await store.head(attachment?.object_key ?? "")).not.toBeNull();
   });
 
   it("stores unknown recipients canonically under the store policy", async () => {
