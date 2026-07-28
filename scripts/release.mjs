@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { resolve } from "node:path";
 import {
   assertMigrationSet,
@@ -10,6 +16,7 @@ import {
   root,
   run,
 } from "./_shared.mjs";
+import { parseVersionUploadResult } from "./release-lib.mjs";
 
 const target = process.argv[2];
 if (!["preview", "production", "rollback"].includes(target)) {
@@ -38,6 +45,8 @@ if (target === "rollback") {
     "wrangler",
     "rollback",
     manifest.previousVersionId,
+    "--env",
+    "",
     "--yes",
     "--message",
     `Automated rollback after failed verification for ${manifest.commit}`,
@@ -66,6 +75,8 @@ run("pnpm", [
   "exec",
   "wrangler",
   "deploy",
+  "--env",
+  "",
   "--dry-run",
   "--outdir",
   ".wrangler/release",
@@ -87,14 +98,14 @@ mkdirSync(resolve(root, ".wrangler/release"), { recursive: true });
 function writeManifest() {
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 }
-function captureRequired(command, args, event) {
+function captureRequired(command, args, event, options = {}) {
   output("command.started", { command, args });
-  const result = capture(command, args);
+  const result = capture(command, args, options);
   if (!result.ok) {
     fail(event, result.stderr || result.stdout, 9, { command, args });
   }
   output("command.completed", { command, args });
-  return `${result.stdout}\n${result.stderr}`;
+  return result;
 }
 function deployedVersionId(raw) {
   try {
@@ -137,10 +148,17 @@ if (target === "preview") {
     "wrangler",
     "deployments",
     "status",
+    "--env",
+    "",
     "--json",
   ]);
   const currentDeployment = current.ok ? current.stdout : "";
   const previousVersionId = deployedVersionId(currentDeployment) ?? null;
+  const versionOutputPath = resolve(
+    root,
+    ".wrangler/release/version-upload.jsonl",
+  );
+  if (existsSync(versionOutputPath)) unlinkSync(versionOutputPath);
   const candidate = captureRequired(
     "pnpm",
     [
@@ -148,6 +166,8 @@ if (target === "preview") {
       "wrangler",
       "versions",
       "upload",
+      "--env",
+      "",
       "--preview-alias",
       "release-candidate",
       "--tag",
@@ -156,13 +176,20 @@ if (target === "preview") {
       `UniMailbox release ${manifest.commit}`,
     ],
     "release.version_upload_failed",
+    {
+      env: {
+        ...process.env,
+        WRANGLER_OUTPUT_FILE_PATH: versionOutputPath,
+      },
+    },
   );
-  const workerVersionId =
-    candidate.match(
-      /(?:Worker Version ID|Version ID)\s*:\s*([0-9a-f-]{36})/iu,
-    )?.[1] ??
-    candidate.match(/\b[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b/iu)?.[0];
-  const previewUrl = candidate.match(/https:\/\/[^\s]+\.workers\.dev/iu)?.[0];
+  const { workerVersionId, previewUrl } = parseVersionUploadResult({
+    outputFile: existsSync(versionOutputPath)
+      ? readFileSync(versionOutputPath, "utf8")
+      : "",
+    stdout: candidate.stdout,
+    stderr: candidate.stderr,
+  });
   if (!workerVersionId || !previewUrl) {
     fail(
       "release.version_output_invalid",
@@ -178,11 +205,22 @@ if (target === "preview") {
   writeManifest();
   run("node", ["scripts/verify-deployment.mjs", previewUrl]);
 
-  const bookmarkOutput = captureRequired(
+  const bookmark = captureRequired(
     "pnpm",
-    ["exec", "wrangler", "d1", "time-travel", "info", "DB", "--json"],
+    [
+      "exec",
+      "wrangler",
+      "d1",
+      "time-travel",
+      "info",
+      "DB",
+      "--env",
+      "",
+      "--json",
+    ],
     "release.bookmark_failed",
   );
+  const bookmarkOutput = `${bookmark.stdout}\n${bookmark.stderr}`;
   let d1Bookmark;
   try {
     const start = Math.min(
@@ -219,6 +257,8 @@ if (target === "preview") {
     "versions",
     "deploy",
     `${workerVersionId}@100%`,
+    "--env",
+    "",
     "--yes",
     "--message",
     `Promote UniMailbox ${manifest.commit}`,

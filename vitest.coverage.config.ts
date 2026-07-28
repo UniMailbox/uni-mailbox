@@ -28,6 +28,7 @@ export default defineConfig({
         "apps/worker/src/platform/attachment-store.ts",
         "apps/worker/src/platform/crypto.ts",
         "scripts/attachment-migration-lib.mjs",
+        "scripts/release-lib.mjs",
       ],
       exclude: [
         "packages/contracts/src/events/index.ts",

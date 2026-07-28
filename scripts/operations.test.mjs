@@ -12,6 +12,14 @@ const deployment = readFileSync(
   new URL("../docs/deployment.md", import.meta.url),
   "utf8",
 );
+const defaultWrangler = readFileSync(
+  new URL("../wrangler.jsonc", import.meta.url),
+  "utf8",
+);
+const r2Wrangler = readFileSync(
+  new URL("../wrangler.r2.jsonc", import.meta.url),
+  "utf8",
+);
 
 describe("R2 operational commands", () => {
   it("deploys production and preview explicitly", () => {
@@ -39,5 +47,11 @@ describe("R2 operational commands", () => {
     expect(deployment).not.toContain(
       "`pnpm deploy:r2` also deploys the preview environment",
     );
+  });
+
+  it("keeps version preview URLs enabled for release verification", () => {
+    for (const config of [defaultWrangler, r2Wrangler]) {
+      expect(config.match(/"preview_urls": true/gu)).toHaveLength(2);
+    }
   });
 });
