@@ -1,15 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  Cloud,
+  Database,
   KeyRound,
   MailPlus,
   ShieldCheck,
-  Wrench,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { apiRequest, jsonBody } from "../../lib/api";
-import { Link } from "../../lib/navigation";
-import { ErrorState, LoadingState, SuccessNote } from "../../components/Status";
+import { apiRequest, jsonBody, setAccessToken } from "../../lib/api";
+import { Link, navigate } from "../../lib/navigation";
+import { ErrorState, LoadingState } from "../../components/Status";
+import { CloudflareSettings } from "./CloudflareSettings";
+import { StorageSettings } from "./StorageSettings";
 
 interface Mailbox {
   id: string;
@@ -141,9 +144,13 @@ function MailboxMembers({ mailboxId }: { mailboxId: string }) {
 export function SettingsPage({
   section,
 }: {
-  section: "account" | "mailboxes";
+  section: "account" | "mailboxes" | "cloudflare" | "storage";
 }) {
   const client = useQueryClient();
+  const emailForm = useForm<{
+    currentPassword: string;
+    email: string;
+  }>();
   const passwordForm = useForm<{
     currentPassword: string;
     newPassword: string;
@@ -158,30 +165,25 @@ export function SettingsPage({
     queryFn: () => apiRequest<Mailbox[]>("/mailboxes"),
     enabled: section === "mailboxes",
   });
+  const requireNewLogin = () => {
+    setAccessToken(null);
+    navigate("/login");
+  };
+  const email = useMutation({
+    mutationFn: (values: { currentPassword: string; email: string }) =>
+      apiRequest("/auth/email", {
+        method: "POST",
+        body: jsonBody(values),
+      }),
+    onSuccess: requireNewLogin,
+  });
   const password = useMutation({
     mutationFn: (values: { currentPassword: string; newPassword: string }) =>
       apiRequest("/auth/password/reset", {
         method: "POST",
         body: jsonBody(values),
       }),
-    onSuccess: () => passwordForm.reset(),
-  });
-  const repair = useMutation({
-    mutationFn: () =>
-      apiRequest<{ csrfToken: string }>("/setup/repair", {
-        method: "POST",
-      }),
-    onSuccess: (session) => {
-      window.sessionStorage.setItem("unimailbox.setup-csrf", session.csrfToken);
-      window.location.assign("/setup");
-    },
-  });
-  const revokeCloudflare = useMutation({
-    mutationFn: () =>
-      apiRequest<{ revoked: boolean }>("/setup/cloudflare/oauth/revoke", {
-        method: "POST",
-        headers: { "idempotency-key": crypto.randomUUID() },
-      }),
+    onSuccess: requireNewLogin,
   });
   const mailbox = useMutation({
     mutationFn: (values: {
@@ -206,7 +208,15 @@ export function SettingsPage({
         </Link>
         <div>
           <div className="section-kicker">Workspace settings</div>
-          <h1>{section === "account" ? "Security" : "Mailboxes"}</h1>
+          <h1>
+            {section === "account"
+              ? "Security"
+              : section === "mailboxes"
+                ? "Mailboxes"
+                : section === "cloudflare"
+                  ? "Cloudflare Mail"
+                  : "Infrastructure"}
+          </h1>
         </div>
       </header>
       <nav className="settings-tabs">
@@ -222,93 +232,112 @@ export function SettingsPage({
         >
           <MailPlus /> Mailboxes
         </Link>
+        <Link
+          aria-current={section === "cloudflare" ? "page" : undefined}
+          to="/settings/cloudflare"
+        >
+          <Cloud /> Cloudflare Mail
+        </Link>
+        <Link
+          aria-current={section === "storage" ? "page" : undefined}
+          to="/settings/storage"
+        >
+          <Database /> Storage & runtime
+        </Link>
       </nav>
       {section === "account" ? (
         <section className="settings-card">
           <ShieldCheck />
           <div>
-            <h2>Change password</h2>
+            <h2>Login identity</h2>
             <p>
-              Changing your password immediately revokes every active session.
+              This email is only your UniMailbox login. It does not create,
+              select, or modify a mailbox or sending domain.
             </p>
-            <form
-              className="form-stack narrow"
-              onSubmit={passwordForm.handleSubmit((values) =>
-                password.mutate(values),
-              )}
-            >
-              <label className="field">
-                <span>Current password</span>
-                <input
-                  {...passwordForm.register("currentPassword", {
-                    required: true,
-                    minLength: 12,
-                  })}
-                  type="password"
-                />
-              </label>
-              <label className="field">
-                <span>New password</span>
-                <input
-                  {...passwordForm.register("newPassword", {
-                    required: true,
-                    minLength: 12,
-                  })}
-                  type="password"
-                />
-              </label>
-              {password.error ? <ErrorState error={password.error} /> : null}
-              {password.isSuccess ? (
-                <SuccessNote>Password changed; sessions revoked.</SuccessNote>
-              ) : null}
-              <button className="button primary">Update password</button>
-            </form>
-            <div className="repair-box">
-              <Wrench />
+            <div className="account-security-grid">
               <div>
-                <strong>Installation repair mode</strong>
-                <p>
-                  Administrators can reopen setup checks for 15 minutes. Every
-                  repair action is audited.
-                </p>
+                <h3>Change login email</h3>
+                <form
+                  className="form-stack"
+                  onSubmit={emailForm.handleSubmit((values) =>
+                    email.mutate(values),
+                  )}
+                >
+                  <label className="field">
+                    <span>New login email</span>
+                    <input
+                      {...emailForm.register("email", { required: true })}
+                      autoComplete="email"
+                      type="email"
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Current password</span>
+                    <input
+                      {...emailForm.register("currentPassword", {
+                        required: true,
+                        minLength: 12,
+                      })}
+                      autoComplete="current-password"
+                      type="password"
+                    />
+                  </label>
+                  {email.error ? <ErrorState error={email.error} /> : null}
+                  <button className="button primary" disabled={email.isPending}>
+                    Update login email
+                  </button>
+                </form>
               </div>
-              <button
-                className="button secondary"
-                disabled={repair.isPending}
-                onClick={() => repair.mutate()}
-                type="button"
-              >
-                Open repair mode
-              </button>
+              <div>
+                <h3>Change password</h3>
+                <form
+                  className="form-stack"
+                  onSubmit={passwordForm.handleSubmit((values) =>
+                    password.mutate(values),
+                  )}
+                >
+                  <label className="field">
+                    <span>Current password</span>
+                    <input
+                      {...passwordForm.register("currentPassword", {
+                        required: true,
+                        minLength: 12,
+                      })}
+                      autoComplete="current-password"
+                      type="password"
+                    />
+                  </label>
+                  <label className="field">
+                    <span>New password</span>
+                    <input
+                      {...passwordForm.register("newPassword", {
+                        required: true,
+                        minLength: 12,
+                      })}
+                      autoComplete="new-password"
+                      type="password"
+                    />
+                  </label>
+                  {password.error ? (
+                    <ErrorState error={password.error} />
+                  ) : null}
+                  <button
+                    className="button primary"
+                    disabled={password.isPending}
+                  >
+                    Update password
+                  </button>
+                </form>
+              </div>
             </div>
-            <div className="repair-box">
+            <div className="session-warning">
               <ShieldCheck />
-              <div>
-                <strong>Cloudflare OAuth authorization</strong>
-                <p>
-                  Revoke the optional Cloudflare authorization and remove its
-                  encrypted token from this installation.
-                </p>
-                {revokeCloudflare.isSuccess ? (
-                  <small>
-                    {revokeCloudflare.data.revoked
-                      ? "Authorization revoked."
-                      : "No OAuth authorization was connected."}
-                  </small>
-                ) : null}
-              </div>
-              <button
-                className="button secondary"
-                disabled={revokeCloudflare.isPending}
-                onClick={() => revokeCloudflare.mutate()}
-                type="button"
-              >
-                Revoke OAuth
-              </button>
+              Email or password changes revoke every refresh session. You will
+              sign in again with the updated credentials.
             </div>
           </div>
         </section>
-      ) : (
+      ) : section === "mailboxes" ? (
         <div className="settings-grid">
           <section className="settings-card vertical">
             <h2>Your mailboxes</h2>
@@ -357,6 +386,10 @@ export function SettingsPage({
             </form>
           </section>
         </div>
+      ) : section === "cloudflare" ? (
+        <CloudflareSettings />
+      ) : (
+        <StorageSettings />
       )}
     </main>
   );
