@@ -1,5 +1,12 @@
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -138,6 +145,20 @@ export function readJsonc(path) {
     }
   }
   return JSON.parse(normalized);
+}
+
+export async function withSecureTemporaryJson(directory, value, callback) {
+  mkdirSync(directory, { recursive: true });
+  const path = resolve(directory, `.unimailbox-secrets-${randomUUID()}.json`);
+  writeFileSync(path, `${JSON.stringify(value)}\n`, {
+    mode: 0o600,
+    flag: "wx",
+  });
+  try {
+    return await callback(path);
+  } finally {
+    if (existsSync(path)) unlinkSync(path);
+  }
 }
 
 export function migrationFiles() {

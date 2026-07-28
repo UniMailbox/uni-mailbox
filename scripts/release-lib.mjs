@@ -56,9 +56,11 @@ export function selectProductionReleaseMode({ workerVersionId, previewUrl }) {
 
 export function productionReleaseSteps(releaseMode) {
   const databaseSteps = [
+    "reconcile-runtime-secrets",
     "capture-bookmark",
     "migrate-production",
     "verify-migrations",
+    "bootstrap-administrator",
   ];
   return releaseMode === "verified-version"
     ? ["verify-candidate", ...databaseSteps, "promote-version"]

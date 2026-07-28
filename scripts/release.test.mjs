@@ -119,9 +119,11 @@ describe("production release fallback", () => {
 
   it("keeps database recovery and verification in the direct-deploy fallback", () => {
     expect(productionReleaseSteps("direct-deploy")).toEqual([
+      "reconcile-runtime-secrets",
       "capture-bookmark",
       "migrate-production",
       "verify-migrations",
+      "bootstrap-administrator",
       "deploy-direct",
     ]);
   });
@@ -129,9 +131,11 @@ describe("production release fallback", () => {
   it("keeps candidate verification before the shared database safeguards", () => {
     expect(productionReleaseSteps("verified-version")).toEqual([
       "verify-candidate",
+      "reconcile-runtime-secrets",
       "capture-bookmark",
       "migrate-production",
       "verify-migrations",
+      "bootstrap-administrator",
       "promote-version",
     ]);
   });
