@@ -33,10 +33,10 @@ function doctor() {
   assertVersion("pnpm", pnpm.stdout, "10.");
   const wrangler = capture("pnpm", ["exec", "wrangler", "--version"]);
   if (!wrangler.ok) fail("doctor.tool_missing", "Wrangler is not available", 5);
-  if (!wrangler.stdout.includes("4.68.0")) {
+  if (!wrangler.stdout.includes("4.114.0")) {
     fail(
       "doctor.version_mismatch",
-      `Expected pinned Wrangler 4.68.0; found ${wrangler.stdout}`,
+      `Expected pinned Wrangler 4.114.0; found ${wrangler.stdout}`,
       5,
     );
   }
@@ -67,7 +67,8 @@ function doctor() {
     queue: wranglerConfig.queues?.producers?.some(
       (binding) => binding.binding === "OUTBOUND_QUEUE",
     ),
-    secrets: wranglerConfig.secrets_store_secrets?.length === 3,
+    runtimeSecretsManagedByRelease:
+      wranglerConfig.secrets_store_secrets === undefined,
     crons: wranglerConfig.triggers?.crons?.length >= 3,
   };
   if (
@@ -76,7 +77,7 @@ function doctor() {
     !bindingChecks.d1 ||
     !bindingChecks.kv ||
     !bindingChecks.queue ||
-    !bindingChecks.secrets ||
+    !bindingChecks.runtimeSecretsManagedByRelease ||
     !bindingChecks.crons
   ) {
     fail(
@@ -104,21 +105,6 @@ function doctor() {
     fail("doctor.scripts_missing", "Required scripts are missing", 6, {
       missingScripts,
     });
-  }
-  const bindings = pkg.cloudflare?.bindings ?? {};
-  const missingSecrets = [
-    "AUTH_SIGNING_KEY",
-    "CREDENTIAL_ENCRYPTION_KEY",
-  ].filter((name) => !bindings[name]);
-  if (missingSecrets.length) {
-    fail(
-      "doctor.secret_metadata_missing",
-      "Secret descriptions are missing",
-      6,
-      {
-        missingSecrets,
-      },
-    );
   }
   const migrations = assertMigrationSet();
   output("doctor.completed", {

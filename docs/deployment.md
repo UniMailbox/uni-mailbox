@@ -11,8 +11,7 @@ resource ID in source control.
 
 Put the repository's public URL into the Deploy to Cloudflare button in the
 README. Cloudflare imports the repository, provisions resources from
-`wrangler.jsonc`, collects the declared secret bindings, and runs the root
-build/deploy commands.
+`wrangler.jsonc`, and runs the root build/deploy commands.
 
 ### Private repository
 
@@ -24,8 +23,21 @@ root and configure:
 - Node version: 22
 - Root directory: repository root
 
-Cloudflare owns the generated D1, KV, R2, Queue, and Secrets Store deployment
-metadata. Do not copy account IDs into application settings.
+For both paths, configure exactly two Workers Builds variables:
+
+- `INITIAL_ADMIN_EMAIL`: the first administrator's login identity. It is not a
+  mailbox, sender, or managed-domain address.
+- `INITIAL_ADMIN_PASSWORD`: 12 to 1024 characters. Use a generated unique
+  password and rotate it after the first login.
+
+These are one-time build inputs, not Worker runtime variables. The release
+hashes the password into D1 and never logs either value. Remove them from the
+build configuration after the first successful deployment. A later release
+detects the existing administrator and does not replace it.
+
+Cloudflare owns the generated D1, KV, and Queue deployment metadata. R2 is
+optional and added only through `wrangler.r2.jsonc`. Do not copy account IDs
+into application settings.
 
 ## Storage backends
 
@@ -102,16 +114,25 @@ raise the limit, deploy with R2 (next section).
 The `r2` field still reports the binding presence for backwards compatibility.
 The `storage` object is the canonical indicator.
 
-## Required bootstrap secrets
+## Automatic runtime secrets
 
-The deployment page must collect or generate:
+The release inspects the Worker secret names and securely generates any missing
+values for:
 
-- `INSTALLATION_TOKEN`: one-time setup claim token, at least 32 random bytes.
 - `AUTH_SIGNING_KEY`: HMAC signing key, at least 32 random bytes.
 - `CREDENTIAL_ENCRYPTION_KEY`: AES-GCM key material, at least 32 random bytes.
 
-Brevo keys and application settings are not deployment environment variables.
-They are encrypted and managed inside the installed application.
+Generated values are attached with Wrangler's temporary `--secrets-file`
+input; the file is mode `0600` and is deleted after upload/deploy. Values never
+appear in release logs. Existing secret names are preserved. If an existing
+installation has encrypted credentials but the encryption secret is missing,
+the release stops with `release.legacy_secret_migration_required` rather than
+silently generating an incompatible key.
+
+After deployment, the first page is `/login`. Cloudflare account/zone IDs,
+Email Routing, domains, Brevo, inbound/outbound smoke tests, and optional R2
+verification live under authenticated Settings. Brevo credentials are
+encrypted and managed inside the application.
 
 ## Pre-release checks
 
@@ -160,9 +181,11 @@ also requires the GitHub `production` environment:
 2. Build once and retain `.wrangler/release/manifest.json`.
 3. Record the D1 Time Travel bookmark printed by the release command.
 4. Apply reviewed migrations with an explicit deployment confirmation.
-5. Run verification queries.
-6. Upload and promote the Worker.
-7. Verify `/health`, setup state, authenticated mail access, Queue and Cron
+5. Create the first administrator from the one-time build inputs when none
+   exists and verify installation state is `complete`.
+6. Run verification queries.
+7. Upload and promote the Worker.
+8. Verify `/health`, `/login`, authenticated mail access, Queue and Cron
    activity, inbound routing, and Brevo health.
 
 ```bash
@@ -170,8 +193,8 @@ pnpm release:production
 pnpm release:verify https://mail.example.com
 ```
 
-`release:verify` covers public HTTP checks. The setup page and administration
-control plane own the credentialed inbound/outbound smoke tests.
+`release:verify` covers public HTTP checks. The authenticated Settings control
+plane owns Cloudflare Email Routing, Brevo, and inbound/outbound smoke tests.
 
 For Cloudflare Workers Builds, set **Settings > Build > Branch control >
 Production branch** to `main`. Use `pnpm run build` as the build command and
@@ -186,6 +209,9 @@ production migrations, skips only candidate HTTP verification, and falls back
 to a direct production deploy. D1 Time Travel capture and migration schema
 verification remain mandatory. The manifest records
 `releaseMode: "direct-deploy"` and `verificationSkipped: true` for follow-up.
+This path is expected to start the system normally even when Wrangler omits
+candidate metadata. The log also emits candidate stdout/stderr byte counts and
+parsed metadata diagnostics without exposing secrets.
 
 Configure account-owned notification destinations and run the release drill in
 the [observability and alerts runbook](runbooks/observability-alerts.md).
