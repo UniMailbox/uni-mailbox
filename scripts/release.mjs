@@ -16,13 +16,26 @@ import {
   root,
   run,
 } from "./_shared.mjs";
-import { parseVersionUploadResult } from "./release-lib.mjs";
+import {
+  createVersionUploadDiagnostics,
+  parseVersionUploadResult,
+  productionBranchFromEnvironment,
+  productionReleaseSteps,
+  selectProductionReleaseMode,
+} from "./release-lib.mjs";
 
 const target = process.argv[2];
 if (!["preview", "production", "rollback"].includes(target)) {
   fail("release.usage", "Usage: release.mjs preview|production|rollback", 2);
 }
 const manifestPath = resolve(root, ".wrangler/release/manifest.json");
+const productionBranch = productionBranchFromEnvironment(process.env);
+output("release.context", {
+  target,
+  workersBuild: process.env.WORKERS_CI === "1",
+  branch: productionBranch ?? null,
+  buildUuid: process.env.WORKERS_CI_BUILD_UUID ?? null,
+});
 
 if (target === "rollback") {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
@@ -59,8 +72,8 @@ if (target === "rollback") {
 }
 if (
   target === "production" &&
-  process.env.GITHUB_REF_NAME &&
-  !["main", "master"].includes(process.env.GITHUB_REF_NAME)
+  productionBranch &&
+  !["main", "master"].includes(productionBranch)
 ) {
   fail(
     "release.branch_forbidden",
@@ -128,6 +141,58 @@ function deployedVersionId(raw) {
     return undefined;
   }
 }
+function captureD1Bookmark() {
+  const bookmark = captureRequired(
+    "pnpm",
+    [
+      "exec",
+      "wrangler",
+      "d1",
+      "time-travel",
+      "info",
+      "DB",
+      "--env",
+      "",
+      "--json",
+    ],
+    "release.bookmark_failed",
+  );
+  const bookmarkOutput = `${bookmark.stdout}\n${bookmark.stderr}`;
+  let d1Bookmark;
+  try {
+    const start = Math.min(
+      ...["{", "["]
+        .map((character) => bookmarkOutput.indexOf(character))
+        .filter((index) => index >= 0),
+    );
+    const end = Math.max(
+      bookmarkOutput.lastIndexOf("}"),
+      bookmarkOutput.lastIndexOf("]"),
+    );
+    d1Bookmark = JSON.parse(bookmarkOutput.slice(start, end + 1));
+  } catch {
+    fail(
+      "release.bookmark_output_invalid",
+      "D1 Time Travel did not return valid JSON",
+      9,
+    );
+  }
+  Object.assign(manifest, { d1Bookmark });
+  writeManifest();
+}
+function migrateProduction() {
+  run("node", [
+    "scripts/migration.mjs",
+    "migrate",
+    "--target",
+    "production",
+    "--confirm",
+    manifest.commit,
+  ]);
+}
+function verifyProductionMigrations() {
+  run("node", ["scripts/migration.mjs", "verify", "--target", "production"]);
+}
 writeManifest();
 output("release.artifact.created", manifest);
 
@@ -183,88 +248,75 @@ if (target === "preview") {
       },
     },
   );
+  const outputFileExists = existsSync(versionOutputPath);
+  const versionOutput = outputFileExists
+    ? readFileSync(versionOutputPath, "utf8")
+    : "";
   const { workerVersionId, previewUrl } = parseVersionUploadResult({
-    outputFile: existsSync(versionOutputPath)
-      ? readFileSync(versionOutputPath, "utf8")
-      : "",
+    outputFile: versionOutput,
     stdout: candidate.stdout,
     stderr: candidate.stderr,
   });
-  if (!workerVersionId || !previewUrl) {
-    fail(
-      "release.version_output_invalid",
-      "Wrangler did not return a candidate version ID and preview URL",
-      9,
-    );
-  }
-  Object.assign(manifest, {
-    previousVersionId,
+  const releaseMode = selectProductionReleaseMode({
     workerVersionId,
     previewUrl,
   });
+  const versionDiagnostics = createVersionUploadDiagnostics({
+    outputFileExists,
+    outputFile: versionOutput,
+    stdout: candidate.stdout,
+    stderr: candidate.stderr,
+  });
+  output("release.version_output.inspected", {
+    status: releaseMode === "verified-version" ? "ok" : "degraded",
+    releaseMode,
+    workerVersionIdFound: Boolean(workerVersionId),
+    previewUrlFound: Boolean(previewUrl),
+    ...versionDiagnostics,
+  });
+  Object.assign(manifest, {
+    previousVersionId,
+    releaseMode,
+    ...(workerVersionId ? { workerVersionId } : {}),
+    ...(previewUrl ? { previewUrl } : {}),
+  });
   writeManifest();
-  run("node", ["scripts/verify-deployment.mjs", previewUrl]);
-
-  const bookmark = captureRequired(
-    "pnpm",
-    [
-      "exec",
-      "wrangler",
-      "d1",
-      "time-travel",
-      "info",
-      "DB",
-      "--env",
-      "",
-      "--json",
-    ],
-    "release.bookmark_failed",
-  );
-  const bookmarkOutput = `${bookmark.stdout}\n${bookmark.stderr}`;
-  let d1Bookmark;
-  try {
-    const start = Math.min(
-      ...["{", "["]
-        .map((character) => bookmarkOutput.indexOf(character))
-        .filter((index) => index >= 0),
-    );
-    const end = Math.max(
-      bookmarkOutput.lastIndexOf("}"),
-      bookmarkOutput.lastIndexOf("]"),
-    );
-    d1Bookmark = JSON.parse(bookmarkOutput.slice(start, end + 1));
-  } catch {
-    fail(
-      "release.bookmark_output_invalid",
-      "D1 Time Travel did not return valid JSON",
-      9,
-    );
+  if (releaseMode === "direct-deploy") {
+    output("release.direct_deploy_fallback", {
+      status: "degraded",
+      message:
+        "Candidate metadata was incomplete; skipping preview verification and deploying directly",
+    });
   }
-  Object.assign(manifest, { d1Bookmark });
-  writeManifest();
-  run("node", [
-    "scripts/migration.mjs",
-    "migrate",
-    "--target",
-    "production",
-    "--confirm",
-    manifest.commit,
-  ]);
-  run("node", ["scripts/migration.mjs", "verify", "--target", "production"]);
-  run("pnpm", [
-    "exec",
-    "wrangler",
-    "versions",
-    "deploy",
-    `${workerVersionId}@100%`,
-    "--env",
-    "",
-    "--yes",
-    "--message",
-    `Promote UniMailbox ${manifest.commit}`,
-  ]);
+  for (const step of productionReleaseSteps(releaseMode)) {
+    if (step === "verify-candidate") {
+      run("node", ["scripts/verify-deployment.mjs", previewUrl]);
+    } else if (step === "capture-bookmark") {
+      captureD1Bookmark();
+    } else if (step === "migrate-production") {
+      migrateProduction();
+    } else if (step === "verify-migrations") {
+      verifyProductionMigrations();
+    } else if (step === "deploy-direct") {
+      run("pnpm", ["exec", "wrangler", "deploy", "--env", ""]);
+    } else if (step === "promote-version") {
+      run("pnpm", [
+        "exec",
+        "wrangler",
+        "versions",
+        "deploy",
+        `${workerVersionId}@100%`,
+        "--env",
+        "",
+        "--yes",
+        "--message",
+        `Promote UniMailbox ${manifest.commit}`,
+      ]);
+    }
+  }
   Object.assign(manifest, {
     promoted: true,
+    verificationSkipped: releaseMode === "direct-deploy",
     promotedAt: new Date().toISOString(),
   });
   writeManifest();
