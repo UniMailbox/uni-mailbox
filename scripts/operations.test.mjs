@@ -20,6 +20,23 @@ const r2Wrangler = readFileSync(
   new URL("../wrangler.r2.jsonc", import.meta.url),
   "utf8",
 );
+const runtimeConfig = readFileSync(
+  new URL("../apps/worker/src/platform/config.ts", import.meta.url),
+  "utf8",
+);
+const bootstrapAdmin = readFileSync(
+  new URL("./bootstrap-admin.mjs", import.meta.url),
+  "utf8",
+);
+const bootstrapLib = readFileSync(
+  new URL("./bootstrap-lib.mjs", import.meta.url),
+  "utf8",
+);
+const devVars = readFileSync(
+  new URL("../.dev.vars.example", import.meta.url),
+  "utf8",
+);
+const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
 
 describe("R2 operational commands", () => {
   it("deploys production and preview explicitly", () => {
@@ -53,5 +70,38 @@ describe("R2 operational commands", () => {
     for (const config of [defaultWrangler, r2Wrangler]) {
       expect(config.match(/"preview_urls": true/gu)).toHaveLength(2);
     }
+  });
+
+  it("uses only build-time administrator inputs for first deployment", () => {
+    expect(packageJson.scripts["bootstrap:admin"]).toBe(
+      "node scripts/bootstrap-admin.mjs",
+    );
+    expect(`${bootstrapAdmin}\n${bootstrapLib}`).toContain(
+      "INITIAL_ADMIN_EMAIL",
+    );
+    expect(`${bootstrapAdmin}\n${bootstrapLib}`).toContain(
+      "INITIAL_ADMIN_PASSWORD",
+    );
+    expect(readme).toContain("INITIAL_ADMIN_EMAIL");
+    expect(readme).toContain("INITIAL_ADMIN_PASSWORD");
+    expect(
+      [defaultWrangler, r2Wrangler, runtimeConfig, devVars].join("\n"),
+    ).not.toContain("INSTALLATION_TOKEN");
+  });
+
+  it("does not prompt for generated runtime secrets", () => {
+    for (const config of [defaultWrangler, r2Wrangler]) {
+      expect(config).not.toContain("secrets_store_secrets");
+      expect(config).not.toContain("AUTH_SIGNING_KEY");
+      expect(config).not.toContain("CREDENTIAL_ENCRYPTION_KEY");
+    }
+    expect(packageJson.cloudflare?.bindings).toBeUndefined();
+  });
+
+  it("keeps D1 and KV required while R2 stays optional", () => {
+    expect(defaultWrangler).toContain('"binding": "DB"');
+    expect(defaultWrangler).toContain('"binding": "KV"');
+    expect(defaultWrangler).not.toContain('"binding": "ATTACHMENTS"');
+    expect(r2Wrangler).toContain('"binding": "ATTACHMENTS"');
   });
 });

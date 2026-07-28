@@ -60,23 +60,6 @@
       },
     ],
   },
-  "secrets_store_secrets": [
-    {
-      "binding": "INSTALLATION_TOKEN",
-      "store_id": "unimailbox",
-      "secret_name": "installation-token",
-    },
-    {
-      "binding": "AUTH_SIGNING_KEY",
-      "store_id": "unimailbox",
-      "secret_name": "auth-signing-key",
-    },
-    {
-      "binding": "CREDENTIAL_ENCRYPTION_KEY",
-      "store_id": "unimailbox",
-      "secret_name": "credential-encryption-key",
-    },
-  ],
   "triggers": {
     "crons": ["* * * * *", "0 * * * *", "17 3 * * *"],
   },
@@ -123,23 +106,6 @@
           },
         ],
       },
-      "secrets_store_secrets": [
-        {
-          "binding": "INSTALLATION_TOKEN",
-          "store_id": "unimailbox-preview",
-          "secret_name": "installation-token",
-        },
-        {
-          "binding": "AUTH_SIGNING_KEY",
-          "store_id": "unimailbox-preview",
-          "secret_name": "auth-signing-key",
-        },
-        {
-          "binding": "CREDENTIAL_ENCRYPTION_KEY",
-          "store_id": "unimailbox-preview",
-          "secret_name": "credential-encryption-key",
-        },
-      ],
     },
   },
 }

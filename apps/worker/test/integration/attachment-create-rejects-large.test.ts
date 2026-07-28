@@ -22,7 +22,6 @@ function makeEnv(withoutR2: boolean): Env {
     KV: env.KV,
     OUTBOUND_QUEUE: env.OUTBOUND_QUEUE,
     ASSETS: {} as Fetcher,
-    INSTALLATION_TOKEN: "x".repeat(32),
     AUTH_SIGNING_KEY: "x".repeat(32),
     CREDENTIAL_ENCRYPTION_KEY: "e".repeat(32),
   };

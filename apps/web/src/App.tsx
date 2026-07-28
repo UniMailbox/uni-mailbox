@@ -2,11 +2,6 @@ import { lazy, Suspense, useEffect } from "react";
 import { navigate, usePathname } from "./lib/navigation";
 import { LoadingState } from "./components/Status";
 
-const SetupPage = lazy(() =>
-  import("./features/setup/SetupPage").then((module) => ({
-    default: module.SetupPage,
-  })),
-);
 const LoginPage = lazy(() =>
   import("./features/auth/LoginPage").then((module) => ({
     default: module.LoginPage,
@@ -48,10 +43,11 @@ export function App() {
 
   useEffect(() => {
     if (pathname === "/") navigate("/inbox");
+    if (pathname === "/setup") navigate("/login");
   }, [pathname]);
 
   let page: React.ReactNode;
-  if (pathname === "/setup") page = <SetupPage />;
+  if (pathname === "/setup") page = null;
   else if (pathname === "/login" || pathname === "/register")
     page = <LoginPage />;
   else if (segments[0] === "messages" && segments[1]) {
@@ -77,11 +73,15 @@ export function App() {
                       : "users";
     page = <AdminPage resource={resource} />;
   } else if (segments[0] === "settings") {
-    page = (
-      <SettingsPage
-        section={segments[1] === "mailboxes" ? "mailboxes" : "account"}
-      />
-    );
+    const section =
+      segments[1] === "mailboxes"
+        ? "mailboxes"
+        : segments[1] === "cloudflare"
+          ? "cloudflare"
+          : segments[1] === "storage"
+            ? "storage"
+            : "account";
+    page = <SettingsPage section={section} />;
   } else {
     const folder = folders.has(segments[0] ?? "") ? segments[0] : "inbox";
     page = <MailWorkspace folder={folder} routeMailboxId={segments[1]} />;

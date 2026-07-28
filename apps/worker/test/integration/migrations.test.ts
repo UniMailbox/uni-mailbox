@@ -12,7 +12,7 @@ describe("D1 migration chain", () => {
          'messages', 'message_recipients', 'mailbox_messages',
          'message_user_state', 'attachment_uploads', 'message_attachments',
          'outbound_jobs', 'provider_connections', 'webhook_deliveries',
-         'installation_state'
+         'installation_state', 'configuration_checkpoints'
        )`,
     ).first<number>("count");
     const foreignKeys = await env.DB.prepare("PRAGMA foreign_key_check").all();
@@ -20,9 +20,19 @@ describe("D1 migration chain", () => {
       "SELECT current_step FROM installation_state WHERE id = 1",
     ).first<{ current_step: string }>();
 
-    expect(required).toBe(16);
+    expect(required).toBe(17);
     expect(foreignKeys.results).toEqual([]);
-    expect(installation?.current_step).toBe("claim");
+    expect(installation?.current_step).toBe("admin_bootstrap");
+    const checkpoints = await env.DB.prepare(
+      "SELECT checkpoint_key FROM configuration_checkpoints ORDER BY checkpoint_key",
+    ).all<{ checkpoint_key: string }>();
+    expect(checkpoints.results.map((row) => row.checkpoint_key)).toEqual([
+      "brevo",
+      "cloudflare_mail",
+      "inbound_smoke_test",
+      "outbound_smoke_test",
+      "r2_storage",
+    ]);
   });
 
   it("applies permission seeds as the upgrade after initial schema", async () => {
@@ -106,6 +116,11 @@ describe("D1 migration chain", () => {
          WHERE type = 'table' AND name = 'account_recovery_codes'`,
       ).first<number>("count"),
     ).resolves.toBe(1);
+    await expect(
+      env.DB.prepare(
+        "SELECT current_step FROM installation_state WHERE id = 1",
+      ).first<{ current_step: string }>(),
+    ).resolves.toEqual({ current_step: "admin_bootstrap" });
     await expect(
       env.DB.prepare("PRAGMA foreign_key_check").all(),
     ).resolves.toMatchObject({ results: [] });

@@ -95,14 +95,6 @@ export const MailboxMemberSchema = z.object({
   role: z.enum(["viewer", "sender", "admin"]),
 });
 
-export const InstallationClaimSchema = z.object({
-  token: z.string().min(32),
-});
-
-export const SetupAdministratorSchema = RegisterSchema.omit({
-  registrationKey: true,
-});
-
 export const ProviderConnectionSchema = z.object({
   providerKey: z.string().min(2).max(32),
   label: z.string().trim().min(1).max(80),

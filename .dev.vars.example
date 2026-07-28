@@ -1,4 +1,6 @@
-# Local-only Secrets Store fallbacks. Never commit .dev.vars.
-INSTALLATION_TOKEN=replace-with-at-least-32-random-characters
+# Local-only Worker runtime secrets. Never commit .dev.vars.
 AUTH_SIGNING_KEY=replace-with-at-least-32-random-characters
 CREDENTIAL_ENCRYPTION_KEY=replace-with-at-least-32-random-characters
+
+# INITIAL_ADMIN_EMAIL and INITIAL_ADMIN_PASSWORD are build-only inputs.
+# Pass them to `pnpm bootstrap:admin -- --target local`; do not add them here.

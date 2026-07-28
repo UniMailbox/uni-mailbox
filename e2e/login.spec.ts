@@ -49,10 +49,11 @@ test("login form posts credentials and routes to the inbox", async ({
   });
   await page.goto("/login");
 
-  await page.getByLabel("Email address").fill("operator@example.com");
+  await page.getByLabel("Email address").fill("initial-admin@example.com");
   await page.getByLabel("Password").fill("correct horse battery staple");
   await page.getByRole("button", { name: /Enter workspace/ }).click();
 
-  await expect.poll(() => submittedEmail).toBe("operator@example.com");
+  await expect.poll(() => submittedEmail).toBe("initial-admin@example.com");
   expect(submittedPassword.length).toBeGreaterThan(0);
+  await expect(page).toHaveURL(/\/inbox$/u);
 });
