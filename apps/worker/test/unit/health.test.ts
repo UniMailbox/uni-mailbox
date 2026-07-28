@@ -29,7 +29,6 @@ function envFixture(
     } as unknown as KVNamespace,
     OUTBOUND_QUEUE: {} as Queue,
     ASSETS: {} as Fetcher,
-    INSTALLATION_TOKEN: "x",
     AUTH_SIGNING_KEY: "x",
     CREDENTIAL_ENCRYPTION_KEY: "x",
   };

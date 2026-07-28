@@ -22,13 +22,11 @@ import {
 import {
   CreateAttachmentUploadSchema,
   DraftMessageSchema,
-  InstallationClaimSchema,
   LoginSchema,
   MailboxCreateSchema,
   MailboxMemberSchema,
   ProviderConnectionSchema,
   RegisterSchema,
-  SetupAdministratorSchema,
 } from "../src/api";
 import { parseProviderKey } from "../src/domain";
 
@@ -206,15 +204,6 @@ describe("identity schemas", () => {
       }),
     ).toThrow();
   });
-
-  it("validates the setup administrator schema", () => {
-    const result = SetupAdministratorSchema.parse({
-      email: "user@example.com",
-      password: "correct horse battery staple",
-      displayName: "Admin",
-    });
-    expect(result.displayName).toBe("Admin");
-  });
 });
 
 describe("mailbox schemas", () => {
@@ -243,11 +232,11 @@ describe("mailbox schemas", () => {
 });
 
 describe("installation and provider connection schemas", () => {
-  it("requires a 32-character installation token", () => {
-    expect(() => InstallationClaimSchema.parse({ token: "short" })).toThrow();
-    expect(() =>
-      InstallationClaimSchema.parse({ token: "x".repeat(32) }),
-    ).not.toThrow();
+  it("exposes only deployment bootstrap and complete runtime states", () => {
+    expect(InstallationStep).toEqual({
+      ADMIN_BOOTSTRAP: "admin_bootstrap",
+      COMPLETE: "complete",
+    });
   });
 
   it("validates provider connection inputs", () => {

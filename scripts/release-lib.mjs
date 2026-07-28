@@ -59,9 +59,10 @@ export function productionReleaseSteps(releaseMode) {
     "capture-bookmark",
     "migrate-production",
     "verify-migrations",
+    "bootstrap-administrator",
   ];
   return releaseMode === "verified-version"
-    ? ["verify-candidate", ...databaseSteps, "promote-version"]
+    ? [...databaseSteps, "verify-candidate", "promote-version"]
     : [...databaseSteps, "deploy-direct"];
 }
 
@@ -71,6 +72,41 @@ export function productionBranchFromEnvironment(environment) {
       (branch) => typeof branch === "string" && branch.trim().length > 0,
     ) ?? undefined
   );
+}
+
+export function parseRuntimeSecretList(raw) {
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("Wrangler secret list did not return valid JSON");
+  }
+  if (!Array.isArray(parsed)) {
+    throw new Error("Wrangler secret list must return an array");
+  }
+  if (parsed.some((entry) => typeof entry?.name !== "string")) {
+    throw new Error("Wrangler secret list must contain named entries");
+  }
+  return parsed.map((entry) => entry.name);
+}
+
+export function parseD1CountResult(raw, field) {
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("D1 count query did not return valid JSON");
+  }
+  const value = parsed?.[0]?.results?.[0]?.[field];
+  if (
+    parsed?.[0]?.success !== true ||
+    typeof value !== "number" ||
+    !Number.isSafeInteger(value) ||
+    value < 0
+  ) {
+    throw new Error(`D1 count query did not return ${field}`);
+  }
+  return value;
 }
 
 export function parseVersionUploadResult({ outputFile, stdout, stderr }) {

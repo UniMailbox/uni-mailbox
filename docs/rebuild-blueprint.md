@@ -105,66 +105,56 @@ The supported installation entrypoint is a **Deploy to Cloudflare** button, not 
 Project README
   -> Deploy to Cloudflare
   -> Cloudflare account and repository selection
-  -> Cloudflare provisions and binds D1, R2, KV, Queue, and Secrets Store
-  -> Workers Builds runs migrations and deploys the Worker
-  -> Worker redirects the first request to /setup
+  -> Operator supplies initial administrator email and password
+  -> Cloudflare provisions and binds D1, KV, and Queue
+  -> Workers Builds generates missing runtime secrets and runs migrations
+  -> Deployment hashes the initial password into D1
+  -> Worker opens at /login
 ```
 
 Requirements:
 
-- Declare D1, R2, KV, Queue, and Secrets Store bindings in `wrangler.jsonc` without account-specific resource IDs.
+- Declare required D1, KV, and Queue bindings in `wrangler.jsonc` without account-specific resource IDs. R2 is an optional overlay.
 - Treat the repository root as one Worker deployment unit; the root build compiles shared packages, the Worker, and static web assets. Do not point the deploy button at a dependent monorepo subdirectory.
-- Describe required secret bindings in `package.json.cloudflare.bindings` so the Cloudflare deployment page collects or generates them.
-- The Cloudflare page must collect `INSTALLATION_TOKEN`, `AUTH_SIGNING_KEY`, and `CREDENTIAL_ENCRYPTION_KEY`; application forms must never expose these secrets.
+- Workers Builds collects only `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` as one-time build inputs. They are not Worker runtime bindings.
+- The release generates missing `AUTH_SIGNING_KEY` and `CREDENTIAL_ENCRYPTION_KEY` values securely, persists them as Worker secrets, and never logs their values.
 - Resource IDs created by Cloudflare are deployment metadata, not application settings.
-- The deploy command runs pending D1 migrations before publishing application traffic.
+- The deploy command runs pending D1 migrations and idempotent administrator bootstrap before publishing application traffic.
 - The repository README contains the official button format:
 
 ```markdown
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=<PUBLIC_REPOSITORY_URL>)
 ```
 
-Cloudflare currently supports automatic provisioning for D1, R2, KV, and Queues from binding declarations. Treat that behavior as an external platform contract and pin a tested Wrangler version. See the [Deploy to Cloudflare documentation](https://developers.cloudflare.com/workers/platform/deploy-buttons/) and [Wrangler automatic provisioning documentation](https://developers.cloudflare.com/workers/wrangler/configuration/#automatic-provisioning).
+Cloudflare currently supports automatic provisioning for D1, R2, KV, and Queues from binding declarations. Treat that behavior as an external platform contract and pin a tested Wrangler version. The default deployment declares D1, KV, and Queue; R2 remains optional. See the [Deploy to Cloudflare documentation](https://developers.cloudflare.com/workers/platform/deploy-buttons/) and [Wrangler automatic provisioning documentation](https://developers.cloudflare.com/workers/wrangler/configuration/#automatic-provisioning).
 
-The one-click button requires a public GitHub or GitLab source repository. Private installations use Cloudflare's **Import a repository** flow with the same binding declarations, build command, and setup wizard.
+The one-click button requires a public GitHub or GitLab source repository. Private installations use Cloudflare's **Import a repository** flow with the same binding declarations and build command.
 
-### 3.4 First-run setup wizard
+### 3.4 Deployment bootstrap and post-login configuration
 
-Before the initial installation is complete, every application route except `/setup`, `/api/v1/setup/*`, `/health`, and OAuth callbacks redirects to `/setup`. A later installation-version upgrade gates only the newly introduced capability and shows administrators a resumable upgrade banner; it must not take an existing inbox offline.
+There is no public claim or installation wizard. Before bootstrap completes, ordinary application routes return `503 BOOTSTRAP_INCOMPLETE`; `/health` remains available for diagnostics. The legacy `/setup` route redirects to `/login`, and public `/api/v1/setup/*` routes do not exist.
 
-The wizard is resumable and uses these ordered steps:
+Deployment performs only these ordered prerequisites:
 
-1. **Claim installation** — validate `INSTALLATION_TOKEN`, bind the browser to a short-lived setup session, and invalidate the token after the administrator is created.
-2. **Preflight** — verify D1, R2, KV, Queue, Secrets Store bindings, schema version, Worker URL, and scheduled triggers.
-3. **Administrator** — create the first administrator and recovery codes.
-4. **Connect Cloudflare** — select a Cloudflare account and zone, then configure or verify Email Routing.
-5. **Managed domain** — create the domain and Cloudflare routing rule targeting the Worker.
-6. **Inbound smoke test** — receive a generated inbound test message.
-7. **Connect Brevo** — collect the Brevo API key and webhook verification secret, encrypt them, verify sender/domain status, and run a provider health check.
-8. **Outbound smoke test** — send one generated message and confirm its provider ID.
-9. **Complete** — store the completed installation version and enable ordinary routes.
+1. **Resource and schema preflight** — verify required D1, KV, Queue, Assets, migrations, and Worker build output.
+2. **Runtime secrets** — inspect secret names and generate only missing signing/encryption secrets.
+3. **Administrator** — validate the initial login email/password, derive the password record, and create the first administrator idempotently.
+4. **Complete** — verify exactly one administrator role assignment and store installation state `complete`.
 
-This is the target wizard. A versioned setup manifest declares which steps exist in each delivery phase. The Phase 1 manifest ends after the inbound smoke test; the Phase 2 manifest adds Brevo and outbound smoke testing. After an upgrade, administrators complete only newly required steps before the corresponding feature is enabled.
+After login, administrators configure independent cards for Cloudflare/Email Routing, managed domains, inbound smoke testing, Brevo, outbound smoke testing, and optional R2. Each card has its own checkpoint and retry state. A failed external integration never returns the installation to an incomplete state or takes an existing inbox offline.
 
 Cloudflare connection supports two explicit modes:
 
-- **OAuth mode** is preferred when the distribution owns a registered Cloudflare OAuth client. Redirect through the Authorization Code flow, request only the account, zone, DNS, Worker, and Email Routing scopes required by the wizard, encrypt tokens at rest, and allow revocation. The wizard may then call Cloudflare APIs to inspect Email Routing, enable its DNS records, and create Worker routing rules. See the [Cloudflare OAuth documentation](https://developers.cloudflare.com/fundamentals/oauth/) and [Email Routing API](https://developers.cloudflare.com/api/resources/email_routing/).
+- **OAuth mode** is preferred when the distribution owns a registered Cloudflare OAuth client. Redirect through the Authorization Code flow, request only the account, zone, DNS, Worker, and Email Routing scopes required by Settings, encrypt tokens at rest, and allow revocation. The service may then call Cloudflare APIs to inspect Email Routing, enable its DNS records, and create Worker routing rules. See the [Cloudflare OAuth documentation](https://developers.cloudflare.com/fundamentals/oauth/) and [Email Routing API](https://developers.cloudflare.com/api/resources/email_routing/).
 - **Dashboard-assisted mode** is mandatory for standalone deployments without a usable OAuth client. Open the relevant Cloudflare dashboard page in a new tab, display exact expected settings, and return to a verification step. The application verifies DNS and an inbound test message; it must not report success merely because the user clicked the link.
 
 Do not ask users to paste a general-purpose Cloudflare API token into the application. Do not attempt to create or replace the Worker's own bindings at runtime; those bindings belong to the deployment bootstrap.
 
-The wizard exposes a state machine, not independent mutable forms:
+Installation exposes only deployment-owned states:
 
 ```typescript
 export const InstallationStep = {
-  CLAIM: "claim",
-  PREFLIGHT: "preflight",
-  ADMIN: "admin",
-  CLOUDFLARE: "cloudflare",
-  DOMAIN: "domain",
-  INBOUND_SMOKE_TEST: "inbound_smoke_test",
-  BREVO: "brevo",
-  OUTBOUND_SMOKE_TEST: "outbound_smoke_test",
+  ADMIN_BOOTSTRAP: "admin_bootstrap",
   COMPLETE: "complete",
 } as const;
 
@@ -176,14 +166,10 @@ export interface InstallationStatus {
   stateVersion: number;
   currentStep: InstallationStep;
   completedSteps: string[];
-  recoverableError?: {
-    code: string;
-    message: string;
-  };
 }
 ```
 
-Each transition validates the previous step on the server. Refreshing the browser resumes at the first incomplete step. Setup mutations are audited and idempotent.
+Deployment retries are idempotent: existing administrator and runtime-secret names are preserved. Post-login configuration checkpoints are audited independently.
 
 ## 4. Repository structure
 
@@ -1437,19 +1423,17 @@ export interface Env {
   ATTACHMENTS?: R2Bucket;
   OUTBOUND_QUEUE: Queue<OutboundMailJob>;
   ASSETS: Fetcher;
-  INSTALLATION_TOKEN: string;
   AUTH_SIGNING_KEY: string;
   CREDENTIAL_ENCRYPTION_KEY: string;
 }
 ```
 
-These are deployment bindings provisioned or collected by Cloudflare, not a user-edited `.env` contract. Brevo credentials and application settings do not belong here.
+These are deployment bindings provisioned or generated during release, not a user-edited `.env` contract. Initial administrator credentials are build-only inputs and do not belong to `Env`. Brevo credentials and application settings do not belong here.
 
 Parse and validate secret bindings once:
 
 ```typescript
 const RuntimeConfigSchema = z.object({
-  INSTALLATION_TOKEN: z.string().min(32),
   AUTH_SIGNING_KEY: z.string().min(32),
   CREDENTIAL_ENCRYPTION_KEY: z.string().min(32),
 });
@@ -1937,36 +1921,36 @@ Base path:
 /api/v1
 ```
 
-### 11.1 Installation
+### 11.1 Authenticated configuration
 
-| Method | Path                               | Purpose                                                    |
-| ------ | ---------------------------------- | ---------------------------------------------------------- |
-| GET    | `/setup/status`                    | Return the next valid setup step                           |
-| POST   | `/setup/claim`                     | Exchange the installation token for a setup session        |
-| POST   | `/setup/preflight`                 | Verify bindings, schema, triggers, and deployment metadata |
-| POST   | `/setup/administrator`             | Create the first administrator                             |
-| POST   | `/setup/cloudflare/oauth/start`    | Start Cloudflare OAuth when available                      |
-| GET    | `/setup/cloudflare/oauth/callback` | Complete Cloudflare OAuth                                  |
-| POST   | `/setup/cloudflare/dashboard-link` | Return an allowlisted Cloudflare dashboard URL             |
-| POST   | `/setup/cloudflare/verify`         | Verify zone, Email Routing, and Worker routing             |
-| POST   | `/setup/domain`                    | Bind the managed domain to Cloudflare Email Routing        |
-| POST   | `/setup/smoke-test/inbound`        | Run the inbound smoke test                                 |
-| POST   | `/setup/brevo`                     | Validate and store an encrypted Brevo connection           |
-| POST   | `/setup/smoke-test/outbound`       | Run the Brevo outbound smoke test                          |
-| POST   | `/setup/complete`                  | Lock setup and enable ordinary routes                      |
+| Method | Path                                    | Purpose                                      |
+| ------ | --------------------------------------- | -------------------------------------------- |
+| GET    | `/admin/cloudflare/status`              | Return independent configuration checkpoints |
+| POST   | `/admin/cloudflare/oauth/start`         | Start Cloudflare OAuth                       |
+| GET    | `/admin/cloudflare/oauth/callback`      | Complete Cloudflare OAuth                    |
+| POST   | `/admin/cloudflare/oauth/revoke`        | Revoke and delete encrypted OAuth tokens     |
+| POST   | `/admin/cloudflare/verify`              | Verify account, zone, and Email Routing      |
+| POST   | `/admin/cloudflare/domains`             | Configure a managed Email Routing domain     |
+| POST   | `/admin/cloudflare/smoke-test/inbound`  | Run the inbound smoke test                   |
+| POST   | `/admin/cloudflare/brevo`               | Validate and store encrypted Brevo settings  |
+| POST   | `/admin/cloudflare/smoke-test/outbound` | Run the outbound smoke test                  |
+| GET    | `/admin/infrastructure`                 | Report required bindings and storage backend |
+| POST   | `/admin/storage/r2/verify`              | Probe the optional R2 binding                |
 
-Setup endpoints require the short-lived setup session after `/setup/claim`. After installation completes, all setup mutations return `404` unless an authenticated administrator has explicitly opened a time-limited repair session.
+All endpoints require authentication and `settings.manage`. The OAuth callback
+is authorized by a one-time state value tied to the initiating administrator.
 
 ### 11.2 Authentication
 
-| Method | Path                   | Purpose                                  |
-| ------ | ---------------------- | ---------------------------------------- |
-| POST   | `/auth/register`       | Register with an optional invitation key |
-| POST   | `/auth/login`          | Create access and refresh tokens         |
-| POST   | `/auth/refresh`        | Rotate the refresh token                 |
-| POST   | `/auth/logout`         | Revoke the active session                |
-| POST   | `/auth/logout-all`     | Revoke all user sessions                 |
-| POST   | `/auth/password/reset` | Change password and revoke sessions      |
+| Method | Path                   | Purpose                                   |
+| ------ | ---------------------- | ----------------------------------------- |
+| POST   | `/auth/register`       | Register with an optional invitation key  |
+| POST   | `/auth/login`          | Create access and refresh tokens          |
+| POST   | `/auth/refresh`        | Rotate the refresh token                  |
+| POST   | `/auth/logout`         | Revoke the active session                 |
+| POST   | `/auth/logout-all`     | Revoke all user sessions                  |
+| POST   | `/auth/password/reset` | Change password and revoke sessions       |
+| POST   | `/auth/email`          | Change login identity and revoke sessions |
 
 ### 11.3 Mailboxes
 
@@ -2102,7 +2086,6 @@ Feature code imports API schemas from `packages/contracts`. It must not duplicat
 ### 12.3 Required routes
 
 ```text
-/setup
 /login
 /inbox/:mailboxId
 /messages/:messageId
@@ -2111,6 +2094,8 @@ Feature code imports API schemas from `packages/contracts`. It must not duplicat
 /starred
 /settings
 /settings/mailboxes
+/settings/cloudflare
+/settings/storage
 /admin/users
 /admin/roles
 /admin/domains

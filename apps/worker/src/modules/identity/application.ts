@@ -373,6 +373,57 @@ export class IdentityApplicationService {
     ]);
   }
 
+  async changeEmail(
+    principal: Principal,
+    currentPassword: string,
+    email: string,
+  ): Promise<{ email: string }> {
+    const user = await this.env.DB.prepare(
+      `SELECT id, email, display_name, password_hash, password_algorithm,
+              password_salt, password_iterations, status
+       FROM users WHERE id = ?`,
+    )
+      .bind(principal.userId)
+      .first<UserRow>();
+    if (!user) {
+      throw new DomainError("USER_NOT_FOUND", "User not found", 404);
+    }
+    const verification = await this.passwords.verify(currentPassword, {
+      hash: user.password_hash,
+      salt: user.password_salt,
+      algorithm: user.password_algorithm,
+      iterations: user.password_iterations,
+    });
+    if (!verification.valid) {
+      throw new DomainError(
+        "AUTH_CREDENTIALS_INVALID",
+        "The current password is incorrect",
+        401,
+      );
+    }
+    const normalizedEmail = normalizeEmail(email);
+    try {
+      await this.env.DB.batch([
+        this.env.DB.prepare(
+          `UPDATE users
+           SET email = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?`,
+        ).bind(normalizedEmail, principal.userId),
+        this.env.DB.prepare(
+          `UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP
+           WHERE user_id = ? AND revoked_at IS NULL`,
+        ).bind(principal.userId),
+      ]);
+    } catch {
+      throw new DomainError(
+        "IDENTITY_EMAIL_EXISTS",
+        "An account with this login email already exists",
+        409,
+      );
+    }
+    return { email: normalizedEmail };
+  }
+
   private insertUserStatement(input: {
     id: string;
     email: string;

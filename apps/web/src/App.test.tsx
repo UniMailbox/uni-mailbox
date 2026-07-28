@@ -1,7 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { InstallationStep } from "@unimailbox/contracts";
 import { App } from "./App";
 
 function renderApp() {
@@ -40,58 +39,16 @@ describe("UniMailbox application boundary", () => {
     ).toBeVisible();
   });
 
-  it("renders server-owned installation progress and claims setup", async () => {
+  it("redirects the removed setup route to login", async () => {
     window.history.replaceState({}, "", "/setup");
-    const fetchMock = vi
-      .spyOn(window, "fetch")
-      .mockResolvedValueOnce(
-        Response.json({
-          data: {
-            installationVersion: 1,
-            stateVersion: 0,
-            currentStep: InstallationStep.CLAIM,
-            completedSteps: [],
-          },
-        }),
-      )
-      .mockResolvedValueOnce(
-        Response.json({
-          data: {
-            csrfToken: "csrf-token",
-            expiresAt: "2099-01-01T00:00:00.000Z",
-          },
-        }),
-      )
-      .mockResolvedValueOnce(
-        Response.json({
-          data: {
-            installationVersion: 1,
-            stateVersion: 1,
-            currentStep: InstallationStep.PREFLIGHT,
-            completedSteps: [InstallationStep.CLAIM],
-          },
-        }),
-      );
     renderApp();
 
+    await waitFor(() => expect(window.location.pathname).toBe("/login"));
     expect(
       await screen.findByRole("heading", {
-        name: "Bring your mail plane online.",
+        name: "Sign in to your mail plane.",
       }),
     ).toBeVisible();
-    fireEvent.change(screen.getByLabelText("Installation token"), {
-      target: { value: "x".repeat(32) },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Claim installation" }));
-
-    await waitFor(() =>
-      expect(window.sessionStorage.getItem("unimailbox.setup-csrf")).toBe(
-        "csrf-token",
-      ),
-    );
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/setup/claim",
-      expect.objectContaining({ method: "POST" }),
-    );
+    expect(screen.queryByText(/installation token/i)).not.toBeInTheDocument();
   });
 });

@@ -25,6 +25,7 @@
     "test:e2e:install": "playwright install chromium",
     "test:coverage": "vitest run --config vitest.coverage.config.ts --coverage",
     "scaffold": "node scripts/scaffold.mjs",
+    "bootstrap:admin": "node scripts/bootstrap-admin.mjs",
     "db:migration:new": "node scripts/migration.mjs new",
     "db:migration:status": "node scripts/migration.mjs status",
     "db:migrate": "node scripts/migration.mjs migrate",
@@ -42,19 +43,6 @@
     "deploy:r2:dry-run": "node scripts/r2-dry-run.mjs",
     "migrate:kv-to-r2": "node scripts/migrate-attachments-to-r2.mjs"
   },
-  "cloudflare": {
-    "bindings": {
-      "INSTALLATION_TOKEN": {
-        "description": "Generate a random value with at least 32 characters. This one-time token claims the first administrator."
-      },
-      "AUTH_SIGNING_KEY": {
-        "description": "Generate a random value with at least 32 characters for access-token signing."
-      },
-      "CREDENTIAL_ENCRYPTION_KEY": {
-        "description": "Generate a random value with at least 32 characters for AES-GCM provider credential encryption."
-      }
-    }
-  },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "0.6.16",
     "@playwright/test": "1.54.1",
@@ -64,6 +52,6 @@
     "typescript": "5.6.3",
     "typescript-eslint": "8.18.1",
     "vitest": "2.1.9",
-    "wrangler": "4.68.0"
+    "wrangler": "4.114.0"
   }
 }

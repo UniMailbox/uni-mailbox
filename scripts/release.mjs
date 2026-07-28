@@ -15,9 +15,13 @@ import {
   output,
   root,
   run,
+  withSecureTemporaryJson,
 } from "./_shared.mjs";
+import { reconcileRuntimeSecretNames } from "./bootstrap-lib.mjs";
 import {
   createVersionUploadDiagnostics,
+  parseD1CountResult,
+  parseRuntimeSecretList,
   parseVersionUploadResult,
   productionBranchFromEnvironment,
   productionReleaseSteps,
@@ -193,20 +197,119 @@ function migrateProduction() {
 function verifyProductionMigrations() {
   run("node", ["scripts/migration.mjs", "verify", "--target", "production"]);
 }
+function inspectRuntimeSecrets(environment) {
+  const result = capture("pnpm", [
+    "exec",
+    "wrangler",
+    "secret",
+    "list",
+    "--env",
+    environment,
+    "--format",
+    "json",
+  ]);
+  if (!result.ok) {
+    fail(
+      "release.runtime_secret_state_invalid",
+      "Wrangler could not inspect the remote runtime secret state",
+      9,
+      { stderrBytes: Buffer.byteLength(result.stderr) },
+    );
+  }
+  try {
+    return parseRuntimeSecretList(result.stdout);
+  } catch {
+    fail(
+      "release.runtime_secret_state_invalid",
+      "Wrangler returned an invalid remote runtime secret state",
+      9,
+    );
+  }
+}
+async function withRuntimeSecrets(environment, callback) {
+  const generated = reconcileRuntimeSecretNames(
+    inspectRuntimeSecrets(environment),
+  );
+  const names = Object.keys(generated);
+  output("release.runtime_secrets.inspected", {
+    status: "ok",
+    environment: environment || "production",
+    created: names,
+  });
+  if (names.length === 0) return callback(undefined, names);
+  return withSecureTemporaryJson(
+    resolve(root, ".wrangler", "release"),
+    generated,
+    (path) => callback(path, names),
+  );
+}
+function assertLegacyCredentialCompatibility({
+  generatedSecretNames,
+  previousVersionId,
+}) {
+  if (
+    !previousVersionId ||
+    !generatedSecretNames.includes("CREDENTIAL_ENCRYPTION_KEY")
+  ) {
+    return;
+  }
+  const result = capture("pnpm", [
+    "exec",
+    "wrangler",
+    "d1",
+    "execute",
+    "DB",
+    "--remote",
+    "--command",
+    "SELECT COUNT(*) AS encrypted_credential_count FROM encrypted_credentials",
+    "--json",
+  ]);
+  if (!result.ok) {
+    fail(
+      "release.legacy_secret_migration_required",
+      "Existing encrypted credential state could not be verified",
+      11,
+      { stderrBytes: Buffer.byteLength(result.stderr) },
+    );
+  }
+  let count;
+  try {
+    count = parseD1CountResult(result.stdout, "encrypted_credential_count");
+  } catch {
+    fail(
+      "release.legacy_secret_migration_required",
+      "Existing encrypted credential state returned invalid data",
+      11,
+    );
+  }
+  if (count > 0) {
+    fail(
+      "release.legacy_secret_migration_required",
+      "Existing encrypted credentials require an explicit key migration",
+      11,
+      { encryptedCredentialCount: count },
+    );
+  }
+}
 writeManifest();
 output("release.artifact.created", manifest);
 
 if (target === "preview") {
-  run("pnpm", [
-    "exec",
-    "wrangler",
-    "versions",
-    "upload",
-    "--env",
-    "preview",
-    "--preview-alias",
-    "release-candidate",
-  ]);
+  await withRuntimeSecrets("preview", (secretsPath, created) => {
+    run("pnpm", [
+      "exec",
+      "wrangler",
+      "versions",
+      "upload",
+      "--env",
+      "preview",
+      "--preview-alias",
+      "release-candidate",
+      ...(secretsPath ? ["--secrets-file", secretsPath] : []),
+    ]);
+    Object.assign(manifest, { runtimeSecretsCreated: created });
+    writeManifest();
+  });
 } else {
   const current = capture("pnpm", [
     "exec",
@@ -219,106 +322,124 @@ if (target === "preview") {
   ]);
   const currentDeployment = current.ok ? current.stdout : "";
   const previousVersionId = deployedVersionId(currentDeployment) ?? null;
-  const versionOutputPath = resolve(
-    root,
-    ".wrangler/release/version-upload.jsonl",
-  );
-  if (existsSync(versionOutputPath)) unlinkSync(versionOutputPath);
-  const candidate = captureRequired(
-    "pnpm",
-    [
-      "exec",
-      "wrangler",
-      "versions",
-      "upload",
-      "--env",
-      "",
-      "--preview-alias",
-      "release-candidate",
-      "--tag",
-      `release-${manifest.commit.slice(0, 12)}`,
-      "--message",
-      `UniMailbox release ${manifest.commit}`,
-    ],
-    "release.version_upload_failed",
-    {
-      env: {
-        ...process.env,
-        WRANGLER_OUTPUT_FILE_PATH: versionOutputPath,
-      },
-    },
-  );
-  const outputFileExists = existsSync(versionOutputPath);
-  const versionOutput = outputFileExists
-    ? readFileSync(versionOutputPath, "utf8")
-    : "";
-  const { workerVersionId, previewUrl } = parseVersionUploadResult({
-    outputFile: versionOutput,
-    stdout: candidate.stdout,
-    stderr: candidate.stderr,
-  });
-  const releaseMode = selectProductionReleaseMode({
-    workerVersionId,
-    previewUrl,
-  });
-  const versionDiagnostics = createVersionUploadDiagnostics({
-    outputFileExists,
-    outputFile: versionOutput,
-    stdout: candidate.stdout,
-    stderr: candidate.stderr,
-  });
-  output("release.version_output.inspected", {
-    status: releaseMode === "verified-version" ? "ok" : "degraded",
-    releaseMode,
-    workerVersionIdFound: Boolean(workerVersionId),
-    previewUrlFound: Boolean(previewUrl),
-    ...versionDiagnostics,
-  });
-  Object.assign(manifest, {
-    previousVersionId,
-    releaseMode,
-    ...(workerVersionId ? { workerVersionId } : {}),
-    ...(previewUrl ? { previewUrl } : {}),
-  });
-  writeManifest();
-  if (releaseMode === "direct-deploy") {
-    output("release.direct_deploy_fallback", {
-      status: "degraded",
-      message:
-        "Candidate metadata was incomplete; skipping preview verification and deploying directly",
+  await withRuntimeSecrets("", (secretsPath, created) => {
+    assertLegacyCredentialCompatibility({
+      generatedSecretNames: created,
+      previousVersionId,
     });
-  }
-  for (const step of productionReleaseSteps(releaseMode)) {
-    if (step === "verify-candidate") {
-      run("node", ["scripts/verify-deployment.mjs", previewUrl]);
-    } else if (step === "capture-bookmark") {
-      captureD1Bookmark();
-    } else if (step === "migrate-production") {
-      migrateProduction();
-    } else if (step === "verify-migrations") {
-      verifyProductionMigrations();
-    } else if (step === "deploy-direct") {
-      run("pnpm", ["exec", "wrangler", "deploy", "--env", ""]);
-    } else if (step === "promote-version") {
-      run("pnpm", [
+    Object.assign(manifest, { runtimeSecretsCreated: created });
+    const versionOutputPath = resolve(
+      root,
+      ".wrangler/release/version-upload.jsonl",
+    );
+    if (existsSync(versionOutputPath)) unlinkSync(versionOutputPath);
+    const candidate = captureRequired(
+      "pnpm",
+      [
         "exec",
         "wrangler",
         "versions",
-        "deploy",
-        `${workerVersionId}@100%`,
+        "upload",
         "--env",
         "",
-        "--yes",
+        "--preview-alias",
+        "release-candidate",
+        "--tag",
+        `release-${manifest.commit.slice(0, 12)}`,
         "--message",
-        `Promote UniMailbox ${manifest.commit}`,
-      ]);
+        `UniMailbox release ${manifest.commit}`,
+        ...(secretsPath ? ["--secrets-file", secretsPath] : []),
+      ],
+      "release.version_upload_failed",
+      {
+        env: {
+          ...process.env,
+          WRANGLER_OUTPUT_FILE_PATH: versionOutputPath,
+        },
+      },
+    );
+    const outputFileExists = existsSync(versionOutputPath);
+    const versionOutput = outputFileExists
+      ? readFileSync(versionOutputPath, "utf8")
+      : "";
+    const { workerVersionId, previewUrl } = parseVersionUploadResult({
+      outputFile: versionOutput,
+      stdout: candidate.stdout,
+      stderr: candidate.stderr,
+    });
+    const releaseMode = selectProductionReleaseMode({
+      workerVersionId,
+      previewUrl,
+    });
+    const versionDiagnostics = createVersionUploadDiagnostics({
+      outputFileExists,
+      outputFile: versionOutput,
+      stdout: candidate.stdout,
+      stderr: candidate.stderr,
+    });
+    output("release.version_output.inspected", {
+      status: releaseMode === "verified-version" ? "ok" : "degraded",
+      releaseMode,
+      workerVersionIdFound: Boolean(workerVersionId),
+      previewUrlFound: Boolean(previewUrl),
+      ...versionDiagnostics,
+    });
+    Object.assign(manifest, {
+      previousVersionId,
+      releaseMode,
+      ...(workerVersionId ? { workerVersionId } : {}),
+      ...(previewUrl ? { previewUrl } : {}),
+    });
+    writeManifest();
+    if (releaseMode === "direct-deploy") {
+      output("release.direct_deploy_fallback", {
+        status: "degraded",
+        message:
+          "Candidate metadata was incomplete; skipping preview verification and deploying directly",
+      });
     }
-  }
-  Object.assign(manifest, {
-    promoted: true,
-    verificationSkipped: releaseMode === "direct-deploy",
-    promotedAt: new Date().toISOString(),
+    for (const step of productionReleaseSteps(releaseMode)) {
+      if (step === "verify-candidate") {
+        run("node", ["scripts/verify-deployment.mjs", previewUrl]);
+      } else if (step === "capture-bookmark") {
+        captureD1Bookmark();
+      } else if (step === "migrate-production") {
+        migrateProduction();
+      } else if (step === "verify-migrations") {
+        verifyProductionMigrations();
+      } else if (step === "bootstrap-administrator") {
+        run("node", ["scripts/bootstrap-admin.mjs", "--target", "production"]);
+      } else if (step === "deploy-direct") {
+        run("pnpm", [
+          "exec",
+          "wrangler",
+          "deploy",
+          "--env",
+          "",
+          ...(secretsPath ? ["--secrets-file", secretsPath] : []),
+        ]);
+      } else if (step === "promote-version") {
+        run("pnpm", [
+          "exec",
+          "wrangler",
+          "versions",
+          "deploy",
+          `${workerVersionId}@100%`,
+          "--env",
+          "",
+          "--yes",
+          "--message",
+          `Promote UniMailbox ${manifest.commit}`,
+        ]);
+      }
+    }
+    Object.assign(manifest, {
+      bootstrap: "completed",
+      promoted: true,
+      verificationSkipped: releaseMode === "direct-deploy",
+      promotedAt: new Date().toISOString(),
+    });
+    writeManifest();
   });
-  writeManifest();
 }
 output("release.completed", { status: "ok", ...manifest });

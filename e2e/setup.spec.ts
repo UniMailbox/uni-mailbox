@@ -1,28 +1,13 @@
 import { expect, test } from "@playwright/test";
 
-test("installation is driven by server-owned state", async ({ page }) => {
-  await page.route("**/api/v1/setup/status", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        data: {
-          installationVersion: 1,
-          stateVersion: 0,
-          currentStep: "claim",
-          completedSteps: [],
-        },
-      }),
-    });
-  });
+test("legacy setup route sends the operator to login", async ({ page }) => {
   await page.goto("/setup");
 
   await expect(
-    page.getByRole("heading", { name: "Bring your mail plane online." }),
+    page.getByRole("heading", { name: "Sign in to your mail plane." }),
   ).toBeVisible();
-  await expect(
-    page.getByText("Claim installation", { exact: true }).first(),
-  ).toBeVisible();
-  await expect(page.getByLabel("Installation token")).toBeVisible();
+  await expect(page).toHaveURL(/\/login$/u);
+  await expect(page.getByText(/installation token/i)).toHaveCount(0);
 });
 
 test("login route exposes an accessible credential form", async ({ page }) => {

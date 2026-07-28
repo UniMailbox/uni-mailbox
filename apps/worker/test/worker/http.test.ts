@@ -7,9 +7,9 @@ function context(overrides: Partial<HttpAppContext> = {}): HttpAppContext {
   return {
     installation: {
       getStatus: async () => ({
-        installationVersion: 1,
+        installationVersion: 2,
         stateVersion: 0,
-        currentStep: InstallationStep.CLAIM,
+        currentStep: InstallationStep.ADMIN_BOOTSTRAP,
         completedSteps: [],
       }),
     },
@@ -30,11 +30,8 @@ function context(overrides: Partial<HttpAppContext> = {}): HttpAppContext {
         },
       }),
     },
-    setup: {
-      claim: vi.fn(),
-      requireSession: vi.fn(),
-      preflight: vi.fn(),
-    } as unknown as HttpAppContext["setup"],
+    settings: {} as HttpAppContext["settings"],
+    infrastructure: {} as HttpAppContext["infrastructure"],
     auth: {
       verifyAccessToken: vi.fn(),
     },
@@ -89,28 +86,50 @@ function idempotencyDatabase() {
 }
 
 describe("Worker HTTP boundary", () => {
-  it("exposes health and setup status before installation", async () => {
+  it("exposes health but removes the public installation claim", async () => {
     const app = createHttpApp(async () => context());
 
     const health = await app.request("/health", {}, env);
-    const setup = await app.request("/api/v1/setup/status", {}, env);
+    const claim = await app.request(
+      "/api/v1/setup/claim",
+      { method: "POST" },
+      env,
+    );
 
     expect(health.status).toBe(200);
     await expect(health.json()).resolves.toMatchObject({
       data: { status: "ok" },
     });
-    expect(setup.status).toBe(200);
-    await expect(setup.json()).resolves.toMatchObject({
-      data: { currentStep: "claim" },
-    });
+    expect(claim.status).toBe(404);
   });
 
-  it("redirects ordinary application routes to setup until complete", async () => {
+  it("returns a deployment error until bootstrap completes", async () => {
     const app = createHttpApp(async () => context());
     const response = await app.request("/inbox/mailbox-1", {}, env);
 
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "BOOTSTRAP_INCOMPLETE" },
+    });
+  });
+
+  it("redirects the legacy setup page to login after bootstrap", async () => {
+    const app = createHttpApp(async () =>
+      context({
+        installation: {
+          getStatus: async () => ({
+            installationVersion: 2,
+            stateVersion: 1,
+            currentStep: InstallationStep.COMPLETE,
+            completedSteps: ["admin_bootstrap"],
+          }),
+        },
+      }),
+    );
+    const response = await app.request("/setup", {}, env);
+
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe("/setup");
+    expect(response.headers.get("location")).toBe("/login");
   });
 
   it("returns structured errors with request IDs", async () => {
@@ -164,7 +183,7 @@ describe("Worker HTTP boundary", () => {
     const completeContext = context({
       installation: {
         getStatus: async () => ({
-          installationVersion: 1,
+          installationVersion: 2,
           stateVersion: 8,
           currentStep: InstallationStep.COMPLETE,
           completedSteps: [],

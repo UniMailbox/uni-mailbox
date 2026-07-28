@@ -32,7 +32,6 @@ export interface Env {
   ATTACHMENTS?: R2Bucket;
   OUTBOUND_QUEUE: Queue<UniMailboxQueueJob>;
   ASSETS: Fetcher;
-  INSTALLATION_TOKEN: SecretBinding;
   AUTH_SIGNING_KEY: SecretBinding;
   CREDENTIAL_ENCRYPTION_KEY: SecretBinding;
   CLOUDFLARE_OAUTH_CLIENT_ID?: SecretBinding;
@@ -48,7 +47,6 @@ export async function readSecretBinding(
 
 export async function resolveRuntimeConfig(env: Env): Promise<RuntimeConfig> {
   return RuntimeConfigSchema.parse({
-    INSTALLATION_TOKEN: await readSecretBinding(env.INSTALLATION_TOKEN),
     AUTH_SIGNING_KEY: await readSecretBinding(env.AUTH_SIGNING_KEY),
     CREDENTIAL_ENCRYPTION_KEY: await readSecretBinding(
       env.CREDENTIAL_ENCRYPTION_KEY,
