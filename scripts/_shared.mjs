@@ -147,10 +147,18 @@ export function readJsonc(path) {
   return JSON.parse(normalized);
 }
 
-export async function withSecureTemporaryJson(directory, value, callback) {
+export async function withSecureTemporaryText(
+  directory,
+  extension,
+  value,
+  callback,
+) {
   mkdirSync(directory, { recursive: true });
-  const path = resolve(directory, `.unimailbox-secrets-${randomUUID()}.json`);
-  writeFileSync(path, `${JSON.stringify(value)}\n`, {
+  const path = resolve(
+    directory,
+    `.unimailbox-temporary-${randomUUID()}${extension}`,
+  );
+  writeFileSync(path, value, {
     mode: 0o600,
     flag: "wx",
   });
@@ -159,6 +167,15 @@ export async function withSecureTemporaryJson(directory, value, callback) {
   } finally {
     if (existsSync(path)) unlinkSync(path);
   }
+}
+
+export async function withSecureTemporaryJson(directory, value, callback) {
+  return withSecureTemporaryText(
+    directory,
+    ".json",
+    `${JSON.stringify(value)}\n`,
+    callback,
+  );
 }
 
 export function migrationFiles() {

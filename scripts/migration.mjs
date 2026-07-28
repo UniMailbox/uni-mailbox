@@ -9,7 +9,9 @@ import {
   migrationsDirectory,
   output,
   parseTarget,
+  root,
   run,
+  withSecureTemporaryText,
   wranglerTargetArgs,
 } from "./_shared.mjs";
 
@@ -62,9 +64,130 @@ function ensureProductionConfirmation() {
   output("migration.production_confirmed", { confirmation });
 }
 
-function migrate() {
+function parseD1Row(raw, fields, event) {
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    fail(event, "D1 did not return valid JSON", 5);
+  }
+  const row = parsed?.[0]?.results?.[0];
+  if (
+    parsed?.[0]?.success !== true ||
+    !row ||
+    fields.some((field) => !Number.isSafeInteger(row[field]))
+  ) {
+    fail(event, "D1 did not return the expected schema state", 5);
+  }
+  return row;
+}
+
+function queryD1Row(sql, fields) {
+  const command = [
+    "exec",
+    "wrangler",
+    "d1",
+    "execute",
+    "DB",
+    ...wranglerTargetArgs(target),
+    "--command",
+    sql,
+    "--json",
+  ];
+  output("command.started", { command: "pnpm", args: command });
+  const result = capture("pnpm", command);
+  if (!result.ok) {
+    fail(
+      "migration.initial_schema_state_failed",
+      "Could not inspect the initial D1 schema state",
+      5,
+      { stderrBytes: Buffer.byteLength(result.stderr) },
+    );
+  }
+  const row = parseD1Row(
+    result.stdout,
+    fields,
+    "migration.initial_schema_state_invalid",
+  );
+  output("command.completed", { command: "pnpm", args: command });
+  return row;
+}
+
+async function bootstrapRemoteInitialMigration() {
+  if (target === "local") return;
+  const schema = queryD1Row(
+    `SELECT
+      EXISTS(
+        SELECT 1 FROM sqlite_schema
+        WHERE type = 'table' AND name = 'd1_migrations'
+      ) AS migration_table_present,
+      EXISTS(
+        SELECT 1 FROM sqlite_schema
+        WHERE type = 'table'
+          AND name IN ('users', 'installation_state')
+      ) AS application_schema_present`,
+    ["migration_table_present", "application_schema_present"],
+  );
+  let initialMigrationCount = 0;
+  if (schema.migration_table_present === 1) {
+    ({ initial_migration_count: initialMigrationCount } = queryD1Row(
+      `SELECT COUNT(*) AS initial_migration_count
+       FROM d1_migrations
+       WHERE name = '0001_initial.sql'`,
+      ["initial_migration_count"],
+    ));
+  }
+  if (initialMigrationCount > 0) return;
+  if (schema.application_schema_present > 0) {
+    fail(
+      "migration.initial_schema_untracked",
+      "The application schema exists without a recorded initial migration",
+      8,
+    );
+  }
+
+  const initialMigration = readFileSync(
+    resolve(migrationsDirectory, "0001_initial.sql"),
+    "utf8",
+  );
+  const bootstrapSql = `CREATE TABLE IF NOT EXISTS d1_migrations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT UNIQUE,
+  applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+${initialMigration}
+
+INSERT INTO d1_migrations (name)
+VALUES ('0001_initial.sql');
+`;
+  await withSecureTemporaryText(
+    resolve(root, ".wrangler", "release"),
+    ".sql",
+    bootstrapSql,
+    (path) =>
+      run("pnpm", [
+        "exec",
+        "wrangler",
+        "d1",
+        "execute",
+        "DB",
+        ...wranglerTargetArgs(target),
+        "--file",
+        path,
+      ]),
+  );
+  output("migration.initial_schema_imported", {
+    status: "ok",
+    target,
+    migration: "0001_initial.sql",
+  });
+}
+
+async function migrate() {
   const files = assertMigrationSet();
   ensureProductionConfirmation();
+  await bootstrapRemoteInitialMigration();
   run("pnpm", [
     "exec",
     "wrangler",
@@ -171,7 +294,7 @@ function verify() {
 }
 
 if (command === "new") createMigration();
-else if (command === "migrate") migrate();
+else if (command === "migrate") await migrate();
 else if (command === "status") status();
 else if (command === "verify") verify();
 else {

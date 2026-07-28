@@ -39,6 +39,20 @@ Cloudflare owns the generated D1, KV, and Queue deployment metadata. R2 is
 optional and added only through `wrangler.r2.jsonc`. Do not copy account IDs
 into application settings.
 
+### Initial D1 schema
+
+Remote first deployments inspect `sqlite_schema` and Wrangler's
+`d1_migrations` ledger before applying migrations. When D1 is empty and
+`0001_initial.sql` is not recorded, the release imports the initial schema and
+its ledger entry together through Wrangler's atomic SQL-file import path. It
+then returns to `wrangler d1 migrations apply` for the remaining migrations.
+This avoids the remote multi-statement query parser used by the standard
+migration command for the trigger-bearing initial schema.
+
+The release never adopts an untracked non-empty application schema. If `users`
+or `installation_state` exists without a `0001_initial.sql` ledger entry, it
+stops with `migration.initial_schema_untracked` for operator review.
+
 ## Storage backends
 
 UniMailbox stores raw inbound messages (`raw/<uuid>.eml`) and attachment bytes

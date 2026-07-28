@@ -265,6 +265,13 @@ if (has("migrations") && has("apply")) process.exit(0);
 if (has("d1") && has("execute")) {
   const sql = has("--command") ? args[args.indexOf("--command") + 1] : "";
   const file = has("--file") ? args[args.indexOf("--file") + 1] : "";
+  if (sql.includes("migration_table_present")) {
+    process.stdout.write(JSON.stringify([{
+      success: true,
+      results: [{ migration_table_present: 0, application_schema_present: 0 }]
+    }]));
+    process.exit(0);
+  }
   if (sql.includes("administrator_count")) {
     const count = fs.existsSync(process.env.FAKE_BOOTSTRAP_STATE) ? 1 : 0;
     process.stdout.write(JSON.stringify([{ success: true, results: [{ administrator_count: count }] }]));
