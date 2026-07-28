@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowUpRight,
-  CheckCircle2,
   Cloud,
   MailCheck,
   RadioTower,
