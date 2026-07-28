@@ -107,7 +107,6 @@ function doctor() {
   }
   const bindings = pkg.cloudflare?.bindings ?? {};
   const missingSecrets = [
-    "INSTALLATION_TOKEN",
     "AUTH_SIGNING_KEY",
     "CREDENTIAL_ENCRYPTION_KEY",
   ].filter((name) => !bindings[name]);

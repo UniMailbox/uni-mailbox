@@ -2,7 +2,6 @@ import {
   DomainError,
   CreateAttachmentUploadSchema,
   DraftMessageSchema,
-  InstallationClaimSchema,
   InstallationStep,
   LoginSchema,
   MailboxCreateSchema,
@@ -10,8 +9,6 @@ import {
   ProviderConnectionSchema,
   RegisterSchema,
   SendMessageSchema,
-  SetupAdministratorSchema,
-  type InstallationStatus,
   type Principal,
 } from "@unimailbox/contracts";
 import { Hono } from "hono";
@@ -30,73 +27,14 @@ import type { WebhookApplicationService } from "../modules/provider-sync/webhook
 import type { Env } from "../platform/config";
 import type { Logger } from "../platform/logger";
 import { errorResponse } from "./errors";
-
-export interface SetupSession {
-  token: string;
-  csrfToken: string;
-  expiresAt: string;
-}
-
-export interface SetupUseCases {
-  claim(token: string, request: Request): Promise<SetupSession>;
-  requireSession(request: Request): Promise<{ id: string; csrfToken: string }>;
-  preflight(request: Request): Promise<unknown>;
-  administrator(
-    input: { email: string; password: string; displayName: string },
-    request: Request,
-  ): Promise<unknown>;
-  dashboardLink(input: {
-    accountId: string;
-    zoneId: string;
-    destination: "email-routing" | "dns" | "worker";
-  }): URL;
-  verifyCloudflare(
-    input: {
-      accountId: string;
-      zoneId: string;
-      mode: "dashboard" | "oauth";
-    },
-    request: Request,
-  ): Promise<unknown>;
-  cloudflareOauthStart(request: Request): Promise<{ url: string }>;
-  cloudflareOauthCallback(request: Request): Promise<URL>;
-  revokeCloudflareOauth(
-    principal: Principal,
-    request: Request,
-  ): Promise<{ revoked: boolean }>;
-  openRepairSession(
-    principal: Principal,
-    request: Request,
-  ): Promise<SetupSession>;
-  createDomain(
-    input: { name: string },
-    principalRequest: Request,
-  ): Promise<unknown>;
-  inboundSmokeTest(
-    input: { token?: string },
-    request: Request,
-  ): Promise<unknown>;
-  connectBrevo(
-    input: {
-      providerKey: string;
-      label: string;
-      apiKey: string;
-      webhookSecret: string;
-      domainId: string;
-    },
-    request: Request,
-  ): Promise<unknown>;
-  outboundSmokeTest(
-    input: { connectionId: string; from: string; to: string },
-    request: Request,
-  ): Promise<unknown>;
-  complete(request: Request): Promise<InstallationStatus>;
-}
+import type { CloudflareSettingsService } from "../modules/administration/cloudflare-settings";
+import type { InfrastructureSettingsService } from "../modules/administration/infrastructure-settings";
 
 export interface HttpAppContext {
   installation: Pick<InstallationService, "getStatus">;
   health: { check(): Promise<HealthResult> };
-  setup: SetupUseCases;
+  settings: CloudflareSettingsService;
+  infrastructure: InfrastructureSettingsService;
   auth: {
     verifyAccessToken(token: string): Promise<Principal>;
   };
@@ -124,19 +62,13 @@ interface AppBindings {
   };
 }
 
-const SETUP_COOKIE = "unimailbox_setup";
-
 function success<T>(data: T, init?: ResponseInit): Response {
   return Response.json({ data }, init);
 }
 
-function isSetupSafePath(path: string): boolean {
+function isBootstrapSafePath(path: string): boolean {
   return (
-    path === "/health" ||
-    path === "/setup" ||
-    path.startsWith("/setup/") ||
-    path.startsWith("/api/v1/setup/") ||
-    path === "/api/v1/setup/status"
+    path === "/health" || path === "/setup" || path.startsWith("/api/v1/setup/")
   );
 }
 
@@ -210,10 +142,14 @@ export function createHttpApp(createContext: HttpContextFactory) {
     await next();
   });
   app.use("*", async (context, next) => {
-    if (!isSetupSafePath(context.req.path)) {
+    if (!isBootstrapSafePath(context.req.path)) {
       const status = await context.get("appContext").installation.getStatus();
       if (status.currentStep !== InstallationStep.COMPLETE) {
-        return context.redirect("/setup", 307);
+        throw new DomainError(
+          "BOOTSTRAP_INCOMPLETE",
+          "The deployment bootstrap has not completed",
+          503,
+        );
       }
     }
     await next();
@@ -223,223 +159,7 @@ export function createHttpApp(createContext: HttpContextFactory) {
     success(await context.get("appContext").health.check()),
   );
 
-  app.get("/api/v1/setup/status", async (context) =>
-    success(await context.get("appContext").installation.getStatus()),
-  );
-
-  app.post("/api/v1/setup/claim", async (context) => {
-    const input = InstallationClaimSchema.parse(await context.req.json());
-    const session = await context
-      .get("appContext")
-      .setup.claim(input.token, context.req.raw);
-    const response = success({
-      csrfToken: session.csrfToken,
-      expiresAt: session.expiresAt,
-    });
-    response.headers.append(
-      "set-cookie",
-      `${SETUP_COOKIE}=${session.token}; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/setup; Max-Age=900`,
-    );
-    return response;
-  });
-
-  app.post("/api/v1/setup/preflight", async (context) => {
-    await context.get("appContext").setup.requireSession(context.req.raw);
-    return success(
-      await context.get("appContext").setup.preflight(context.req.raw),
-    );
-  });
-  app.post("/api/v1/setup/administrator", async (context) => {
-    await context.get("appContext").setup.requireSession(context.req.raw);
-    return success(
-      await context
-        .get("appContext")
-        .setup.administrator(
-          SetupAdministratorSchema.parse(await context.req.json()),
-          context.req.raw,
-        ),
-      { status: 201 },
-    );
-  });
-  app.post("/api/v1/setup/cloudflare/dashboard-link", async (context) => {
-    await context.get("appContext").setup.requireSession(context.req.raw);
-    const input = await context.req.json<{
-      accountId?: unknown;
-      zoneId?: unknown;
-      destination?: unknown;
-    }>();
-    if (
-      typeof input.accountId !== "string" ||
-      typeof input.zoneId !== "string" ||
-      !["email-routing", "dns", "worker"].includes(String(input.destination))
-    ) {
-      throw new DomainError(
-        "VALIDATION_FAILED",
-        "A valid Cloudflare dashboard destination is required",
-      );
-    }
-    return success({
-      url: context
-        .get("appContext")
-        .setup.dashboardLink({
-          accountId: input.accountId,
-          zoneId: input.zoneId,
-          destination: input.destination as "email-routing" | "dns" | "worker",
-        })
-        .toString(),
-    });
-  });
-  app.post("/api/v1/setup/cloudflare/verify", async (context) => {
-    await context.get("appContext").setup.requireSession(context.req.raw);
-    const input = await context.req.json<{
-      accountId?: unknown;
-      zoneId?: unknown;
-      mode?: unknown;
-    }>();
-    if (
-      typeof input.accountId !== "string" ||
-      typeof input.zoneId !== "string" ||
-      !["dashboard", "oauth"].includes(String(input.mode))
-    ) {
-      throw new DomainError(
-        "VALIDATION_FAILED",
-        "Dashboard-assisted Cloudflare setup metadata is invalid",
-      );
-    }
-    return success(
-      await context.get("appContext").setup.verifyCloudflare(
-        {
-          accountId: input.accountId,
-          zoneId: input.zoneId,
-          mode: input.mode as "dashboard" | "oauth",
-        },
-        context.req.raw,
-      ),
-    );
-  });
-  app.post("/api/v1/setup/cloudflare/oauth/start", async (context) => {
-    await context.get("appContext").setup.requireSession(context.req.raw);
-    return success(
-      await context
-        .get("appContext")
-        .setup.cloudflareOauthStart(context.req.raw),
-    );
-  });
-  app.get("/api/v1/setup/cloudflare/oauth/callback", async (context) =>
-    context.redirect(
-      (
-        await context
-          .get("appContext")
-          .setup.cloudflareOauthCallback(context.req.raw)
-      ).toString(),
-      303,
-    ),
-  );
-  app.use("/api/v1/setup/cloudflare/oauth/revoke", requireAuth());
-  app.post("/api/v1/setup/cloudflare/oauth/revoke", async (context) =>
-    success(
-      await context
-        .get("appContext")
-        .setup.revokeCloudflareOauth(context.get("principal"), context.req.raw),
-    ),
-  );
-  app.post("/api/v1/setup/domain", async (context) => {
-    await context.get("appContext").setup.requireSession(context.req.raw);
-    const input = await context.req.json<{ name?: unknown }>();
-    if (
-      typeof input.name !== "string" ||
-      !/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/iu.test(
-        input.name,
-      )
-    ) {
-      throw new DomainError(
-        "VALIDATION_FAILED",
-        "A valid managed domain is required",
-      );
-    }
-    return success(
-      await context
-        .get("appContext")
-        .setup.createDomain({ name: input.name }, context.req.raw),
-      { status: 201 },
-    );
-  });
-  app.post("/api/v1/setup/smoke-test/inbound", async (context) => {
-    await context.get("appContext").setup.requireSession(context.req.raw);
-    const input: { token?: unknown } = await context.req
-      .json<{ token?: unknown }>()
-      .catch(() => ({ token: undefined }));
-    return success(
-      await context.get("appContext").setup.inboundSmokeTest(
-        {
-          ...(typeof input.token === "string" ? { token: input.token } : {}),
-        },
-        context.req.raw,
-      ),
-    );
-  });
-  app.post("/api/v1/setup/brevo", async (context) => {
-    await context.get("appContext").setup.requireSession(context.req.raw);
-    const raw = await context.req.json<unknown>();
-    const input = ProviderConnectionSchema.extend({
-      domainId: SendMessageSchema.shape.mailboxId,
-    }).parse(raw);
-    return success(
-      await context
-        .get("appContext")
-        .setup.connectBrevo(input, context.req.raw),
-      { status: 201 },
-    );
-  });
-  app.post("/api/v1/setup/smoke-test/outbound", async (context) => {
-    await context.get("appContext").setup.requireSession(context.req.raw);
-    const input = await context.req.json<{
-      connectionId?: unknown;
-      from?: unknown;
-      to?: unknown;
-    }>();
-    if (
-      typeof input.connectionId !== "string" ||
-      typeof input.from !== "string" ||
-      typeof input.to !== "string"
-    ) {
-      throw new DomainError(
-        "VALIDATION_FAILED",
-        "connectionId, from, and to are required",
-      );
-    }
-    return success(
-      await context.get("appContext").setup.outboundSmokeTest(
-        {
-          connectionId: input.connectionId,
-          from: input.from,
-          to: input.to,
-        },
-        context.req.raw,
-      ),
-    );
-  });
-  app.post("/api/v1/setup/complete", async (context) => {
-    await context.get("appContext").setup.requireSession(context.req.raw);
-    return success(
-      await context.get("appContext").setup.complete(context.req.raw),
-    );
-  });
-  app.use("/api/v1/setup/repair", requireAuth());
-  app.post("/api/v1/setup/repair", async (context) => {
-    const session = await context
-      .get("appContext")
-      .setup.openRepairSession(context.get("principal"), context.req.raw);
-    const response = success({
-      csrfToken: session.csrfToken,
-      expiresAt: session.expiresAt,
-    });
-    response.headers.append(
-      "set-cookie",
-      `unimailbox_repair=${session.token}; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/setup; Max-Age=900`,
-    );
-    return response;
-  });
+  app.get("/setup", (context) => context.redirect("/login", 307));
 
   app.post("/api/v1/webhooks/:providerKey/:connectionId", async (context) =>
     success(
@@ -544,6 +264,25 @@ export function createHttpApp(createContext: HttpContextFactory) {
         input.newPassword,
       );
     return success({ reset: true, sessionsRevoked: true });
+  });
+  app.use("/api/v1/auth/email", requireAuth());
+  app.post("/api/v1/auth/email", async (context) => {
+    const input = z
+      .object({
+        currentPassword: z.string().min(12).max(1024),
+        email: z.string().trim().email(),
+      })
+      .parse(await context.req.json());
+    return success({
+      ...(await context
+        .get("appContext")
+        .identity.changeEmail(
+          context.get("principal"),
+          input.currentPassword,
+          input.email,
+        )),
+      sessionsRevoked: true,
+    });
   });
 
   app.use("/api/v1/mailboxes", requireAuth());
@@ -866,9 +605,145 @@ export function createHttpApp(createContext: HttpContextFactory) {
     ),
   );
 
+  app.get("/api/v1/admin/cloudflare/oauth/callback", async (context) =>
+    context.redirect(
+      (
+        await context
+          .get("appContext")
+          .settings.cloudflareOauthCallback(context.req.raw)
+      ).toString(),
+      303,
+    ),
+  );
+
   app.use("/api/v1/admin", requireAuth());
   app.use("/api/v1/admin/*", requireAuth());
   app.use("/api/v1/admin/*", requireAdminIdempotency());
+
+  app.get("/api/v1/admin/cloudflare/status", async (context) =>
+    success(
+      await context
+        .get("appContext")
+        .settings.listCheckpoints(context.get("principal")),
+    ),
+  );
+  app.post("/api/v1/admin/cloudflare/oauth/start", async (context) =>
+    success(
+      await context
+        .get("appContext")
+        .settings.cloudflareOauthStart(
+          context.get("principal"),
+          context.req.raw,
+        ),
+    ),
+  );
+  app.post("/api/v1/admin/cloudflare/oauth/revoke", async (context) =>
+    success(
+      await context
+        .get("appContext")
+        .settings.revokeCloudflareOauth(
+          context.get("principal"),
+          context.req.raw,
+        ),
+    ),
+  );
+  app.post("/api/v1/admin/cloudflare/dashboard-link", async (context) => {
+    const input = z
+      .object({
+        accountId: z.string().trim().min(1).max(64),
+        zoneId: z.string().trim().min(1).max(64),
+        destination: z.enum(["email-routing", "dns", "worker"]),
+      })
+      .parse(await context.req.json());
+    return success({
+      url: context
+        .get("appContext")
+        .settings.dashboardLink(context.get("principal"), input)
+        .toString(),
+    });
+  });
+  app.post("/api/v1/admin/cloudflare/verify", async (context) => {
+    const input = z
+      .object({
+        accountId: z.string().trim().min(1).max(64),
+        zoneId: z.string().trim().min(1).max(64),
+        mode: z.enum(["dashboard", "oauth"]),
+      })
+      .parse(await context.req.json());
+    return success(
+      await context
+        .get("appContext")
+        .settings.verifyCloudflare(context.get("principal"), input),
+    );
+  });
+  app.post("/api/v1/admin/cloudflare/domains", async (context) => {
+    const input = z
+      .object({
+        name: z
+          .string()
+          .trim()
+          .toLowerCase()
+          .regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/u),
+      })
+      .parse(await context.req.json());
+    return success(
+      await context
+        .get("appContext")
+        .settings.createDomain(context.get("principal"), input),
+      { status: 201 },
+    );
+  });
+  app.post("/api/v1/admin/cloudflare/smoke-test/inbound", async (context) => {
+    const input = z
+      .object({ token: z.string().trim().min(1).max(255).optional() })
+      .parse(
+        await context.req.json<unknown>().catch(() => ({ token: undefined })),
+      );
+    return success(
+      await context
+        .get("appContext")
+        .settings.inboundSmokeTest(context.get("principal"), input),
+    );
+  });
+  app.post("/api/v1/admin/cloudflare/brevo", async (context) => {
+    const input = ProviderConnectionSchema.extend({
+      domainId: SendMessageSchema.shape.mailboxId,
+    }).parse(await context.req.json());
+    return success(
+      await context
+        .get("appContext")
+        .settings.connectBrevo(context.get("principal"), input),
+      { status: 201 },
+    );
+  });
+  app.post("/api/v1/admin/cloudflare/smoke-test/outbound", async (context) => {
+    const input = z
+      .object({
+        connectionId: z.string().uuid(),
+        from: z.string().trim().email(),
+        to: z.string().trim().email(),
+      })
+      .parse(await context.req.json());
+    return success(
+      await context
+        .get("appContext")
+        .settings.outboundSmokeTest(context.get("principal"), input),
+    );
+  });
+  app.get("/api/v1/admin/infrastructure", async (context) =>
+    success(
+      await context
+        .get("appContext")
+        .infrastructure.getStatus(context.get("principal")),
+    ),
+  );
+  app.post("/api/v1/admin/storage/r2/verify", async (context) =>
+    success(
+      await context
+        .get("appContext")
+        .infrastructure.verifyR2(context.get("principal")),
+    ),
+  );
 
   app.get("/api/v1/admin/users", async (context) =>
     success(
@@ -1283,5 +1158,3 @@ function requireAdminIdempotency(): MiddlewareHandler<AppBindings> {
       .run();
   };
 }
-
-export type { InstallationStatus };

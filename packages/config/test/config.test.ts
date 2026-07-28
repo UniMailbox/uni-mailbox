@@ -4,7 +4,6 @@ import { RuntimeConfigSchema, runtimePolicy } from "../src";
 describe("runtime configuration schema", () => {
   it("accepts a complete configuration", () => {
     const result = RuntimeConfigSchema.parse({
-      INSTALLATION_TOKEN: "x".repeat(32),
       AUTH_SIGNING_KEY: "y".repeat(32),
       CREDENTIAL_ENCRYPTION_KEY: "z".repeat(32),
     });
@@ -14,7 +13,6 @@ describe("runtime configuration schema", () => {
 
   it("preserves configured allowed origins", () => {
     const result = RuntimeConfigSchema.parse({
-      INSTALLATION_TOKEN: "x".repeat(32),
       AUTH_SIGNING_KEY: "y".repeat(32),
       CREDENTIAL_ENCRYPTION_KEY: "z".repeat(32),
       ALLOWED_ORIGINS: ["https://mail.example.com"],
@@ -25,21 +23,12 @@ describe("runtime configuration schema", () => {
   it("rejects any secret shorter than 32 characters", () => {
     expect(() =>
       RuntimeConfigSchema.parse({
-        INSTALLATION_TOKEN: "short",
-        AUTH_SIGNING_KEY: "y".repeat(32),
-        CREDENTIAL_ENCRYPTION_KEY: "z".repeat(32),
-      }),
-    ).toThrow();
-    expect(() =>
-      RuntimeConfigSchema.parse({
-        INSTALLATION_TOKEN: "x".repeat(32),
         AUTH_SIGNING_KEY: "short",
         CREDENTIAL_ENCRYPTION_KEY: "z".repeat(32),
       }),
     ).toThrow();
     expect(() =>
       RuntimeConfigSchema.parse({
-        INSTALLATION_TOKEN: "x".repeat(32),
         AUTH_SIGNING_KEY: "y".repeat(32),
         CREDENTIAL_ENCRYPTION_KEY: "short",
       }),
@@ -49,7 +38,6 @@ describe("runtime configuration schema", () => {
   it("rejects origins that are not URLs", () => {
     expect(() =>
       RuntimeConfigSchema.parse({
-        INSTALLATION_TOKEN: "x".repeat(32),
         AUTH_SIGNING_KEY: "y".repeat(32),
         CREDENTIAL_ENCRYPTION_KEY: "z".repeat(32),
         ALLOWED_ORIGINS: ["not-a-url"],
@@ -62,7 +50,6 @@ describe("runtime policy", () => {
   it("exposes deterministic numeric tunings", () => {
     expect(runtimePolicy.accessTokenTtlSeconds).toBe(900);
     expect(runtimePolicy.refreshTokenTtlSeconds).toBe(30 * 24 * 60 * 60);
-    expect(runtimePolicy.setupSessionTtlSeconds).toBe(900);
     expect(runtimePolicy.oauthStateTtlSeconds).toBe(600);
     expect(runtimePolicy.passwordIterations).toBe(310_000);
     expect(runtimePolicy.outboundAttemptLimit).toBe(5);

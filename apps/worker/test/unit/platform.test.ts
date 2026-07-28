@@ -48,7 +48,6 @@ describe("secret binding helpers", () => {
 
   it("loads and validates the runtime configuration", async () => {
     const env = {
-      INSTALLATION_TOKEN: { get: async () => "x".repeat(32) },
       AUTH_SIGNING_KEY: { get: async () => "y".repeat(32) },
       CREDENTIAL_ENCRYPTION_KEY: { get: async () => "z".repeat(32) },
     } as unknown as Env;

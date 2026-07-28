@@ -126,14 +126,7 @@ export interface Principal {
 }
 
 export const InstallationStep = {
-  CLAIM: "claim",
-  PREFLIGHT: "preflight",
-  ADMIN: "admin",
-  CLOUDFLARE: "cloudflare",
-  DOMAIN: "domain",
-  INBOUND_SMOKE_TEST: "inbound_smoke_test",
-  BREVO: "brevo",
-  OUTBOUND_SMOKE_TEST: "outbound_smoke_test",
+  ADMIN_BOOTSTRAP: "admin_bootstrap",
   COMPLETE: "complete",
 } as const;
 
