@@ -5,6 +5,7 @@
   "compatibility_date": "2026-07-23",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "preview_urls": true,
   "assets": {
     "binding": "ASSETS",
     "directory": "apps/web/dist",
@@ -65,6 +66,7 @@
   "env": {
     "preview": {
       "workers_dev": true,
+      "preview_urls": true,
       "d1_databases": [
         {
           "binding": "DB",

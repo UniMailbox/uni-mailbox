@@ -54,11 +54,12 @@ export function run(command, args, options = {}) {
   output("command.completed", { command, args });
 }
 
-export function capture(command, args) {
+export function capture(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: root,
     encoding: "utf8",
     env: process.env,
+    ...options,
   });
   return {
     ok: result.status === 0,
