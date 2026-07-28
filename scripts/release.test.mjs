@@ -166,6 +166,7 @@ describe("production release fallback", () => {
     expect(() => parseRuntimeSecretList('[{"name":42}]')).toThrow(
       /named entries/iu,
     );
+    expect(() => parseRuntimeSecretList("not-json")).toThrow(/valid JSON/iu);
   });
 
   it("reads guarded D1 counts without accepting malformed output", () => {
@@ -182,6 +183,9 @@ describe("production release fallback", () => {
     ).toBe(0);
     expect(() => parseD1CountResult("[]", "count")).toThrow(
       /did not return count/iu,
+    );
+    expect(() => parseD1CountResult("not-json", "count")).toThrow(
+      /valid JSON/iu,
     );
   });
 
