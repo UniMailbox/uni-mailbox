@@ -1,0 +1,91 @@
+import { BREVO_PROVIDER_KEY } from "@unimailbox/contracts";
+import { createBrevoProviderPlugin } from "./integrations/brevo";
+import { ProviderRegistry } from "./integrations/providers";
+import type { HttpAppContext } from "./http/router";
+import { TokenService } from "./modules/identity";
+import { IdentityApplicationService } from "./modules/identity/application";
+import { InstallationService } from "./modules/installation";
+import { D1InstallationRepository } from "./modules/installation/infrastructure/d1-installation.repository";
+import { SetupApplicationService } from "./modules/installation/setup-use-cases";
+import { HealthService } from "./modules/maintenance";
+import { MailboxApplicationService } from "./modules/mailboxes";
+import { CursorCodec } from "./modules/messages/cursor";
+import { MessageApplicationService } from "./modules/messages";
+import { DraftApplicationService } from "./modules/messages/drafts";
+import { AttachmentApplicationService } from "./modules/attachments";
+import { UploadTokenCodec } from "./modules/attachments/upload-token";
+import { WebhookApplicationService } from "./modules/provider-sync/webhook";
+import { AdminApplicationService } from "./modules/administration";
+import { resolveRuntimeConfig, type Env } from "./platform/config";
+import { CredentialCipher } from "./platform/crypto";
+import { StructuredLogger } from "./platform/logger";
+
+export interface AppContext extends HttpAppContext {
+  env: Env;
+  providers: ProviderRegistry;
+  credentials: CredentialCipher;
+}
+
+export async function createAppContext(
+  env: Env,
+  _executionContext?: ExecutionContext,
+): Promise<AppContext> {
+  const runtime = await resolveRuntimeConfig(env);
+  const installation = new InstallationService(
+    new D1InstallationRepository(env.DB),
+  );
+  const health = new HealthService(env);
+  const tokens = new TokenService(runtime.AUTH_SIGNING_KEY);
+  const identity = new IdentityApplicationService(env, tokens);
+  const mailboxes = new MailboxApplicationService(env);
+  const partialContext = {
+    env,
+    providers: new ProviderRegistry(
+      new Map([[BREVO_PROVIDER_KEY, createBrevoProviderPlugin()]]),
+    ),
+    credentials: new CredentialCipher(runtime.CREDENTIAL_ENCRYPTION_KEY),
+    logger: new StructuredLogger(),
+  };
+  const messages = new MessageApplicationService(
+    partialContext,
+    mailboxes,
+    new CursorCodec(runtime.AUTH_SIGNING_KEY),
+  );
+  const attachments = new AttachmentApplicationService(
+    env,
+    new UploadTokenCodec(runtime.AUTH_SIGNING_KEY),
+  );
+  const drafts = new DraftApplicationService(partialContext, mailboxes);
+  const webhooks = new WebhookApplicationService(partialContext);
+  const admin = new AdminApplicationService(partialContext);
+  return {
+    ...partialContext,
+    installation,
+    health,
+    setup: new SetupApplicationService(
+      env.KV,
+      installation,
+      health,
+      runtime,
+      env.DB,
+      identity,
+      partialContext.credentials,
+      partialContext.providers,
+      {
+        clientId: env.CLOUDFLARE_OAUTH_CLIENT_ID,
+        clientSecret: env.CLOUDFLARE_OAUTH_CLIENT_SECRET,
+        scopes: env.CLOUDFLARE_OAUTH_SCOPES,
+      },
+    ),
+    auth: {
+      verifyAccessToken: (token) => identity.verifyAccessToken(token),
+    },
+    identity,
+    mailboxes,
+    messages,
+    attachments,
+    drafts,
+    webhooks,
+    admin,
+  };
+}

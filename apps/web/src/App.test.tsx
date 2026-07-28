@@ -1,43 +1,97 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { InstallationStep } from "@unimailbox/contracts";
 import { App } from "./App";
 
-vi.stubGlobal(
-  "fetch",
-  vi.fn(async (input: RequestInfo | URL) => {
-    const url = String(input);
+function renderApp() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={client}>
+      <App />
+    </QueryClientProvider>,
+  );
+}
 
-    if (url.endsWith("/profiles")) {
-      return Response.json({ ok: true, data: [] });
-    }
-
-    if (url.endsWith("/files")) {
-      return Response.json({ ok: true, data: [] });
-    }
-
-    return Response.json({ ok: true, data: { role: "viewer", permissions: [] } });
-  })
-);
-
-describe("App", () => {
+describe("UniMailbox application boundary", () => {
   beforeEach(() => {
+    window.sessionStorage.clear();
     window.localStorage.clear();
+    vi.restoreAllMocks();
   });
 
-  it("renders the Cloudflare resource dashboard", async () => {
-    render(<App />);
+  it("renders the secure operator login route", async () => {
+    window.history.replaceState({}, "", "/login");
+    renderApp();
 
-    expect(screen.getByText("Initial setup")).toBeInTheDocument();
-    expect(screen.getByText("D1 profiles")).toBeInTheDocument();
-    expect(screen.getByText("KV config")).toBeInTheDocument();
-    expect(screen.getByText("R2 files")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", {
+        name: "Sign in to your mail plane.",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Email address")).toHaveAttribute(
+      "autocomplete",
+      "email",
+    );
+    expect(
+      screen.getByRole("button", { name: /Enter workspace/ }),
+    ).toBeVisible();
   });
 
-  it("updates setup progress when a task is marked complete", () => {
-    render(<App />);
+  it("renders server-owned installation progress and claims setup", async () => {
+    window.history.replaceState({}, "", "/setup");
+    const fetchMock = vi
+      .spyOn(window, "fetch")
+      .mockResolvedValueOnce(
+        Response.json({
+          data: {
+            installationVersion: 1,
+            stateVersion: 0,
+            currentStep: InstallationStep.CLAIM,
+            completedSteps: [],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          data: {
+            csrfToken: "csrf-token",
+            expiresAt: "2099-01-01T00:00:00.000Z",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          data: {
+            installationVersion: 1,
+            stateVersion: 1,
+            currentStep: InstallationStep.PREFLIGHT,
+            completedSteps: [InstallationStep.CLAIM],
+          },
+        }),
+      );
+    renderApp();
 
-    fireEvent.click(screen.getByText("Create Cloudflare resources"));
+    expect(
+      await screen.findByRole("heading", {
+        name: "Bring your mail plane online.",
+      }),
+    ).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Installation token"), {
+      target: { value: "x".repeat(32) },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Claim installation" }));
 
-    expect(screen.getByText("20%")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(window.sessionStorage.getItem("unimailbox.setup-csrf")).toBe(
+        "csrf-token",
+      ),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/setup/claim",
+      expect.objectContaining({ method: "POST" }),
+    );
   });
 });

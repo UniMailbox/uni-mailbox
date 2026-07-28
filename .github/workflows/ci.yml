@@ -1,0 +1,91 @@
+name: Verify
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install immutable dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Repository doctor
+        run: pnpm scaffold doctor
+
+      - name: Static verification
+        run: |
+          pnpm format:check
+          pnpm lint
+          pnpm typecheck
+          pnpm schema:check
+
+      - name: Unit and Worker tests
+        run: |
+          pnpm test:unit
+          pnpm test:worker
+
+      - name: Fresh local migrations
+        run: |
+          pnpm db:migrate --target local
+          pnpm db:verify --target local
+
+      - name: Integration tests
+        run: pnpm test:integration
+
+      - name: Production build and deployment preview
+        run: |
+          pnpm build
+          pnpm deploy:dry-run
+
+      - name: Production dependency audit
+        run: pnpm audit --prod
+
+      - name: Upload exact dry-run artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unimailbox-${{ github.sha }}
+          path: .wrangler/dry-run
+          if-no-files-found: error
+
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report

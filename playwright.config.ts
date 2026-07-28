@@ -9,20 +9,21 @@ export default defineConfig({
   reporter: process.env.CI ? "github" : "list",
   use: {
     baseURL,
-    trace: "on-first-retry"
+    trace: "on-first-retry",
   },
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] }
-    }
+      use: { ...devices["Desktop Chrome"] },
+    },
   ],
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
-        command: "pnpm --filter @cf-startup/web exec vite --host 127.0.0.1 --port 5173",
+        command:
+          "pnpm --filter @unimailbox/web exec vite --host 127.0.0.1 --port 5173",
         url: baseURL,
         reuseExistingServer: !process.env.CI,
-        timeout: 120_000
-      }
+        timeout: 120_000,
+      },
 });

@@ -1,0 +1,29 @@
+import type { UniMailboxQueueJob, Env } from "../platform/config";
+import { createAppContext } from "../app-context";
+import { processOutboundJob } from "../modules/outbound-mail";
+
+export async function handleQueueBatch(
+  batch: MessageBatch<UniMailboxQueueJob>,
+  env: Env,
+  context: ExecutionContext,
+): Promise<void> {
+  const appContext = await createAppContext(env, context);
+  for (const message of batch.messages) {
+    try {
+      if (message.body.kind === "orphan_object_cleanup") {
+        for (const objectKey of message.body.objectKeys) {
+          await appContext.env.ATTACHMENTS.delete(objectKey);
+        }
+        appContext.logger.info("maintenance.orphan_objects.cleaned", {
+          count: message.body.objectKeys.length,
+          jobId: message.body.jobId,
+        });
+      } else {
+        await processOutboundJob(appContext, message.body);
+      }
+      message.ack();
+    } catch {
+      message.retry();
+    }
+  }
+}
