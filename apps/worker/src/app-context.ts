@@ -6,7 +6,6 @@ import { TokenService } from "./modules/identity";
 import { IdentityApplicationService } from "./modules/identity/application";
 import { InstallationService } from "./modules/installation";
 import { D1InstallationRepository } from "./modules/installation/infrastructure/d1-installation.repository";
-import { SetupApplicationService } from "./modules/installation/setup-use-cases";
 import { HealthService } from "./modules/maintenance";
 import { MailboxApplicationService } from "./modules/mailboxes";
 import { CursorCodec } from "./modules/messages/cursor";
@@ -16,6 +15,8 @@ import { AttachmentApplicationService } from "./modules/attachments";
 import { UploadTokenCodec } from "./modules/attachments/upload-token";
 import { WebhookApplicationService } from "./modules/provider-sync/webhook";
 import { AdminApplicationService } from "./modules/administration";
+import { CloudflareSettingsService } from "./modules/administration/cloudflare-settings";
+import { InfrastructureSettingsService } from "./modules/administration/infrastructure-settings";
 import { resolveRuntimeConfig, type Env } from "./platform/config";
 import { CredentialCipher } from "./platform/crypto";
 import { StructuredLogger } from "./platform/logger";
@@ -75,13 +76,9 @@ export async function createAppContext(
     ...partialContext,
     installation,
     health,
-    setup: new SetupApplicationService(
+    settings: new CloudflareSettingsService(
       env.KV,
-      installation,
-      health,
-      runtime,
       env.DB,
-      identity,
       partialContext.credentials,
       partialContext.providers,
       {
@@ -90,6 +87,7 @@ export async function createAppContext(
         scopes: env.CLOUDFLARE_OAUTH_SCOPES,
       },
     ),
+    infrastructure: new InfrastructureSettingsService(env, health),
     auth: {
       verifyAccessToken: (token) => identity.verifyAccessToken(token),
     },

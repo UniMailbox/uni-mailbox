@@ -29,7 +29,6 @@ function fullEnv(): Env {
   return {
     ...(env as unknown as Env),
     ASSETS: {} as Fetcher,
-    INSTALLATION_TOKEN: "x".repeat(32),
     AUTH_SIGNING_KEY: "x".repeat(32),
     CREDENTIAL_ENCRYPTION_KEY: "x".repeat(32),
   };
