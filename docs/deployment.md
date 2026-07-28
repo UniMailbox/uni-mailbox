@@ -27,6 +27,79 @@ root and configure:
 Cloudflare owns the generated D1, KV, R2, Queue, and Secrets Store deployment
 metadata. Do not copy account IDs into application settings.
 
+## Storage backends
+
+UniMailbox stores raw inbound messages (`raw/<uuid>.eml`) and attachment bytes
+(`attachments/<uuid>`) in Cloudflare KV by default and optionally in Cloudflare
+R2. R2 requires a paid Cloudflare plan; KV ships with the free tier. The
+runtime selects the backend automatically based on whether the `ATTACHMENTS`
+binding is present — no configuration flag or environment variable is needed.
+
+| Backend | Binding       | Default? | Best for                                         |
+| ------- | ------------- | -------- | ------------------------------------------------ |
+| KV      | `KV`          | Yes      | Cold-start installs, low-to-medium traffic       |
+| R2      | `ATTACHMENTS` | No       | High volume, attachments larger than 25 MiB      |
+
+### KV vs R2 differences
+
+| Property                | KV (default)                  | R2 (overlay)             |
+| ----------------------- | ----------------------------- | ------------------------ |
+| Single-object size cap  | 25 MiB hard limit             | 5 TiB                    |
+| Object metadata         | JSON sidecar `attachment-meta:<key>` | inline http/custom metadata |
+| List operation          | Eventually consistent (≤60 s) | Strongly consistent      |
+| Upload transport header | `worker-kv-binding`           | `worker-r2-binding`      |
+| Billing                 | Free-tier KV operations       | Paid Workers plan        |
+
+### Attachment size cap on KV
+
+Uploads above 24 MiB are hard-rejected with `DomainError ATTACHMENT_TOO_LARGE`
+(HTTP 413) when the KV backend is active. The check runs at presign time in
+`AttachmentApplicationService.create`, before any upload token is issued. To
+raise the limit, deploy with R2 (next section).
+
+### Enabling R2 later
+
+1. Provision an R2 bucket (e.g. `unimailbox-attachments`) in your Cloudflare
+   account. Note the bucket name and the `id` of the existing KV namespace
+   (run `wrangler kv:namespace list` once with `wrangler.r2.jsonc` deployed so
+   Wrangler records the binding ID).
+2. Deploy with the overlay config:
+
+   ```bash
+   pnpm deploy:r2
+   ```
+
+   The Worker is rebuilt with the `ATTACHMENTS` binding. Existing requests are
+   served by the new version with the R2 backend; the KV writes stay where
+   they are until the migration script below is run.
+3. Migrate existing KV-stored objects into R2 and verify each by `HEAD`:
+
+   ```bash
+   pnpm migrate:kv-to-r2 --bucket unimailbox-attachments
+   ```
+
+   The script lists every `attachment:` key in KV, uploads the bytes and
+   metadata to R2, verifies the size by `HEAD`, then deletes the KV copies.
+   It is idempotent — running it twice is safe. The D1 `object_key` values
+   do not change, so message references remain valid throughout.
+
+### Health endpoint
+
+`GET /health` now reports the active backend:
+
+```json
+{
+  "data": {
+    "status": "ok",
+    "checks": { "kv": "ok", "r2": "missing", ... },
+    "storage": { "backend": "kv", "reason": "ATTACHMENTS binding is absent; ..." }
+  }
+}
+```
+
+The `r2` field still reports the binding presence for backwards compatibility.
+The `storage` object is the canonical indicator.
+
 ## Required bootstrap secrets
 
 The deployment page must collect or generate:
@@ -67,6 +140,10 @@ pnpm release:verify https://preview-url.example
 
 A preview must use isolated D1, R2, KV, Queue, Brevo, and Email Routing
 resources. It must never point at production data.
+
+The R2 overlay (`wrangler.r2.jsonc`) has its own preview block
+(`env.preview.r2_buckets`); `pnpm deploy:r2` also deploys the preview
+environment, so preview traffic uses isolated R2 objects.
 
 ## Production
 

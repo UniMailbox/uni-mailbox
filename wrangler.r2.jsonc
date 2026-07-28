@@ -1,0 +1,143 @@
+{
+  // R2 overlay — enable Cloudflare R2 as the attachment backend without
+  // touching the default `wrangler.jsonc` (which intentionally keeps KV as
+  // the free-tier default).
+  //
+  // Apply with:
+  //     pnpm exec wrangler deploy -c wrangler.r2.jsonc
+  //
+  // After deployment, the runtime auto-detects the `ATTACHMENTS` binding and
+  // switches to the R2 backend. Existing KV-stored objects remain until you
+  // run the migration script:
+  //     pnpm migrate:kv-to-r2 --bucket unimailbox-attachments
+  //
+  // This file is intentionally self-contained — Wrangler reads only the file
+  // passed via `-c`, so all bindings are redeclared. Keep it in sync with
+  // `wrangler.jsonc` whenever other bindings change.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "unimailbox",
+  "main": "apps/worker/src/index.ts",
+  "compatibility_date": "2026-07-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "apps/web/dist",
+    "run_worker_first": ["/api/*", "/health", "/setup*"],
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "ATTACHMENTS",
+      "bucket_name": "unimailbox-attachments",
+    },
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "OUTBOUND_QUEUE",
+        "queue": "unimailbox-outbound",
+      },
+    ],
+    "consumers": [
+      {
+        "queue": "unimailbox-outbound",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+        "dead_letter_queue": "unimailbox-outbound-dead",
+      },
+    ],
+  },
+  "secrets_store_secrets": [
+    {
+      "binding": "INSTALLATION_TOKEN",
+      "store_id": "unimailbox",
+      "secret_name": "installation-token",
+    },
+    {
+      "binding": "AUTH_SIGNING_KEY",
+      "store_id": "unimailbox",
+      "secret_name": "auth-signing-key",
+    },
+    {
+      "binding": "CREDENTIAL_ENCRYPTION_KEY",
+      "store_id": "unimailbox",
+      "secret_name": "credential-encryption-key",
+    },
+  ],
+  "triggers": {
+    "crons": ["* * * * *", "0 * * * *", "17 3 * * *"],
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+  },
+  "env": {
+    "preview": {
+      "workers_dev": true,
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "unimailbox-preview",
+          "migrations_dir": "migrations",
+        },
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "KV",
+        },
+      ],
+      "r2_buckets": [
+        {
+          "binding": "ATTACHMENTS",
+          "bucket_name": "unimailbox-preview-attachments",
+        },
+      ],
+      "queues": {
+        "producers": [
+          {
+            "binding": "OUTBOUND_QUEUE",
+            "queue": "unimailbox-preview-outbound",
+          },
+        ],
+        "consumers": [
+          {
+            "queue": "unimailbox-preview-outbound",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_retries": 5,
+            "dead_letter_queue": "unimailbox-preview-outbound-dead",
+          },
+        ],
+      },
+      "secrets_store_secrets": [
+        {
+          "binding": "INSTALLATION_TOKEN",
+          "store_id": "unimailbox-preview",
+          "secret_name": "installation-token",
+        },
+        {
+          "binding": "AUTH_SIGNING_KEY",
+          "store_id": "unimailbox-preview",
+          "secret_name": "auth-signing-key",
+        },
+        {
+          "binding": "CREDENTIAL_ENCRYPTION_KEY",
+          "store_id": "unimailbox-preview",
+          "secret_name": "credential-encryption-key",
+        },
+      ],
+    },
+  },
+}
