@@ -43,7 +43,7 @@ const healthBody = await health.json();
 if (healthBody?.data?.status !== "ok") {
   fail("verify.health_failed", "Health response is not ok", 9);
 }
-await check("/api/v1/setup/status");
+await check("/login");
 await check("/", [200, 307]);
 output("verify.completed", {
   status: "ok",

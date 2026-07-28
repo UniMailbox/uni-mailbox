@@ -14,6 +14,10 @@ curl https://<worker-url>/health
 Confirm `data.storage.backend === "kv"`. If R2 is already active, you do not
 need this runbook.
 
+The same state is available after login under **Settings → Storage & runtime**.
+`KV healthy` plus `R2 missing` is a supported healthy configuration, not an
+installation failure.
+
 ## 2. Provision an R2 bucket
 
 In the Cloudflare dashboard, create the bucket (e.g. `unimailbox-attachments`)
@@ -39,6 +43,10 @@ objects are written to R2. The read path checks R2 first and then falls back to
 KV, so historical messages and queued outbound attachments remain available
 while the migration runs. If the second deployment fails, rerun
 `pnpm deploy:r2:preview` before directing traffic to preview.
+
+Open **Settings → Storage & runtime** and run **Verify R2 write access**. The
+probe writes, heads, and deletes a namespaced object. A successful probe marks
+only the `r2_storage` configuration checkpoint as verified.
 
 ## 4. Record the KV namespace ID
 
@@ -118,7 +126,9 @@ curl --fail --silent --show-error \
 ```
 
 Send a new attachment through the UI to confirm the live path also lands in
-R2.
+R2. Re-open **Settings → Storage & runtime** and confirm the active backend is
+R2. A failed probe or migration is resumable and does not change the binding;
+binding presence remains the source of truth.
 
 ## 7. Rollback
 
