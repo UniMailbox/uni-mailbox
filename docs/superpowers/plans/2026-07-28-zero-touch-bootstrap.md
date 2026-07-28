@@ -6,7 +6,7 @@
 
 **Architecture:** The release pipeline reconciles per-Worker runtime secrets, applies and verifies D1 migrations, and idempotently bootstraps the first administrator before promotion. The Worker no longer exposes an installation-claim surface; it treats incomplete bootstrap as a deployment fault and routes completed installations to login. Existing Cloudflare/domain/provider operations move from setup-session authorization to administrator authorization, while optional R2 remains a verified settings extension over the KV default.
 
-**Tech Stack:** Node.js 22 release scripts, Wrangler 4, Cloudflare Workers, D1, KV, Queues, Hono, TypeScript, React 18, TanStack Query, Vitest, Cloudflare Vitest pool, Playwright, pnpm 10.
+**Tech Stack:** Node.js 22 release scripts, Wrangler 4.114.0, Cloudflare Workers, D1, KV, Queues, Hono, TypeScript, React 18, TanStack Query, Vitest, Cloudflare Vitest pool, Playwright, pnpm 10.
 
 ## Global Constraints
 
@@ -94,7 +94,8 @@
   - `createPasswordRecord(password, options?): Promise<PasswordRecord>`
   - `sqlLiteral(value): string`
   - `withSecureTemporaryJson(directory, value, callback): Promise<T>`
-  - release steps `reconcile-runtime-secrets` and `bootstrap-administrator`
+  - pre-upload runtime-secret reconciliation and release step
+    `bootstrap-administrator`
 
 - [ ] **Step 1: Write failing pure-helper tests**
 
@@ -162,7 +163,6 @@ block calling `unlinkSync`.
 
 ```js
 expect(productionReleaseSteps("direct-deploy")).toEqual([
-  "reconcile-runtime-secrets",
   "capture-bookmark",
   "migrate-production",
   "verify-migrations",
@@ -354,10 +354,11 @@ The test command fake must prove:
 
 1. secret state is inspected before version upload;
 2. missing secrets are passed only through a restricted `--secrets-file`;
-3. D1 migration and verification precede administrator bootstrap;
-4. bootstrap precedes direct deploy or version promotion;
-5. the fallback release path preserves the same order;
-6. no emitted event includes supplied credentials or generated secrets.
+3. the secret file is attached to Candidate upload before D1 mutation;
+4. D1 migration and verification precede administrator bootstrap;
+5. bootstrap precedes direct deploy or version promotion;
+6. the fallback release path preserves the same order;
+7. no emitted event includes supplied credentials or generated secrets.
 
 - [ ] **Step 2: Run release tests and verify RED**
 
@@ -371,7 +372,7 @@ Expected: FAIL on the missing release steps and manifest fields.
 
 - [ ] **Step 3: Implement safe secret inspection and upload**
 
-Use `wrangler secret list --env "" --json` for per-Worker secrets. Parse only
+Use `wrangler secret list --env "" --format json` for per-Worker secrets. Parse only
 an array of objects with string `name` fields. Any non-zero exit, malformed
 JSON, or different shape emits `release.runtime_secret_state_invalid` and
 stops.
