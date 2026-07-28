@@ -35,20 +35,20 @@ R2. R2 requires a paid Cloudflare plan; KV ships with the free tier. The
 runtime selects the backend automatically based on whether the `ATTACHMENTS`
 binding is present — no configuration flag or environment variable is needed.
 
-| Backend | Binding       | Default? | Best for                                         |
-| ------- | ------------- | -------- | ------------------------------------------------ |
-| KV      | `KV`          | Yes      | Cold-start installs, low-to-medium traffic       |
-| R2      | `ATTACHMENTS` | No       | High volume, attachments larger than 25 MiB      |
+| Backend | Binding       | Default? | Best for                                    |
+| ------- | ------------- | -------- | ------------------------------------------- |
+| KV      | `KV`          | Yes      | Cold-start installs, low-to-medium traffic  |
+| R2      | `ATTACHMENTS` | No       | High volume, attachments larger than 25 MiB |
 
 ### KV vs R2 differences
 
-| Property                | KV (default)                  | R2 (overlay)             |
-| ----------------------- | ----------------------------- | ------------------------ |
-| Single-object size cap  | 25 MiB hard limit             | 5 TiB                    |
+| Property                | KV (default)                         | R2 (overlay)                |
+| ----------------------- | ------------------------------------ | --------------------------- |
+| Single-object size cap  | 25 MiB hard limit                    | 5 TiB                       |
 | Object metadata         | JSON sidecar `attachment-meta:<key>` | inline http/custom metadata |
-| List operation          | Eventually consistent (≤60 s) | Strongly consistent      |
-| Upload transport header | `worker-kv-binding`           | `worker-r2-binding`      |
-| Billing                 | Free-tier KV operations       | Paid Workers plan        |
+| List operation          | Eventually consistent (≤60 s)        | Strongly consistent         |
+| Upload transport header | `worker-kv-binding`                  | `worker-r2-binding`         |
+| Billing                 | Free-tier KV operations              | Paid Workers plan           |
 
 ### Attachment size cap on KV
 
@@ -61,7 +61,7 @@ raise the limit, deploy with R2 (next section).
 
 1. Provision an R2 bucket (e.g. `unimailbox-attachments`) in your Cloudflare
    account. Note the bucket name and the `id` of the existing KV namespace
-   (run `wrangler kv:namespace list` once with `wrangler.r2.jsonc` deployed so
+   (run `wrangler kv namespace list` once with `wrangler.r2.jsonc` deployed so
    Wrangler records the binding ID).
 2. Deploy with the overlay config:
 
@@ -69,9 +69,11 @@ raise the limit, deploy with R2 (next section).
    pnpm deploy:r2
    ```
 
-   The Worker is rebuilt with the `ATTACHMENTS` binding. Existing requests are
-   served by the new version with the R2 backend; the KV writes stay where
-   they are until the migration script below is run.
+   This explicitly deploys the top-level production environment followed by
+   `--env preview`. Both Workers receive their environment-specific
+   `ATTACHMENTS` binding. New writes use R2; reads try R2 and fall back to KV
+   until historical objects are migrated.
+
 3. Migrate existing KV-stored objects into R2 and verify each by `HEAD`:
 
    ```bash
@@ -124,6 +126,7 @@ pnpm db:migrate --target local
 pnpm db:verify --target local
 pnpm build
 pnpm deploy:dry-run
+pnpm deploy:r2:dry-run
 ```
 
 The CI workflow runs the same implementation. It has no production deployment
@@ -142,8 +145,10 @@ A preview must use isolated D1, R2, KV, Queue, Brevo, and Email Routing
 resources. It must never point at production data.
 
 The R2 overlay (`wrangler.r2.jsonc`) has its own preview block
-(`env.preview.r2_buckets`); `pnpm deploy:r2` also deploys the preview
-environment, so preview traffic uses isolated R2 objects.
+(`env.preview.r2_buckets`). `pnpm deploy:r2` invokes both explicit commands:
+`deploy:r2:production` for the top-level environment and
+`deploy:r2:preview` with `--env preview`, so preview traffic uses isolated R2
+objects. Either command can be retried independently.
 
 ## Production
 

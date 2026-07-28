@@ -41,7 +41,9 @@ describe("TokenService additional cases", () => {
 
   it("rejects a token with the wrong segment count", async () => {
     const service = new TokenService(signingKey);
-    await expect(service.verifyAccessToken("not.a.token.bad")).rejects.toMatchObject({
+    await expect(
+      service.verifyAccessToken("not.a.token.bad"),
+    ).rejects.toMatchObject({
       code: "AUTH_TOKEN_INVALID",
     });
   });
@@ -55,7 +57,10 @@ describe("TokenService additional cases", () => {
       permissions: ["message.read"],
     });
 
-    const futureService = new TokenService(signingKey, () => new Date("2026-08-01T00:00:00.000Z"));
+    const futureService = new TokenService(
+      signingKey,
+      () => new Date("2026-08-01T00:00:00.000Z"),
+    );
     await expect(futureService.verifyAccessToken(token)).rejects.toMatchObject({
       code: "AUTH_TOKEN_INVALID",
     });

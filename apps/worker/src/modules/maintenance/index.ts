@@ -54,8 +54,16 @@ export class HealthService {
         checks.scheduled = "error";
       }
     }
+    const requiredChecks = [
+      checks.database,
+      checks.kv,
+      checks.queue,
+      checks.assets,
+      checks.scheduled,
+      ...(this.backend === "r2" ? [checks.r2] : []),
+    ];
     return {
-      status: Object.values(checks).every(
+      status: requiredChecks.every(
         (value) => value === "ok" || value === "pending",
       )
         ? "ok"

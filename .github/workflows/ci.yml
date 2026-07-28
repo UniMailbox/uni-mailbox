@@ -46,6 +46,7 @@ jobs:
         run: |
           pnpm test:unit
           pnpm test:worker
+          pnpm test:coverage
 
       - name: Fresh local migrations
         run: |
@@ -59,6 +60,7 @@ jobs:
         run: |
           pnpm build
           pnpm deploy:dry-run
+          pnpm deploy:r2:dry-run
 
       - name: Production dependency audit
         run: pnpm audit --prod

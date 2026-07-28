@@ -72,7 +72,10 @@ function draftService() {
     attachmentStore: createAttachmentStore(e),
     storageBackend: "r2" as const,
   };
-  return new DraftApplicationService(app, new MailboxApplicationService(fullEnv()));
+  return new DraftApplicationService(
+    app,
+    new MailboxApplicationService(fullEnv()),
+  );
 }
 
 async function seed() {
@@ -84,9 +87,9 @@ async function seed() {
          display_name
        ) VALUES (?, 'owner@example.com', 'h', 's', 1, 'Owner')`,
     ).bind(principal.userId),
-    env.DB.prepare("INSERT INTO domains (id, name) VALUES (?, 'example.com')").bind(
-      domainId,
-    ),
+    env.DB.prepare(
+      "INSERT INTO domains (id, name) VALUES (?, 'example.com')",
+    ).bind(domainId),
     env.DB.prepare(
       `INSERT INTO mailboxes (
          id, domain_id, owner_user_id, address, display_name
@@ -127,6 +130,39 @@ describe("AttachmentApplicationService", () => {
         ),
       ),
     ).rejects.toMatchObject({ code: "ATTACHMENT_UPLOAD_TOKEN_INVALID" });
+  });
+
+  it("completes migrated uploads whose R2 metadata keys were normalized to lowercase", async () => {
+    const service = attachmentsService();
+    const created = await service.create(
+      principal,
+      {
+        filename: "migration.txt",
+        contentType: "text/plain",
+        size: 3,
+        disposition: "attachment",
+      },
+      "https://mail.example/api/v1/attachments/uploads",
+    );
+    await env.ATTACHMENTS!.put(created.objectKey, new Uint8Array([1, 2, 3]), {
+      httpMetadata: {
+        contentType: "text/plain",
+        contentDisposition: "attachment",
+      },
+      customMetadata: {
+        uploadid: created.attachmentId,
+        filename: "migration.txt",
+        disposition: "attachment",
+        expectedsize: "3",
+      },
+    });
+
+    await expect(
+      service.complete(principal, created.attachmentId),
+    ).resolves.toEqual({
+      attachmentId: created.attachmentId,
+      status: "uploaded",
+    });
   });
 });
 

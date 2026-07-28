@@ -51,9 +51,7 @@ describe("CredentialCipher additional cases", () => {
     const envelope = JSON.stringify({
       version: 1,
       iv: btoa(String.fromCharCode(...iv)),
-      ciphertext: btoa(
-        String.fromCharCode(...new Uint8Array(ciphertext)),
-      ),
+      ciphertext: btoa(String.fromCharCode(...new Uint8Array(ciphertext))),
     });
 
     await expect(cipher.decrypt(envelope)).rejects.toMatchObject({

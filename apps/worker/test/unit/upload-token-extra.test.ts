@@ -39,9 +39,11 @@ describe("UploadTokenCodec edge cases", () => {
       .replaceAll("/", "_")
       .replace(/=+$/u, "");
 
-    await expect(codec.decode(`${payload}.${signature}`)).rejects.toMatchObject({
-      code: "ATTACHMENT_UPLOAD_TOKEN_INVALID",
-    });
+    await expect(codec.decode(`${payload}.${signature}`)).rejects.toMatchObject(
+      {
+        code: "ATTACHMENT_UPLOAD_TOKEN_INVALID",
+      },
+    );
   });
 
   it("rejects tokens whose disposition is invalid", async () => {
@@ -77,9 +79,11 @@ describe("UploadTokenCodec edge cases", () => {
       .replaceAll("+", "-")
       .replaceAll("/", "_")
       .replace(/=+$/u, "");
-    await expect(codec.decode(`${payload}.${signature}`)).rejects.toMatchObject({
-      code: "ATTACHMENT_UPLOAD_TOKEN_INVALID",
-    });
+    await expect(codec.decode(`${payload}.${signature}`)).rejects.toMatchObject(
+      {
+        code: "ATTACHMENT_UPLOAD_TOKEN_INVALID",
+      },
+    );
   });
 
   it("rejects tokens signed with the wrong key", async () => {
@@ -132,8 +136,10 @@ describe("UploadTokenCodec edge cases", () => {
       .replaceAll("+", "-")
       .replaceAll("/", "_")
       .replace(/=+$/u, "");
-    await expect(codec.decode(`${payload}.${signature}`)).rejects.toMatchObject({
-      code: "ATTACHMENT_UPLOAD_TOKEN_INVALID",
-    });
+    await expect(codec.decode(`${payload}.${signature}`)).rejects.toMatchObject(
+      {
+        code: "ATTACHMENT_UPLOAD_TOKEN_INVALID",
+      },
+    );
   });
 });

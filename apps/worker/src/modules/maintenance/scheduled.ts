@@ -1,5 +1,6 @@
 import type { AppContext } from "../../app-context";
 import { OutboundJobService } from "../outbound-mail";
+import { isOrphanCleanupEligible } from "./orphan-policy";
 
 export async function runScheduledTasks(
   context: AppContext,
@@ -142,10 +143,12 @@ async function cleanupOrphanObjects(context: AppContext): Promise<void> {
     ...(stored.cursor ? { cursor: stored.cursor } : {}),
   });
   let removed = 0;
-  // The KV-backed store does not surface per-object upload timestamps, so the
-  // 24-hour grace window from the R2 era no longer applies. Recent D1 writes
-  // remain the source of truth — re-runs of this job are idempotent.
+  const now = Date.now();
   for (const object of listing.objects) {
+    // Object bytes are written before their D1 references. Never inspect a
+    // recent object (or a legacy KV object without a trustworthy timestamp)
+    // for orphan deletion.
+    if (!isOrphanCleanupEligible(object.uploadedAt, now)) continue;
     const reference = await context.env.DB.prepare(
       `SELECT 1 FROM messages WHERE raw_object_key = ?
        UNION ALL

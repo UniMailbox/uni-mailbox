@@ -53,10 +53,7 @@ describe("SetupPage", () => {
           installationVersion: 1,
           stateVersion: 2,
           currentStep: InstallationStep.ADMIN,
-          completedSteps: [
-            InstallationStep.CLAIM,
-            InstallationStep.PREFLIGHT,
-          ],
+          completedSteps: [InstallationStep.CLAIM, InstallationStep.PREFLIGHT],
         },
       }),
     );

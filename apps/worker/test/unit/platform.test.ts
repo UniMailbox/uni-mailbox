@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { StructuredLogger } from "../../src/platform/logger";
-import { readSecretBinding, resolveRuntimeConfig } from "../../src/platform/config";
+import {
+  readSecretBinding,
+  resolveRuntimeConfig,
+} from "../../src/platform/config";
 import type { Env } from "../../src/platform/config";
 
 describe("StructuredLogger", () => {

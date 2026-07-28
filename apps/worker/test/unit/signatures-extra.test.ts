@@ -20,7 +20,9 @@ describe("sanitizeSignatureHtml additional cases", () => {
     const sanitized = sanitizeSignatureHtml(
       "<p>Hello <strong>world</strong> <unknown>kept?</unknown> <div>block</div></p>",
     );
-    expect(sanitized).toBe("<p>Hello <strong>world</strong> kept? <div>block</div></p>");
+    expect(sanitized).toBe(
+      "<p>Hello <strong>world</strong> kept? <div>block</div></p>",
+    );
   });
 
   it("omits a closing tag for a void element", () => {
@@ -49,12 +51,12 @@ describe("sanitizeSignatureHtml additional cases", () => {
   });
 
   it("strips href when the protocol is not http(s) or mailto", () => {
-    expect(
-      sanitizeSignatureHtml('<a href="javascript:bad()">x</a>'),
-    ).toBe("<a>x</a>");
-    expect(
-      sanitizeSignatureHtml('<a href="data:text/plain,x">x</a>'),
-    ).toBe("<a>x</a>");
+    expect(sanitizeSignatureHtml('<a href="javascript:bad()">x</a>')).toBe(
+      "<a>x</a>",
+    );
+    expect(sanitizeSignatureHtml('<a href="data:text/plain,x">x</a>')).toBe(
+      "<a>x</a>",
+    );
   });
 
   it("drops tel: links because they don't match http(s) or mailto schemes", () => {
@@ -77,7 +79,9 @@ describe("sanitizeSignatureHtml additional cases", () => {
   });
 
   it("drops the closing tag of a tag that was dropped without keeping track", () => {
-    expect(sanitizeSignatureHtml("<script></script><p>ok</p>")).toBe("<p>ok</p>");
+    expect(sanitizeSignatureHtml("<script></script><p>ok</p>")).toBe(
+      "<p>ok</p>",
+    );
   });
 
   it("decodes hex character references in attributes", () => {
@@ -91,18 +95,18 @@ describe("sanitizeSignatureHtml additional cases", () => {
     expect(
       sanitizeSignatureHtml("<a href='https://example.com'>single</a>"),
     ).toBe('<a href="https://example.com">single</a>');
-    expect(
-      sanitizeSignatureHtml("<a href=https://example.com>bare</a>"),
-    ).toBe('<a href="https://example.com">bare</a>');
+    expect(sanitizeSignatureHtml("<a href=https://example.com>bare</a>")).toBe(
+      '<a href="https://example.com">bare</a>',
+    );
   });
 
   it("preserves mailto: links and rejects other schemes", () => {
     expect(
       sanitizeSignatureHtml('<a href="mailto:user@example.com">mail</a>'),
     ).toBe('<a href="mailto:user@example.com">mail</a>');
-    expect(
-      sanitizeSignatureHtml('<a href="ftp://example.com">ftp</a>'),
-    ).toBe("<a>ftp</a>");
+    expect(sanitizeSignatureHtml('<a href="ftp://example.com">ftp</a>')).toBe(
+      "<a>ftp</a>",
+    );
   });
 
   it("returns an anchor tag without href when the protocol is missing", () => {

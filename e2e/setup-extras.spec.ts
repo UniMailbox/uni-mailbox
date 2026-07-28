@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-test("setup wizard blocks the application routes until complete", async ({ page }) => {
+test("setup wizard blocks the application routes until complete", async ({
+  page,
+}) => {
   await page.route("**/api/v1/setup/status", async (route) => {
     await route.fulfill({
       contentType: "application/json",

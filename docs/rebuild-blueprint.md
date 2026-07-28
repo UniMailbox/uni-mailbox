@@ -20,24 +20,24 @@ The implementation must favor explicit contracts, typed boundaries, idempotent o
 
 ## 2. Technology stack
 
-| Layer                 | Technology                                            |
-| --------------------- | ----------------------------------------------------- |
-| Runtime               | Cloudflare Workers                                    |
-| HTTP framework        | Hono                                                  |
-| Language              | TypeScript                                            |
-| Database              | Cloudflare D1                                         |
-| ORM/query builder     | Drizzle ORM                                           |
+| Layer                 | Technology                                                |
+| --------------------- | --------------------------------------------------------- |
+| Runtime               | Cloudflare Workers                                        |
+| HTTP framework        | Hono                                                      |
+| Language              | TypeScript                                                |
+| Database              | Cloudflare D1                                             |
+| ORM/query builder     | Drizzle ORM                                               |
 | Object storage        | Cloudflare KV (default), Cloudflare R2 (optional overlay) |
-| Cache and rate limits | Cloudflare KV                                         |
-| Async processing      | Cloudflare Queues                                     |
-| Inbound MIME parser   | PostalMime                                            |
-| Web client            | React, Vite, TypeScript                               |
-| Client state          | TanStack Query for server state, Zustand for UI state |
-| Forms and validation  | React Hook Form and Zod                               |
-| Local drafts          | Dexie                                                 |
-| Rich-text editor      | Tiptap                                                |
-| Unit and Worker tests | Vitest and Cloudflare Workers test pool               |
-| Browser tests         | Playwright                                            |
+| Cache and rate limits | Cloudflare KV                                             |
+| Async processing      | Cloudflare Queues                                         |
+| Inbound MIME parser   | PostalMime                                                |
+| Web client            | React, Vite, TypeScript                                   |
+| Client state          | TanStack Query for server state, Zustand for UI state     |
+| Forms and validation  | React Hook Form and Zod                                   |
+| Local drafts          | Dexie                                                     |
+| Rich-text editor      | Tiptap                                                    |
+| Unit and Worker tests | Vitest and Cloudflare Workers test pool                   |
+| Browser tests         | Playwright                                                |
 
 ## 3. System architecture
 

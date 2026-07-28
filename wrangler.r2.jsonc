@@ -4,11 +4,11 @@
   // the free-tier default).
   //
   // Apply with:
-  //     pnpm exec wrangler deploy -c wrangler.r2.jsonc
+  //     pnpm deploy:r2
   //
   // After deployment, the runtime auto-detects the `ATTACHMENTS` binding and
-  // switches to the R2 backend. Existing KV-stored objects remain until you
-  // run the migration script:
+  // switches new writes to R2 and retains KV as a read fallback until you run
+  // the migration script:
   //     pnpm migrate:kv-to-r2 --bucket unimailbox-attachments
   //
   // This file is intentionally self-contained — Wrangler reads only the file

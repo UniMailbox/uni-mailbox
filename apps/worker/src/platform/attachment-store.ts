@@ -34,6 +34,7 @@ export interface AttachmentObject {
   size: number;
   httpMetadata: AttachmentHttpMetadata;
   customMetadata: Record<string, string>;
+  etag?: string;
 }
 
 export interface AttachmentListOptions {
@@ -45,6 +46,7 @@ export interface AttachmentListOptions {
 export interface AttachmentListEntry {
   key: string;
   size: number;
+  uploadedAt?: Date;
 }
 
 export interface AttachmentListPage {
@@ -128,6 +130,7 @@ export class R2AttachmentStore implements AttachmentStore {
         cacheControl: object.httpMetadata?.cacheControl,
       },
       customMetadata: object.customMetadata ?? {},
+      etag: object.httpEtag,
     };
   }
 
@@ -145,6 +148,7 @@ export class R2AttachmentStore implements AttachmentStore {
         cacheControl: object.httpMetadata?.cacheControl,
       },
       customMetadata: object.customMetadata ?? {},
+      etag: object.httpEtag,
     };
   }
 
@@ -152,9 +156,7 @@ export class R2AttachmentStore implements AttachmentStore {
     await this.bucket.delete(key);
   }
 
-  async list(
-    options: AttachmentListOptions = {},
-  ): Promise<AttachmentListPage> {
+  async list(options: AttachmentListOptions = {}): Promise<AttachmentListPage> {
     const page = await this.bucket.list({
       prefix: options.prefix,
       limit: Math.min(options.limit ?? 100, 1000),
@@ -164,6 +166,7 @@ export class R2AttachmentStore implements AttachmentStore {
       objects: page.objects.map((object) => ({
         key: object.key,
         size: object.size,
+        uploadedAt: object.uploaded,
       })),
       truncated: page.truncated,
       cursor: page.truncated ? page.cursor : undefined,
@@ -178,6 +181,10 @@ interface StoredMetadata {
   size: number;
   httpMetadata?: AttachmentHttpMetadata;
   customMetadata?: Record<string, string>;
+}
+
+interface KvBodyMetadata {
+  uploadedAt?: string;
 }
 
 function serializeMeta(meta: StoredMetadata): string {
@@ -224,7 +231,11 @@ export class KvAttachmentStore implements AttachmentStore {
       customMetadata: meta.customMetadata,
     };
     await Promise.all([
-      this.kv.put(BODY_PREFIX + key, buffer),
+      this.kv.put(BODY_PREFIX + key, buffer, {
+        metadata: {
+          uploadedAt: new Date().toISOString(),
+        } satisfies KvBodyMetadata,
+      }),
       this.kv.put(META_PREFIX + key, serializeMeta(stored)),
     ]);
   }
@@ -245,13 +256,17 @@ export class KvAttachmentStore implements AttachmentStore {
   }
 
   async head(key: string): Promise<AttachmentObject | null> {
-    const body = await this.kv.get(BODY_PREFIX + key, "arrayBuffer");
+    const [body, metaRaw] = await Promise.all([
+      this.kv.get(BODY_PREFIX + key, "arrayBuffer"),
+      this.kv.get(META_PREFIX + key),
+    ]);
     if (!body) return null;
+    const meta = metaRaw ? parseMeta(metaRaw) : { size: body.byteLength };
     return {
       body,
-      size: body.byteLength,
-      httpMetadata: {},
-      customMetadata: {},
+      size: meta.size || body.byteLength,
+      httpMetadata: meta.httpMetadata ?? {},
+      customMetadata: meta.customMetadata ?? {},
     };
   }
 
@@ -262,9 +277,7 @@ export class KvAttachmentStore implements AttachmentStore {
     ]);
   }
 
-  async list(
-    options: AttachmentListOptions = {},
-  ): Promise<AttachmentListPage> {
+  async list(options: AttachmentListOptions = {}): Promise<AttachmentListPage> {
     const prefix = BODY_PREFIX + (options.prefix ?? "");
     const page = await this.kv.list({
       prefix,
@@ -276,6 +289,11 @@ export class KvAttachmentStore implements AttachmentStore {
       objects: page.keys.map((k) => ({
         key: k.name.slice(BODY_PREFIX.length),
         size: 0,
+        uploadedAt:
+          typeof (k.metadata as KvBodyMetadata | undefined)?.uploadedAt ===
+          "string"
+            ? new Date((k.metadata as KvBodyMetadata).uploadedAt as string)
+            : undefined,
       })),
       truncated: !page.list_complete,
       cursor: page.list_complete ? undefined : cursor,
@@ -283,9 +301,45 @@ export class KvAttachmentStore implements AttachmentStore {
   }
 }
 
+class R2WithKvFallbackAttachmentStore implements AttachmentStore {
+  readonly backend: StorageBackend = "r2";
+
+  constructor(
+    private readonly primary: R2AttachmentStore,
+    private readonly fallback: KvAttachmentStore,
+  ) {}
+
+  put(
+    key: string,
+    body: ArrayBuffer | Uint8Array | Blob | ReadableStream,
+    meta: AttachmentMetadata,
+  ): Promise<void> {
+    return this.primary.put(key, body, meta);
+  }
+
+  async get(key: string): Promise<AttachmentObject | null> {
+    return (await this.primary.get(key)) ?? this.fallback.get(key);
+  }
+
+  async head(key: string): Promise<AttachmentObject | null> {
+    return (await this.primary.head(key)) ?? this.fallback.head(key);
+  }
+
+  async delete(key: string): Promise<void> {
+    await Promise.all([this.primary.delete(key), this.fallback.delete(key)]);
+  }
+
+  list(options: AttachmentListOptions = {}): Promise<AttachmentListPage> {
+    return this.primary.list(options);
+  }
+}
+
 export function createAttachmentStore(env: Env): AttachmentStore {
   if (env.ATTACHMENTS) {
-    return new R2AttachmentStore(env.ATTACHMENTS);
+    return new R2WithKvFallbackAttachmentStore(
+      new R2AttachmentStore(env.ATTACHMENTS),
+      new KvAttachmentStore(env.KV),
+    );
   }
   return new KvAttachmentStore(env.KV);
 }
