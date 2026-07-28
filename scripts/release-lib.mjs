@@ -62,7 +62,7 @@ export function productionReleaseSteps(releaseMode) {
     "bootstrap-administrator",
   ];
   return releaseMode === "verified-version"
-    ? ["verify-candidate", ...databaseSteps, "promote-version"]
+    ? [...databaseSteps, "verify-candidate", "promote-version"]
     : [...databaseSteps, "deploy-direct"];
 }
 

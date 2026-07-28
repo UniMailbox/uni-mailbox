@@ -184,7 +184,8 @@ also requires the GitHub `production` environment:
 5. Create the first administrator from the one-time build inputs when none
    exists and verify installation state is `complete`.
 6. Run verification queries.
-7. Upload and promote the Worker.
+7. Verify the uploaded candidate only after the database and administrator are
+   ready, then promote it. If candidate metadata is absent, deploy directly.
 8. Verify `/health`, `/login`, authenticated mail access, Queue and Cron
    activity, inbound routing, and Brevo health.
 

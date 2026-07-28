@@ -139,13 +139,13 @@ describe("production release fallback", () => {
     ]);
   });
 
-  it("keeps candidate verification before the shared database safeguards", () => {
+  it("bootstraps a fresh database before candidate HTTP verification", () => {
     expect(productionReleaseSteps("verified-version")).toEqual([
-      "verify-candidate",
       "capture-bookmark",
       "migrate-production",
       "verify-migrations",
       "bootstrap-administrator",
+      "verify-candidate",
       "promote-version",
     ]);
   });
