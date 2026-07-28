@@ -1,68 +1,105 @@
-# Deployment Guide
+# Deployment and release guide
 
-This project deploys two Cloudflare surfaces:
+UniMailbox deploys from the repository root as one Worker. The Worker serves
+the built web assets and owns HTTP, inbound email, Queue, and scheduled
+entrypoints. There is no separate Pages project and no account-specific
+resource ID in source control.
 
-- `apps/api`: Worker API with D1, KV, and R2 bindings.
-- `apps/web`: React app deployed to Cloudflare Pages.
+## Bootstrap paths
 
-## Cloudflare Resources
+### Public repository
 
-Create the resources once:
+Put the repository's public URL into the Deploy to Cloudflare button in the
+README. Cloudflare imports the repository, provisions resources from
+`wrangler.jsonc`, collects the declared secret bindings, and runs the root
+build/deploy commands.
 
-```bash
-pnpm --filter @cf-startup/api exec wrangler d1 create cf-startup-db
-pnpm --filter @cf-startup/api exec wrangler kv namespace create APP_KV
-pnpm --filter @cf-startup/api exec wrangler r2 bucket create cf-startup-files
-```
+### Private repository
 
-Copy the generated ids into `apps/api/wrangler.toml`:
+Use **Workers & Pages → Create → Import a repository**. Select the repository
+root and configure:
 
-- `database_id` for the `DB` D1 binding.
-- `id` for the `APP_KV` namespace.
-- `bucket_name` for `FILE_BUCKET` if you changed the default bucket name.
+- Build command: `pnpm install --frozen-lockfile && pnpm build`
+- Deploy command: `pnpm deploy`
+- Node version: 22
+- Root directory: repository root
 
-Apply the initial D1 migration:
+Cloudflare owns the generated D1, KV, R2, Queue, and Secrets Store deployment
+metadata. Do not copy account IDs into application settings.
 
-```bash
-pnpm --filter @cf-startup/api exec wrangler d1 migrations apply cf-startup-db --local --config wrangler.toml
-pnpm --filter @cf-startup/api exec wrangler d1 migrations apply cf-startup-db --remote --config wrangler.toml
-```
+## Required bootstrap secrets
 
-## GitHub Settings
+The deployment page must collect or generate:
 
-Add these repository secrets:
+- `INSTALLATION_TOKEN`: one-time setup claim token, at least 32 random bytes.
+- `AUTH_SIGNING_KEY`: HMAC signing key, at least 32 random bytes.
+- `CREDENTIAL_ENCRYPTION_KEY`: AES-GCM key material, at least 32 random bytes.
 
-- `CLOUDFLARE_API_TOKEN`: Cloudflare API token with permission to deploy Workers, deploy Pages, and apply D1 migrations.
-- `CLOUDFLARE_ACCOUNT_ID`: Cloudflare account id.
+Brevo keys and application settings are not deployment environment variables.
+They are encrypted and managed inside the installed application.
 
-Add this repository variable:
-
-- `CLOUDFLARE_PAGES_PROJECT_NAME`: Cloudflare Pages project name for the frontend.
-- `VITE_API_BASE_URL`: public Worker API URL baked into the frontend build.
-
-The workflow is defined in `.github/workflows/deploy.yml`.
-
-## Deploy Behavior
-
-On pushes to `main` or `master`, GitHub Actions will:
-
-1. Install dependencies with `pnpm install --frozen-lockfile`.
-2. Run `pnpm typecheck`.
-3. Run `pnpm test`.
-4. Run `pnpm build`.
-5. Run `pnpm audit --prod`.
-6. Apply remote D1 migrations.
-7. Deploy the Worker API.
-8. Deploy the Pages frontend.
-
-Manual runs can skip API deploy, D1 migrations, or web deploy through workflow inputs.
-
-## Frontend Runtime API URL
-
-For production Pages builds, set:
+## Pre-release checks
 
 ```bash
-VITE_API_BASE_URL=https://your-worker.your-subdomain.workers.dev
+pnpm install --frozen-lockfile
+pnpm scaffold doctor
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm db:migrate --target local
+pnpm db:verify --target local
+pnpm build
+pnpm deploy:dry-run
 ```
 
-The app also includes an initial setup panel that stores a local browser override for the API base URL. That override is useful while wiring environments, but production deployments should still set `VITE_API_BASE_URL` through Pages environment variables.
+The CI workflow runs the same implementation. It has no production deployment
+authority.
+
+## Preview
+
+With preview-scoped Cloudflare credentials:
+
+```bash
+pnpm release:preview
+pnpm release:verify https://preview-url.example
+```
+
+A preview must use isolated D1, R2, KV, Queue, Brevo, and Email Routing
+resources. It must never point at production data.
+
+## Production
+
+Production releases run only from the protected `main` or `master` branch and
+under the GitHub `production` environment:
+
+1. Verify the exact source and immutable dependency lock.
+2. Build once and retain `.wrangler/release/manifest.json`.
+3. Record the D1 Time Travel bookmark printed by the release command.
+4. Apply reviewed migrations with an explicit deployment confirmation.
+5. Run verification queries.
+6. Upload and promote the Worker.
+7. Verify `/health`, setup state, authenticated mail access, Queue and Cron
+   activity, inbound routing, and Brevo health.
+
+```bash
+pnpm release:production
+pnpm release:verify https://mail.example.com
+```
+
+`release:verify` covers public HTTP checks. The setup page and administration
+control plane own the credentialed inbound/outbound smoke tests.
+
+Configure account-owned notification destinations and run the release drill in
+the [observability and alerts runbook](runbooks/observability-alerts.md).
+
+## Failure boundaries
+
+- Migration failure: stop before promotion; do not auto-restore D1.
+- Pre-promotion smoke failure: leave the existing Worker version active.
+- Post-promotion Worker failure: roll back the Worker version. Database restore
+  is a separate approved incident action using the recorded bookmark.
+- Provider failure: disable the provider connection; queued jobs remain
+  inspectable and recoverable.
+
+Migration, mail delivery, and setup-specific commands are in `docs/runbooks`.

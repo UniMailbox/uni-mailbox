@@ -1,126 +1,96 @@
-# Cloudflare Full-Stack Starter
+# UniMailbox
 
-Basic framework for a Cloudflare-native app:
+UniMailbox is a self-hosted mail operations workspace built as one Cloudflare
+Worker deployment. It receives routed mail, stores canonical message data in D1
+and R2, sends external recipients through Brevo, and serves the React
+application from the same origin.
 
-- **Backend**: Cloudflare Worker, TypeScript, Hono, D1 migrations, KV, R2, RBAC.
-- **Frontend**: Cloudflare Pages, React, Vite, shared RBAC contract.
-- **Shared**: roles, permissions, and API response types in `shared`.
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=<PUBLIC_REPOSITORY_URL>)
 
-## Structure
+Replace `<PUBLIC_REPOSITORY_URL>` with this repository's public GitHub or GitLab
+URL after publishing it. Private repositories use Cloudflare's **Import a
+repository** flow with the same root build and binding declarations.
 
-```txt
-apps/
-  api/        Worker API using Hono
-  web/        React app deployed with Cloudflare Pages
-shared/       RBAC and DTO types shared by API and web
-e2e/          Playwright tests for local end-to-end coverage
-docs/
-  rules/      Agent rules for this repo
-  plans/      Agent implementation plans
-  skills/     Project-specific agent skills
+## What is included
+
+- One root Worker with HTTP, inbound email, Queue, and scheduled entrypoints.
+- D1 schema and immutable migrations for identity, RBAC, mail, drafts,
+  providers, webhooks, installation state, maintenance, and audit records.
+- KV-backed installation sessions and rate limits.
+- R2 storage for raw messages and attachments.
+- Durable outbound jobs and a Queue consumer with retry and lock recovery.
+- Provider-neutral adapters with Brevo as the first provider.
+- A responsive React mail workspace, resumable setup wizard, and control plane.
+- A migration/release CLI, CI dry-run gate, and production recovery runbooks.
+
+## Repository layout
+
+```text
+apps/worker/          Worker entrypoints and feature modules
+apps/web/             React/Vite application
+packages/contracts/   Runtime schemas and cross-boundary types
+packages/email-core/  Provider-independent composition rules
+packages/config/      Runtime security and retry policy
+packages/test-kit/    Shared test fixtures
+migrations/           Reviewed D1 SQL
+scripts/              Scaffold, migration, release, and verification CLIs
+docs/runbooks/         Operator recovery procedures
 ```
 
-## Install
+## Local development
+
+Requirements: Node 22, pnpm 10.32.1, Wrangler 4.68.0, and a Cloudflare account
+for live Email Routing or Brevo verification.
 
 ```bash
 pnpm install
+cp .dev.vars.example .dev.vars
+pnpm scaffold init
+pnpm build
+pnpm dev
 ```
 
-Copy the example environment file if you want to override the local API URL:
+Open the URL printed by Wrangler. The first request redirects to `/setup`.
+Use `pnpm dev:web` only for frontend-focused work; Vite proxies `/api` and
+`/health` to the Worker at `127.0.0.1:8787`.
+
+The three values in `.dev.vars` are deployment bootstrap secrets only. Brevo
+credentials are collected by the setup wizard, encrypted with AES-GCM, and
+stored in D1. Never commit `.dev.vars`.
+
+## Verification
 
 ```bash
-cp .env.example .env
+pnpm scaffold doctor
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm test:e2e
+pnpm build
+pnpm deploy:dry-run
 ```
 
-## Local Development
+`pnpm db:migrate --target production` refuses to run without
+`--confirm <deployment-id>`. Released migration checksums are committed and
+verified before any migration or release command.
 
-Run the API:
+## Deployment and operations
 
-```bash
-pnpm dev:api
-```
+The root [`wrangler.jsonc`](wrangler.jsonc) intentionally has no account IDs or
+resource IDs. Cloudflare automatically provisions the declared D1, KV, R2, and
+Queue resources during the deployment flow; the deployment page collects the
+three required secret bindings.
 
-Run the web app:
+See:
 
-```bash
-pnpm dev:web
-```
+- [Deployment guide](docs/deployment.md)
+- [Failed migration recovery](docs/runbooks/migration-recovery.md)
+- [Outbound and webhook recovery](docs/runbooks/mail-delivery-recovery.md)
+- [Setup repair](docs/runbooks/setup-recovery.md)
+- [Observability and alerts](docs/runbooks/observability-alerts.md)
+- [Source blueprint](docs/rebuild-blueprint.md)
 
-The web app defaults to `http://127.0.0.1:8787` for API calls. Override with:
-
-```bash
-VITE_API_BASE_URL=http://127.0.0.1:8787 pnpm dev:web
-```
-
-## D1 Setup
-
-Create a D1 database and replace the placeholder database id in `apps/api/wrangler.toml`.
-
-```bash
-pnpm --filter @cf-startup/api exec wrangler d1 create cf-startup-db
-pnpm --filter @cf-startup/api exec wrangler d1 migrations apply cf-startup-db --local --config wrangler.toml
-pnpm --filter @cf-startup/api exec wrangler d1 migrations apply cf-startup-db --remote --config wrangler.toml
-```
-
-## KV and R2 Setup
-
-Create Cloudflare resources and replace placeholder ids/names in `apps/api/wrangler.toml`.
-
-```bash
-pnpm --filter @cf-startup/api exec wrangler kv namespace create APP_KV
-pnpm --filter @cf-startup/api exec wrangler r2 bucket create cf-startup-files
-```
-
-## E2E Tests
-
-Install Playwright browsers once:
-
-```bash
-pnpm e2e:install
-```
-
-Run local E2E tests:
-
-```bash
-pnpm e2e
-```
-
-The Playwright config starts the Vite frontend automatically unless `E2E_BASE_URL` is provided.
-
-## RBAC
-
-This starter uses a development-friendly header identity:
-
-- `x-user-id`: user id, defaults to `anonymous`
-- `x-user-role`: `viewer`, `editor`, or `admin`
-
-Replace `src/auth.ts` with real authentication before production. Authorization checks are already centralized through shared permissions.
-
-## Initial Setup UI
-
-The React app includes an initial setup panel for wiring the first deployment. It tracks:
-
-- Worker API URL used by frontend requests.
-- Cloudflare Pages project name.
-- D1 database name.
-- KV namespace id.
-- R2 bucket name.
-- Setup checklist progress.
-
-The panel stores only non-sensitive local setup state in the browser. Cloudflare API tokens must stay in GitHub Secrets or Cloudflare-managed configuration.
-
-## Deployment
-
-Deployment automation lives in `.github/workflows/deploy.yml`.
-
-Required GitHub repository secrets:
-
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID`
-
-Required GitHub repository variable:
-
-- `CLOUDFLARE_PAGES_PROJECT_NAME`
-- `VITE_API_BASE_URL`
-
-See `docs/deployment.md` for the full deployment checklist and workflow behavior.
+Production release is intentionally operator-gated. Real inbound routing,
+Queue, Cron, and Brevo exit criteria cannot be proven by local mocks; run the
+documented smoke tests against the deployed installation before promotion is
+considered complete.

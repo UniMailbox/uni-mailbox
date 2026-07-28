@@ -1,199 +1,95 @@
-import type { Profile, Role, StoredFile } from "@cf-startup/shared";
-import { Cloud, Database, FileUp, KeyRound, ShieldCheck } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { api } from "./api";
-import { PermissionGate } from "./components/PermissionGate";
-import { RoleSwitcher } from "./components/RoleSwitcher";
-import { SetupGuide } from "./components/SetupGuide";
-import { useApi } from "./hooks/useApi";
-import { useSetupState } from "./hooks/useSetupState";
+import { lazy, Suspense, useEffect } from "react";
+import { navigate, usePathname } from "./lib/navigation";
+import { LoadingState } from "./components/Status";
 
-const userId = "local-user";
+const SetupPage = lazy(() =>
+  import("./features/setup/SetupPage").then((module) => ({
+    default: module.SetupPage,
+  })),
+);
+const LoginPage = lazy(() =>
+  import("./features/auth/LoginPage").then((module) => ({
+    default: module.LoginPage,
+  })),
+);
+const MailWorkspace = lazy(() =>
+  import("./features/mail/MailWorkspace").then((module) => ({
+    default: module.MailWorkspace,
+  })),
+);
+const MessagePage = lazy(() =>
+  import("./features/mail/MessagePage").then((module) => ({
+    default: module.MessagePage,
+  })),
+);
+const AdminPage = lazy(() =>
+  import("./features/admin/AdminPage").then((module) => ({
+    default: module.AdminPage,
+  })),
+);
+const SettingsPage = lazy(() =>
+  import("./features/settings/SettingsPage").then((module) => ({
+    default: module.SettingsPage,
+  })),
+);
+
+const folders = new Set([
+  "inbox",
+  "sent",
+  "drafts",
+  "starred",
+  "archive",
+  "trash",
+]);
 
 export function App() {
-  const [role, setRole] = useState<Role>("viewer");
-  const [displayName, setDisplayName] = useState("");
-  const [title, setTitle] = useState("");
-  const [configValue, setConfigValue] = useState("launch-dark");
-  const profiles = useApi<Profile[]>();
-  const createProfile = useApi<Profile>();
-  const files = useApi<StoredFile[]>();
-  const uploadFile = useApi<StoredFile>();
-  const [notice, setNotice] = useState("");
-  const [setup, setSetup] = useSetupState();
-
-  const requestOptions = useMemo(() => ({ role, userId }), [role]);
+  const pathname = usePathname();
+  const segments = pathname.split("/").filter(Boolean);
 
   useEffect(() => {
-    void profiles.run(() => api.profiles(requestOptions));
-    void files.run(() => api.files(requestOptions));
-  }, [files.run, profiles.run, requestOptions]);
+    if (pathname === "/") navigate("/inbox");
+  }, [pathname]);
 
-  async function submitProfile(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const created = await createProfile.run(() =>
-      api.createProfile(requestOptions, {
-        displayName,
-        title
-      })
+  let page: React.ReactNode;
+  if (pathname === "/setup") page = <SetupPage />;
+  else if (pathname === "/login" || pathname === "/register")
+    page = <LoginPage />;
+  else if (segments[0] === "messages" && segments[1]) {
+    page = <MessagePage messageId={segments[1]} />;
+  } else if (segments[0] === "admin") {
+    const resource =
+      segments[1] === "signatures"
+        ? "signatures"
+        : segments[1] === "provider-connections"
+          ? "provider-connections"
+          : segments[1] === "webhook-events"
+            ? "webhook-events"
+            : segments[1] === "audit-events"
+              ? "audit-events"
+              : segments[1] === "analytics"
+                ? "analytics"
+                : segments[1] === "roles"
+                  ? "roles"
+                  : segments[1] === "domains"
+                    ? "domains"
+                    : segments[1] === "settings"
+                      ? "settings"
+                      : "users";
+    page = <AdminPage resource={resource} />;
+  } else if (segments[0] === "settings") {
+    page = (
+      <SettingsPage
+        section={segments[1] === "mailboxes" ? "mailboxes" : "account"}
+      />
     );
-
-    if (created) {
-      setDisplayName("");
-      setTitle("");
-      setNotice("Profile written to D1.");
-      await profiles.run(() => api.profiles(requestOptions));
-    }
-  }
-
-  async function upload(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const input = event.currentTarget.elements.namedItem("file") as HTMLInputElement | null;
-    const file = input?.files?.[0];
-
-    if (!file) {
-      return;
-    }
-
-    const uploaded = await uploadFile.run(() => api.uploadFile(requestOptions, file));
-    if (uploaded) {
-      setNotice("File uploaded to R2 and indexed in D1.");
-      event.currentTarget.reset();
-      await files.run(() => api.files(requestOptions));
-    }
-  }
-
-  async function saveConfig() {
-    const saved = await api.setConfig(requestOptions, "theme", configValue);
-    setNotice(saved.ok ? "KV config updated." : saved.error.message);
+  } else {
+    const folder = folders.has(segments[0] ?? "") ? segments[0] : "inbox";
+    page = <MailWorkspace folder={folder} routeMailboxId={segments[1]} />;
   }
 
   return (
-    <main className="shell">
-      <section className="hero">
-        <div>
-          <p className="eyebrow">Cloudflare stack starter</p>
-          <h1>Worker API, Pages UI, D1, KV, R2, and shared RBAC.</h1>
-        </div>
-        <div className="identity-panel">
-          <span>Acting as</span>
-          <RoleSwitcher role={role} onChange={setRole} />
-        </div>
-      </section>
-
-      {notice && <p className="notice">{notice}</p>}
-
-      <SetupGuide setup={setup} onChange={setSetup} />
-
-      <section className="resource-grid" aria-label="Cloudflare resources">
-        <article>
-          <Database />
-          <h2>D1 profiles</h2>
-          <p>Parameterized reads and writes through Worker routes.</p>
-        </article>
-        <article>
-          <KeyRound />
-          <h2>KV config</h2>
-          <p>Admin-only runtime settings for lightweight configuration.</p>
-        </article>
-        <article>
-          <FileUp />
-          <h2>R2 files</h2>
-          <p>Editor uploads land in object storage with D1 metadata.</p>
-        </article>
-        <article>
-          <ShieldCheck />
-          <h2>RBAC</h2>
-          <p>Backend middleware and frontend gates share one permission map.</p>
-        </article>
-      </section>
-
-      <section className="workspace">
-        <div className="panel">
-          <div className="panel-header">
-            <Cloud />
-            <h2>Profiles</h2>
-          </div>
-
-          <PermissionGate
-            role={role}
-            permission="profile:write"
-            fallback={<p className="muted">Switch to editor or admin to create profiles.</p>}
-          >
-            <form className="stack-form" onSubmit={submitProfile}>
-              <input
-                maxLength={80}
-                onChange={(event) => setDisplayName(event.target.value)}
-                placeholder="Display name"
-                required
-                value={displayName}
-              />
-              <input
-                maxLength={120}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder="Title"
-                required
-                value={title}
-              />
-              <button type="submit">Create profile</button>
-            </form>
-          </PermissionGate>
-
-          {profiles.error && <p className="error">{profiles.error.message}</p>}
-          <div className="list">
-            {(profiles.data ?? []).map((profile) => (
-              <div className="row" key={profile.id}>
-                <strong>{profile.displayName}</strong>
-                <span>{profile.title}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="panel">
-          <div className="panel-header">
-            <FileUp />
-            <h2>Files and config</h2>
-          </div>
-
-          <PermissionGate
-            role={role}
-            permission="file:write"
-            fallback={<p className="muted">Switch to editor or admin to upload files.</p>}
-          >
-            <form className="stack-form" onSubmit={upload}>
-              <input name="file" type="file" />
-              <button type="submit">Upload to R2</button>
-            </form>
-          </PermissionGate>
-
-          <PermissionGate
-            role={role}
-            permission="config:manage"
-            fallback={<p className="muted">KV config is admin-only.</p>}
-          >
-            <div className="stack-form">
-              <input
-                onChange={(event) => setConfigValue(event.target.value)}
-                value={configValue}
-              />
-              <button onClick={saveConfig} type="button">
-                Save KV config
-              </button>
-            </div>
-          </PermissionGate>
-
-          {files.error && <p className="error">{files.error.message}</p>}
-          <div className="list">
-            {(files.data ?? []).map((file) => (
-              <div className="row" key={file.key}>
-                <strong>{file.filename}</strong>
-                <span>{Math.ceil(file.size / 1024)} KB</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    </main>
+    <Suspense fallback={<LoadingState label="Loading workspace" />}>
+      {page}
+    </Suspense>
   );
 }
