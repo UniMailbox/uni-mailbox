@@ -152,8 +152,9 @@ objects. Either command can be retried independently.
 
 ## Production
 
-Production releases run only from the protected `main` or `master` branch and
-under the GitHub `production` environment:
+Production releases run only from the protected `main` or `master` branch.
+Workers Builds is the primary release path; the manual GitHub Actions fallback
+also requires the GitHub `production` environment:
 
 1. Verify the exact source and immutable dependency lock.
 2. Build once and retain `.wrangler/release/manifest.json`.
@@ -171,6 +172,20 @@ pnpm release:verify https://mail.example.com
 
 `release:verify` covers public HTTP checks. The setup page and administration
 control plane own the credentialed inbound/outbound smoke tests.
+
+For Cloudflare Workers Builds, set **Settings > Build > Branch control >
+Production branch** to `main`. Use `pnpm run build` as the build command and
+`pnpm run deploy` as the deploy command. Workers Builds injects
+`WORKERS_CI_BRANCH`; the release log emits `release.context` so an operator can
+confirm that the production trigger ran from `main`.
+
+Wrangler candidate metadata is diagnostic rather than a startup dependency. If
+`versions upload` succeeds but does not expose both a version ID and preview
+URL, the release emits `release.version_output.inspected`, applies the required
+production migrations, skips only candidate HTTP verification, and falls back
+to a direct production deploy. D1 Time Travel capture and migration schema
+verification remain mandatory. The manifest records
+`releaseMode: "direct-deploy"` and `verificationSkipped: true` for follow-up.
 
 Configure account-owned notification destinations and run the release drill in
 the [observability and alerts runbook](runbooks/observability-alerts.md).
