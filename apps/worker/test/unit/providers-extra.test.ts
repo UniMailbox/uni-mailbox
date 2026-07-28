@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { BREVO_PROVIDER_KEY } from "@unimailbox/contracts";
-import { ProviderRegistry, type ProviderConnection } from "../../src/integrations/providers";
+import {
+  ProviderRegistry,
+  type ProviderConnection,
+} from "../../src/integrations/providers";
 import { createBrevoProviderPlugin } from "../../src/integrations/brevo";
 
 describe("ProviderRegistry keys", () => {

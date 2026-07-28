@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApiError } from "./api";
-import { apiRequest, apiResponse, getAccessToken, jsonBody, setAccessToken } from "./api";
+import {
+  apiRequest,
+  apiResponse,
+  getAccessToken,
+  jsonBody,
+  setAccessToken,
+} from "./api";
 
 describe("API client extras", () => {
   beforeEach(() => {
@@ -103,20 +109,18 @@ describe("API client extras", () => {
 
   it("does not retry the login endpoint on 401", async () => {
     setAccessToken("expired-token");
-    const fetchMock = vi
-      .spyOn(window, "fetch")
-      .mockResolvedValue(
-        Response.json(
-          {
-            error: {
-              code: "AUTH_CREDENTIALS_INVALID",
-              message: "Bad credentials",
-              requestId: "req-1",
-            },
+    const fetchMock = vi.spyOn(window, "fetch").mockResolvedValue(
+      Response.json(
+        {
+          error: {
+            code: "AUTH_CREDENTIALS_INVALID",
+            message: "Bad credentials",
+            requestId: "req-1",
           },
-          { status: 401 },
-        ),
-      );
+        },
+        { status: 401 },
+      ),
+    );
 
     await expect(apiRequest("/auth/login", {}, true)).rejects.toMatchObject({
       code: "AUTH_CREDENTIALS_INVALID",

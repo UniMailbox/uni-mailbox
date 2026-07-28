@@ -7,34 +7,38 @@ import { D1InstallationRepository } from "../../src/modules/installation/infrast
 import { SetupApplicationService } from "../../src/modules/installation/setup-use-cases";
 import { IdentityApplicationService } from "../../src/modules/identity/application";
 import { TokenService } from "../../src/modules/identity";
+import { HealthService } from "../../src/modules/maintenance";
 import type { Env } from "../../src/platform/config";
+import { makeEnv } from "./env-fixture";
 
 const installationToken = "installation-token-".padEnd(40, "x");
 
-function setupService() {
+function setupService(
+  health: Pick<HealthService, "check"> = {
+    check: async () => ({
+      status: "ok",
+      checks: {
+        database: "ok",
+        kv: "ok",
+        r2: "ok",
+        queue: "ok",
+        assets: "ok",
+        scheduled: "ok",
+      },
+      storage: {
+        backend: "r2",
+        reason: "ATTACHMENTS binding is present in the Worker env",
+      },
+    }),
+  },
+) {
   const installation = new InstallationService(
     new D1InstallationRepository(env.DB),
   );
   return new SetupApplicationService(
     env.KV,
     installation,
-    {
-      check: async () => ({
-        status: "ok",
-        checks: {
-          database: "ok",
-          kv: "ok",
-          r2: "ok",
-          queue: "ok",
-          assets: "ok",
-          scheduled: "ok",
-        },
-        storage: {
-          backend: "r2",
-          reason: "ATTACHMENTS binding is present in the Worker env",
-        },
-      }),
-    },
+    health,
     {
       INSTALLATION_TOKEN: installationToken,
       AUTH_SIGNING_KEY: "a".repeat(32),
@@ -129,6 +133,24 @@ describe("setup resume, takeover prevention, repair, and OAuth", () => {
     expect(stored.results.map((row) => row.code_hash)).not.toContain(
       result.recoveryCodes[0],
     );
+  });
+
+  it("advances default KV deployments through setup preflight without R2", async () => {
+    const kvEnv = makeEnv({ withoutR2: true });
+    const setup = setupService(new HealthService(kvEnv, "kv"));
+    const claimed = await setup.claim(
+      installationToken,
+      new Request("https://mail.example/api/v1/setup/claim"),
+    );
+
+    await expect(
+      setup.preflight(sessionRequest(claimed.token, claimed.csrfToken)),
+    ).resolves.toMatchObject({
+      status: "ok",
+      checks: { kv: "ok", r2: "missing" },
+      storage: { backend: "kv" },
+      schema: "ok",
+    });
   });
 
   it("hides completed setup until an administrator opens repair mode", async () => {

@@ -64,9 +64,9 @@ async function seedAdministrator() {
          display_name
        ) VALUES (?, 'inactive@example.com', 'hash', 'salt', 1, 'Inactive')`,
     ).bind("33333333-3333-4333-8333-333333333333"),
-    env.DB.prepare(
-      "UPDATE users SET status = 'suspended' WHERE id = ?",
-    ).bind("33333333-3333-4333-8333-333333333333"),
+    env.DB.prepare("UPDATE users SET status = 'suspended' WHERE id = ?").bind(
+      "33333333-3333-4333-8333-333333333333",
+    ),
   ]);
 }
 
@@ -122,9 +122,7 @@ describe("AdminApplicationService user and role management", () => {
     const found = all.results.filter((row) => row.id === role.id);
     expect(found).toHaveLength(1);
     expect(found[0]?.is_system).toBe(0);
-    await env.DB.prepare("DELETE FROM roles WHERE id = ?")
-      .bind(role.id)
-      .run();
+    await env.DB.prepare("DELETE FROM roles WHERE id = ?").bind(role.id).run();
   });
 
   it("rejects invalid permissions when creating a role", async () => {
@@ -139,8 +137,9 @@ describe("AdminApplicationService user and role management", () => {
 
   it("forbids updating or deleting system roles", async () => {
     const admin = service();
-    const systemRoleId = await env.DB
-      .prepare("SELECT id FROM roles WHERE is_system = 1 LIMIT 1")
+    const systemRoleId = await env.DB.prepare(
+      "SELECT id FROM roles WHERE is_system = 1 LIMIT 1",
+    )
       .first<{ id: string }>()
       .then((row) => row?.id ?? "");
     await expect(
@@ -164,12 +163,17 @@ describe("AdminApplicationService domains and signatures", () => {
       status: "disabled",
     });
     expect(updated.status).toBe("disabled");
-    await expect(admin.deleteDomain(administrator, created.id)).resolves.toBeUndefined();
+    await expect(
+      admin.deleteDomain(administrator, created.id),
+    ).resolves.toBeUndefined();
   });
 
   it("forbids deleting a domain that still has mailboxes", async () => {
     const admin = service();
-    const domain = await admin.createDomain(administrator, "active.example.com");
+    const domain = await admin.createDomain(
+      administrator,
+      "active.example.com",
+    );
     await env.DB.prepare(
       `INSERT INTO mailboxes (
          id, domain_id, owner_user_id, address, display_name

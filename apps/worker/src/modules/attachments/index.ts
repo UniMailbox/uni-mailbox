@@ -10,6 +10,7 @@ import {
   type AttachmentStore,
 } from "../../platform/attachment-store";
 import type { UploadTokenCodec } from "./upload-token";
+import { createAttachmentDownloadResponse } from "./download-response";
 
 interface UploadRow {
   id: string;
@@ -27,12 +28,12 @@ interface SettingsRow {
   max_attachment_bytes: number;
 }
 
-const INLINE_MIME_TYPES = new Set([
-  "image/gif",
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-]);
+function customMetadataValue(
+  metadata: Record<string, string>,
+  key: string,
+): string | undefined {
+  return metadata[key] ?? metadata[key.toLowerCase()];
+}
 
 function safeExtension(filename: string): string {
   const match = filename.toLowerCase().match(/\.([a-z0-9]{1,10})$/u);
@@ -44,24 +45,6 @@ function dispositionHeader(
   filename: string,
 ): string {
   return `${disposition}; filename*=UTF-8''${encodeURIComponent(filename)}`;
-}
-
-async function toBuffer(body: ArrayBuffer | Uint8Array): Promise<ArrayBuffer> {
-  if (body instanceof Uint8Array) {
-    const out = new ArrayBuffer(body.byteLength);
-    new Uint8Array(out).set(body);
-    return out;
-  }
-  return body;
-}
-
-async function weakEtag(body: ArrayBuffer | Uint8Array): Promise<string> {
-  const bytes = await toBuffer(body);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  const hex = Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  return `W/"${hex.slice(0, 32)}"`;
 }
 
 export class AttachmentApplicationService {
@@ -92,8 +75,11 @@ export class AttachmentApplicationService {
     const backendLimit = KV_VALUE_LIMIT - 1;
     const allowedBytes =
       this.store.backend === "r2"
-        ? settings?.max_attachment_bytes ?? backendLimit
-        : Math.min(settings?.max_attachment_bytes ?? backendLimit, backendLimit);
+        ? (settings?.max_attachment_bytes ?? backendLimit)
+        : Math.min(
+            settings?.max_attachment_bytes ?? backendLimit,
+            backendLimit,
+          );
     if (input.size > allowedBytes) {
       throw new DomainError(
         "ATTACHMENT_TOO_LARGE",
@@ -154,9 +140,7 @@ export class AttachmentApplicationService {
       },
       expiresAt: expiresAt.toISOString(),
       transport:
-        this.store.backend === "r2"
-          ? "worker-r2-binding"
-          : "worker-kv-binding",
+        this.store.backend === "r2" ? "worker-r2-binding" : "worker-kv-binding",
     };
   }
 
@@ -246,17 +230,17 @@ export class AttachmentApplicationService {
         409,
       );
     }
-    // We use get() rather than head() so that customMetadata is available —
-    // the KV-backed store does not expose metadata via its cheaper head path.
-    const object = await this.store.get(row.object_key);
+    const object = await this.store.head(row.object_key);
     if (
       !object ||
       object.size !== row.size_bytes ||
       object.httpMetadata?.contentType !== row.mime_type ||
-      object.customMetadata?.uploadId !== row.id ||
-      object.customMetadata?.filename !== row.filename ||
-      object.customMetadata?.disposition !== row.disposition ||
-      object.customMetadata?.expectedSize !== String(row.size_bytes)
+      customMetadataValue(object.customMetadata, "uploadId") !== row.id ||
+      customMetadataValue(object.customMetadata, "filename") !== row.filename ||
+      customMetadataValue(object.customMetadata, "disposition") !==
+        row.disposition ||
+      customMetadataValue(object.customMetadata, "expectedSize") !==
+        String(row.size_bytes)
     ) {
       throw new DomainError(
         "ATTACHMENT_OBJECT_MISMATCH",
@@ -336,30 +320,10 @@ export class AttachmentApplicationService {
         503,
       );
     }
-    const body = await toBuffer(
-      object.body instanceof Uint8Array
-        ? object.body
-        : object.body instanceof ArrayBuffer
-          ? object.body
-          : new Uint8Array(await new Response(object.body).arrayBuffer()),
-    );
-    const disposition =
-      attachment.disposition === "inline" &&
-      INLINE_MIME_TYPES.has(attachment.mime_type)
-        ? "inline"
-        : "attachment";
-    return new Response(body, {
-      headers: {
-        "content-type": attachment.mime_type,
-        "content-length": String(object.size),
-        "content-disposition": dispositionHeader(
-          disposition,
-          attachment.filename ?? "attachment",
-        ),
-        "x-content-type-options": "nosniff",
-        "cache-control": "private, no-store",
-        etag: await weakEtag(body),
-      },
+    return createAttachmentDownloadResponse(object, {
+      filename: attachment.filename,
+      mimeType: attachment.mime_type,
+      disposition: attachment.disposition,
     });
   }
 

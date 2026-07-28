@@ -19,7 +19,9 @@ test("login route surfaces an accessible credential form", async ({ page }) => {
   );
 });
 
-test("login form posts credentials and routes to the inbox", async ({ page }) => {
+test("login form posts credentials and routes to the inbox", async ({
+  page,
+}) => {
   let submittedEmail = "";
   let submittedPassword = "";
   await page.route("**/api/v1/**", async (route) => {

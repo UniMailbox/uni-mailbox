@@ -244,9 +244,7 @@ describe("mailbox schemas", () => {
 
 describe("installation and provider connection schemas", () => {
   it("requires a 32-character installation token", () => {
-    expect(() =>
-      InstallationClaimSchema.parse({ token: "short" }),
-    ).toThrow();
+    expect(() => InstallationClaimSchema.parse({ token: "short" })).toThrow();
     expect(() =>
       InstallationClaimSchema.parse({ token: "x".repeat(32) }),
     ).not.toThrow();

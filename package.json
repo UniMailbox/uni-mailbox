@@ -17,7 +17,7 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "schema:check": "pnpm --filter @unimailbox/worker exec drizzle-kit check --config ../../drizzle.config.ts",
     "test": "pnpm test:unit && pnpm test:worker && pnpm test:integration",
-    "test:unit": "pnpm --filter @unimailbox/contracts test && pnpm --filter @unimailbox/config test && pnpm --filter @unimailbox/email-core test && pnpm --filter @unimailbox/web test && vitest run apps/worker/test/unit",
+    "test:unit": "pnpm --filter @unimailbox/contracts test && pnpm --filter @unimailbox/config test && pnpm --filter @unimailbox/email-core test && pnpm --filter @unimailbox/web test && vitest run apps/worker/test/unit scripts/*.test.mjs",
     "test:worker": "vitest run apps/worker/test/worker",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test",
@@ -36,7 +36,10 @@
     "cf:typegen": "wrangler types apps/worker/worker-configuration.d.ts",
     "deploy": "pnpm release:production",
     "deploy:dry-run": "node scripts/dry-run.mjs",
-    "deploy:r2": "wrangler deploy -c wrangler.r2.jsonc",
+    "deploy:r2": "pnpm deploy:r2:production && pnpm deploy:r2:preview",
+    "deploy:r2:production": "wrangler deploy -c wrangler.r2.jsonc --env \"\"",
+    "deploy:r2:preview": "wrangler deploy -c wrangler.r2.jsonc --env preview",
+    "deploy:r2:dry-run": "node scripts/r2-dry-run.mjs",
     "migrate:kv-to-r2": "node scripts/migrate-attachments-to-r2.mjs"
   },
   "cloudflare": {

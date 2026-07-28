@@ -52,9 +52,11 @@ describe("CursorCodec", () => {
       .replaceAll("+", "-")
       .replaceAll("/", "_")
       .replace(/=+$/u, "");
-    await expect(codec.decode(`${payload}.${signature}`)).rejects.toMatchObject({
-      code: "CURSOR_INVALID",
-    });
+    await expect(codec.decode(`${payload}.${signature}`)).rejects.toMatchObject(
+      {
+        code: "CURSOR_INVALID",
+      },
+    );
   });
 
   it("rejects tokens whose payload is missing required fields", async () => {
@@ -68,8 +70,8 @@ describe("CursorCodec", () => {
       .replaceAll("+", "-")
       .replaceAll("/", "_")
       .replace(/=+$/u, "");
-    await expect(codec.decode(`${malformed}.${signature}`)).rejects.toMatchObject(
-      { code: "CURSOR_INVALID" },
-    );
+    await expect(
+      codec.decode(`${malformed}.${signature}`),
+    ).rejects.toMatchObject({ code: "CURSOR_INVALID" });
   });
 });

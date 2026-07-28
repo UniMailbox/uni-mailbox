@@ -32,11 +32,13 @@ binding. Apply it with:
 pnpm deploy:r2
 ```
 
-This runs `wrangler deploy -c wrangler.r2.jsonc` for the production Worker
-and its preview environment. After deployment, `/health` returns
-`data.storage.backend === "r2"`. The runtime now writes new objects to R2;
-existing KV objects remain in place and are still readable until the
-migration script below removes them.
+This runs two explicit deployments in sequence: `deploy:r2:production` targets
+the top-level environment and `deploy:r2:preview` targets `--env preview`.
+After deployment, `/health` returns `data.storage.backend === "r2"`. New
+objects are written to R2. The read path checks R2 first and then falls back to
+KV, so historical messages and queued outbound attachments remain available
+while the migration runs. If the second deployment fails, rerun
+`pnpm deploy:r2:preview` before directing traffic to preview.
 
 ## 4. Record the KV namespace ID
 
@@ -44,7 +46,7 @@ After the first `wrangler deploy` of `wrangler.r2.jsonc`, Cloudflare assigns a
 namespace ID to the `KV` binding. Capture it for the migration script:
 
 ```bash
-pnpm exec wrangler kv:namespace list
+pnpm exec wrangler kv namespace list
 ```
 
 Look for the row titled `KV` (or whichever title matches the binding). Copy
@@ -56,24 +58,32 @@ Optionally, pin the ID inside `wrangler.r2.jsonc`:
 "kv_namespaces": [{ "binding": "KV", "id": "<namespace-id>" }],
 ```
 
-This avoids relying on title-based lookups.
+This avoids relying on title-based lookups. You can also pass the ID directly
+as `--namespace-id <namespace-id>`; configured and explicit IDs bypass the
+namespace-title lookup.
 
 ## 5. Run the migration
 
 ```bash
 CLOUDFLARE_API_TOKEN=<token with R2 + KV write> \
-  pnpm migrate:kv-to-r2 --bucket unimailbox-attachments
+  pnpm migrate:kv-to-r2 --bucket unimailbox-attachments \
+    --namespace-id <namespace-id> --dry-run
 ```
 
-Pass `--dry-run` first to see what would change. The script:
+If `wrangler whoami --json` returns more than one account, also pass
+`--account <account-id>` so the script never guesses a destination account.
+Review the dry-run summary, then repeat without `--dry-run`. A dry run performs
+no upload, verification, or deletion and records missing/mismatched
+destinations under `planned`, not `failed`. The script:
 
 1. Lists every `attachment:<key>` body in the KV namespace (cursor-paginated).
 2. Reads the corresponding `attachment-meta:<key>` for `httpMetadata` /
    `customMetadata`.
 3. `PUT`s the body and headers into R2 with the same key.
-4. `HEAD`s the R2 object to confirm the size matches.
-5. Deletes the two KV keys (`attachment:<key>` and `attachment-meta:<key>`).
-6. Skips keys already in R2 with matching size (idempotent).
+4. `HEAD`s the R2 object to confirm its size and all source metadata match.
+5. Deletes `attachment-meta:<key>` and then `attachment:<key>` so a failed
+   sidecar cleanup leaves the body available for a safe retry.
+6. Skips keys already in R2 with matching size and metadata (idempotent).
 
 A summary event is emitted at the end:
 
@@ -81,6 +91,7 @@ A summary event is emitted at the end:
 {
   "event": "migration.completed",
   "listed": 1234,
+  "planned": 0,
   "uploaded": 1230,
   "skipped": 4,
   "failed": 0,
@@ -96,11 +107,14 @@ fixing any transient API failures; the script picks up where it left off.
 ## 6. Verify
 
 ```bash
-pnpm exec wrangler kv:key list --binding=KV --prefix=attachment:
+pnpm exec wrangler kv key list \
+  --namespace-id <namespace-id> --prefix=attachment: --remote
 # expect: empty list
 
-pnpm exec wrangler r2 object list unimailbox-attachments | head
-# expect: raw/ and attachments/ prefixes populated
+curl --fail --silent --show-error \
+  --header "Authorization: Bearer <token>" \
+  "https://api.cloudflare.com/client/v4/accounts/<account-id>/r2/buckets/unimailbox-attachments/objects?prefix=attachments%2F&per_page=10"
+# expect: success=true and result objects under attachments/
 ```
 
 Send a new attachment through the UI to confirm the live path also lands in
@@ -118,5 +132,6 @@ If R2 misbehaves in production, the path back to KV is:
    the worker returns `ATTACHMENT_OBJECT_MISSING` (HTTP 503) for old
    references until they are re-uploaded.
 
-Re-running `pnpm migrate:kv-to-r2 --bucket unimailbox-attachments` after a
-rollback is a no-op — it only touches KV keys, and KV is now empty.
+Do not delete the R2 bucket during rollback. If the migration already removed
+the KV copies, deploy the R2 overlay again to restore access, or run an
+approved R2-to-KV recovery before returning to the KV-only configuration.

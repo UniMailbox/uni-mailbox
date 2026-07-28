@@ -49,7 +49,9 @@ describe("AttachmentApplicationService.create size guard", () => {
          id, email, password_hash, password_salt, password_iterations,
          display_name
        ) VALUES (?, 'owner@example.com', 'h', 's', 1, 'Owner')`,
-    ).bind(principal.userId).run();
+    )
+      .bind(principal.userId)
+      .run();
     vi.spyOn(console, "log").mockImplementation(() => undefined);
   });
 

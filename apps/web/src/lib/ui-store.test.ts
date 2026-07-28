@@ -15,9 +15,7 @@ describe("ui-store", () => {
   it("updates the selected mailbox id and persists it", () => {
     useUiStore.getState().setSelectedMailboxId("mailbox-1");
     expect(useUiStore.getState().selectedMailboxId).toBe("mailbox-1");
-    expect(window.localStorage.getItem("unimailbox.mailbox")).toBe(
-      "mailbox-1",
-    );
+    expect(window.localStorage.getItem("unimailbox.mailbox")).toBe("mailbox-1");
   });
 
   it("opens the composer with intent and clears intent when closed", () => {
