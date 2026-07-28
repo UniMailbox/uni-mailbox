@@ -35,7 +35,9 @@
     "release:verify": "node scripts/verify-deployment.mjs",
     "cf:typegen": "wrangler types apps/worker/worker-configuration.d.ts",
     "deploy": "pnpm release:production",
-    "deploy:dry-run": "node scripts/dry-run.mjs"
+    "deploy:dry-run": "node scripts/dry-run.mjs",
+    "deploy:r2": "wrangler deploy -c wrangler.r2.jsonc",
+    "migrate:kv-to-r2": "node scripts/migrate-attachments-to-r2.mjs"
   },
   "cloudflare": {
     "bindings": {

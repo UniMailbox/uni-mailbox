@@ -27,7 +27,7 @@ The implementation must favor explicit contracts, typed boundaries, idempotent o
 | Language              | TypeScript                                            |
 | Database              | Cloudflare D1                                         |
 | ORM/query builder     | Drizzle ORM                                           |
-| Object storage        | Cloudflare R2                                         |
+| Object storage        | Cloudflare KV (default), Cloudflare R2 (optional overlay) |
 | Cache and rate limits | Cloudflare KV                                         |
 | Async processing      | Cloudflare Queues                                     |
 | Inbound MIME parser   | PostalMime                                            |
@@ -47,7 +47,7 @@ Browser
   ├── Direct attachment PUT ────────┐        │
   └── Static assets                 │        │
                                     ▼        ▼
-                               Cloudflare R2  Worker HTTP entrypoint
+                       Cloudflare KV / R2   Worker HTTP entrypoint
                                                 │
 Cloudflare Email Routing ──> Worker email entrypoint
                                                 │
@@ -1432,7 +1432,9 @@ No message table rewrite, send-use-case branch, or route fork is allowed.
 export interface Env {
   DB: D1Database;
   KV: KVNamespace;
-  ATTACHMENTS: R2Bucket;
+  /** Optional. When present, raw messages and attachments go to R2.
+   *  When absent, the KV-backed default backend is used. */
+  ATTACHMENTS?: R2Bucket;
   OUTBOUND_QUEUE: Queue<OutboundMailJob>;
   ASSETS: Fetcher;
   INSTALLATION_TOKEN: string;

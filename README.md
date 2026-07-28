@@ -16,8 +16,10 @@ repository** flow with the same root build and binding declarations.
 - One root Worker with HTTP, inbound email, Queue, and scheduled entrypoints.
 - D1 schema and immutable migrations for identity, RBAC, mail, drafts,
   providers, webhooks, installation state, maintenance, and audit records.
-- KV-backed installation sessions and rate limits.
-- R2 storage for raw messages and attachments.
+- KV-backed installation sessions, rate limits, and (by default) raw messages
+  and attachments.
+- Optional R2 overlay (`wrangler.r2.jsonc`) for installations that need
+  attachments larger than 25 MiB.
 - Durable outbound jobs and a Queue consumer with retry and lock recovery.
 - Provider-neutral adapters with Brevo as the first provider.
 - A responsive React mail workspace, resumable setup wizard, and control plane.
@@ -77,15 +79,21 @@ verified before any migration or release command.
 ## Deployment and operations
 
 The root [`wrangler.jsonc`](wrangler.jsonc) intentionally has no account IDs or
-resource IDs. Cloudflare automatically provisions the declared D1, KV, R2, and
+resource IDs. Cloudflare automatically provisions the declared D1, KV, and
 Queue resources during the deployment flow; the deployment page collects the
-three required secret bindings.
+three required secret bindings. R2 is **not** declared in the default config —
+it is opt-in via [`wrangler.r2.jsonc`](wrangler.r2.jsonc) so cold-start
+deployments do not require a paid plan. See the
+[storage backends section](docs/deployment.md#storage-backends) for the
+trade-offs and the [migration runbook](docs/runbooks/attachment-storage-migration.md)
+for switching backends later.
 
 See:
 
 - [Deployment guide](docs/deployment.md)
 - [Failed migration recovery](docs/runbooks/migration-recovery.md)
 - [Outbound and webhook recovery](docs/runbooks/mail-delivery-recovery.md)
+- [Storage backend migration](docs/runbooks/attachment-storage-migration.md)
 - [Setup repair](docs/runbooks/setup-recovery.md)
 - [Observability and alerts](docs/runbooks/observability-alerts.md)
 - [Source blueprint](docs/rebuild-blueprint.md)

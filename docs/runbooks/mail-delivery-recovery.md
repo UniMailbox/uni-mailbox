@@ -24,6 +24,11 @@
 
 1. Confirm Cloudflare Email Routing targets this Worker and the managed domain.
 2. Run the setup/repair inbound smoke test.
-3. Inspect redacted inbound logs and R2 object presence; never log message
-   bodies or attachment bytes.
-4. If D1 persistence failed after R2 writes, run orphan-object maintenance.
+3. Inspect redacted inbound logs and object presence (`/health` returns
+   `storage.backend` so you know whether to inspect KV `attachment:` keys or
+   R2 objects); never log message bodies or attachment bytes.
+4. If D1 persistence failed after object writes, run orphan-object
+   maintenance. The `cleanupOrphanObjects` cron iterates the configured
+   backend (KV `list({prefix: 'attachment:'})` or R2 `list`). KV `list` is
+   eventually consistent within roughly 60 seconds, so a `DELETE` may briefly
+   reappear as a candidate before the list catches up — re-run if needed.
