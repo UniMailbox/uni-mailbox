@@ -34,10 +34,10 @@ function technicalFieldDirection(label: string): "ltr" | undefined {
   return technicalFieldLabels.has(label) ? "ltr" : undefined;
 }
 
-function AdminTextField({ label, type = "text", autoComplete, inputMode, disabled = false }: { label: string; type?: "email" | "password" | "text"; autoComplete?: string; inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"]; disabled?: boolean }) {
+function AdminTextField({ label, type = "text", autoComplete, inputMode, disabled = false, technical = false }: { label: string; type?: "email" | "password" | "text"; autoComplete?: string; inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"]; disabled?: boolean; technical?: boolean }) {
   const field = useAppFieldContext<string>();
   const { t } = useTranslation("admin");
-  return <label className="field" htmlFor={field.name}><span>{t(`fields.${label}`)}</span><input autoComplete={autoComplete} dir={technicalFieldDirection(label)} disabled={disabled} id={field.name} inputMode={inputMode} onBlur={field.handleBlur} onChange={(event) => field.handleChange(event.target.value)} type={type} value={field.state.value} /><FieldError labelKey={`admin:fields.${label}`} /></label>;
+  return <label className="field" htmlFor={field.name}><span>{t(`fields.${label}`)}</span><input autoComplete={autoComplete} dir={technical ? "ltr" : technicalFieldDirection(label)} disabled={disabled} id={field.name} inputMode={inputMode} onBlur={field.handleBlur} onChange={(event) => field.handleChange(event.target.value)} type={type} value={field.state.value} /><FieldError labelKey={`admin:fields.${label}`} /></label>;
 }
 
 function AdminTextArea({ label, disabled = false }: { label: string; disabled?: boolean }) {
@@ -93,7 +93,7 @@ function CreateRolePanel() {
 function CreateDomainPanel() {
   const { t } = useTranslation("admin"); const client = useQueryClient(); const mutation = useMutation(adminMutationOptions(client).create);
   const form = useAppForm({ defaultValues: { name: "" }, validators: { onSubmit: adminFormSchemas.createDomain }, onSubmit: async ({ value }) => { await mutation.mutateAsync({ resource: "domains", ...adminFormSchemas.createDomain.parse(value) }); form.reset(); } });
-  return <details className="create-panel"><summary>{t("actions.add", { resource: t("navigation.domains") })}</summary><form onSubmit={(event) => { event.preventDefault(); void form.handleSubmit(); }}><form.AppField name="name">{() => <AdminTextField label="name" />}</form.AppField>{mutation.error ? <ErrorState error={mutation.error} /> : null}<form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting] as const}>{([canSubmit, isSubmitting]) => <button className="button primary" disabled={!canSubmit || isSubmitting || mutation.isPending} type="submit">{t("actions.create")}</button>}</form.Subscribe></form></details>;
+  return <details className="create-panel"><summary>{t("actions.add", { resource: t("navigation.domains") })}</summary><form onSubmit={(event) => { event.preventDefault(); void form.handleSubmit(); }}><form.AppField name="name">{() => <AdminTextField label="name" technical />}</form.AppField>{mutation.error ? <ErrorState error={mutation.error} /> : null}<form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting] as const}>{([canSubmit, isSubmitting]) => <button className="button primary" disabled={!canSubmit || isSubmitting || mutation.isPending} type="submit">{t("actions.create")}</button>}</form.Subscribe></form></details>;
 }
 
 function CreateProviderPanel() {
