@@ -4,6 +4,7 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestI18n } from "../../i18n/test-instance";
 import type { RuntimeLocale } from "../../i18n";
+import composeSource from "./ComposePanel.tsx?raw";
 import { ComposePanel } from "./ComposePanel";
 
 const draftStore = vi.hoisted(() => {
@@ -422,5 +423,49 @@ describe("ComposePanel", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "请至少添加一位收件人。",
     );
+  });
+
+  it("reports an invalid recipient through the active locale before sending", async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    renderCompose("zh-CN");
+
+    fireEvent.change(screen.getByLabelText("收件人"), {
+      target: { value: "not-an-email" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送邮件" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "请输入有效的收件人。",
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("does not start a second send while the first submission is pending", async () => {
+    let resolveSend!: (response: Response) => void;
+    const fetch = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveSend = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetch);
+    renderCompose();
+
+    fireEvent.change(screen.getByLabelText("To"), {
+      target: { value: "team@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      resolveSend(response({ messageId: draftId, status: "queued" }, 201));
+    });
+  });
+
+  it("uses the shared TanStack Form composition instead of React Hook Form", () => {
+    expect(composeSource).toContain('from "../../lib/form/app-form"');
+    expect(composeSource).not.toContain("react-hook-form");
   });
 });
