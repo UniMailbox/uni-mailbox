@@ -10,7 +10,9 @@ import en from "../../i18n/resources/en/admin.json";
 import zhCN from "../../i18n/resources/zh-CN/admin.json";
 import arXB from "../../i18n/resources/ar-XB/admin.json";
 
-function leaves(value: unknown, prefix = ""): string[] {
+type TranslationTree = string | { [key: string]: TranslationTree };
+
+function leaves(value: TranslationTree, prefix = ""): string[] {
   if (!value || typeof value !== "object") return [prefix];
   return Object.entries(value).flatMap(([key, child]) => leaves(child, prefix ? `${prefix}.${key}` : key));
 }
@@ -40,5 +42,15 @@ describe("Administration", () => {
     );
     expect(await screen.findByRole("heading", { name: "用户" })).toBeVisible();
     expect(screen.getByRole("link", { name: "返回邮件" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "创建" })).not.toBeInTheDocument();
+  });
+
+  it("defines localized labels for every Worker user and webhook status", () => {
+    const statuses = ["active", "suspended", "deleted", "draft", "queued", "sending", "sent", "delayed", "delivered", "bounced", "failed", "complained", "received"] as const;
+    for (const status of statuses) {
+      expect(en.values[status]).toBeTruthy();
+      expect(zhCN.values[status]).toBeTruthy();
+      expect(arXB.values[status]).toBeTruthy();
+    }
   });
 });
