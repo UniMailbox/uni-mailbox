@@ -33,4 +33,10 @@ describe("current Worker settings endpoint contracts", () => {
     expect(administrationEndpoints.infrastructure.responses[200].parse({ required: { d1: "ok", kv: "ok", queue: "missing", assets: "error" }, attachments: { backend: "kv", r2: "missing", reason: "ATTACHMENTS binding is absent" } })).toMatchObject({ attachments: { backend: "kv", r2: "missing", reason: "ATTACHMENTS binding is absent" } });
     expect(administrationEndpoints.r2Verify.responses[200].parse({ status: "verified", backend: "r2" })).toEqual({ status: "verified", backend: "r2" });
   });
+
+  it("includes every Cloudflare operation's Worker failure codes without a broad catch-all list", () => {
+    expect(administrationEndpoints.cloudflareVerify.errors).toContain("CLOUDFLARE_OAUTH_REFRESH_FAILED");
+    expect(administrationEndpoints.cloudflareDomainCreate.errors).toContain("CLOUDFLARE_OAUTH_REFRESH_FAILED");
+    expect(administrationEndpoints.cloudflareStatus.errors).not.toContain("R2_VERIFICATION_FAILED");
+  });
 });

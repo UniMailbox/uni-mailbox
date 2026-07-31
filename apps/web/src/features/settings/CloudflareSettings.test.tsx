@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { describe, expect, it, vi } from "vitest";
 import { createI18nInstance } from "../../i18n";
-import { CloudflareSettings } from "./CloudflareSettings";
+import { CloudflareSettings, followCloudflareOauth } from "./CloudflareSettings";
 
 describe("CloudflareSettings", () => {
   it("maps checkpoint states to localized product copy instead of provider diagnostics", async () => {
@@ -12,5 +12,11 @@ describe("CloudflareSettings", () => {
     expect(await screen.findByText("Connect the control plane")).toBeVisible();
     expect(screen.getByText("Action required")).toBeVisible();
     expect(screen.queryByText("provider-only diagnostic")).not.toBeInTheDocument();
+  });
+
+  it("leaves the app for the Worker-provided OAuth URL", () => {
+    const location = { assign: vi.fn() };
+    followCloudflareOauth("https://dash.cloudflare.com/oauth2/auth?state=worker-state", location);
+    expect(location.assign).toHaveBeenCalledWith("https://dash.cloudflare.com/oauth2/auth?state=worker-state");
   });
 });

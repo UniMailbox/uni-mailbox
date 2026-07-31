@@ -1,4 +1,8 @@
-import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
+import {
+  mutationOptions,
+  queryOptions,
+  type QueryClient,
+} from "@tanstack/react-query";
 import {
   administrationEndpoints,
   authEndpoints,
@@ -30,41 +34,65 @@ async function invalidateCheckpoints(client: QueryClient): Promise<void> {
 export function cloudflareStatusQueryOptions() {
   return queryOptions({
     queryKey: settingsKeys.checkpoints(),
-    queryFn: () => apiClient.request(administrationEndpoints.cloudflareStatus, {}),
+    queryFn: () =>
+      apiClient.request(administrationEndpoints.cloudflareStatus, {}),
   });
 }
 
 export function infrastructureQueryOptions() {
   return queryOptions({
     queryKey: settingsKeys.infrastructure(),
-    queryFn: () => apiClient.request(administrationEndpoints.infrastructure, {}),
+    queryFn: () =>
+      apiClient.request(administrationEndpoints.infrastructure, {}),
   });
 }
 
 export function cloudflareOauthStartMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
-    mutationFn: () => apiClient.request(administrationEndpoints.cloudflareOauthStart, { headers: idempotencyHeaders() }),
+    mutationFn: () =>
+      apiClient.request(administrationEndpoints.cloudflareOauthStart, {
+        headers: idempotencyHeaders(),
+      }),
     onSuccess: async () => invalidateCheckpoints(queryClient),
   });
 }
 
 export function cloudflareOauthRevokeMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
-    mutationFn: () => apiClient.request(administrationEndpoints.cloudflareOauthRevoke, { headers: idempotencyHeaders() }),
+    mutationFn: () =>
+      apiClient.request(administrationEndpoints.cloudflareOauthRevoke, {
+        headers: idempotencyHeaders(),
+      }),
     onSuccess: async () => invalidateCheckpoints(queryClient),
   });
 }
 
 export function cloudflareVerifyMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
-    mutationFn: (body: EndpointRequest<typeof administrationEndpoints.cloudflareVerify>["body"]) => apiClient.request(administrationEndpoints.cloudflareVerify, { headers: idempotencyHeaders(), body }),
+    mutationFn: (
+      body: EndpointRequest<
+        typeof administrationEndpoints.cloudflareVerify
+      >["body"],
+    ) =>
+      apiClient.request(administrationEndpoints.cloudflareVerify, {
+        headers: idempotencyHeaders(),
+        body,
+      }),
     onSuccess: async () => invalidateCheckpoints(queryClient),
   });
 }
 
 export function cloudflareDomainMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
-    mutationFn: (body: EndpointRequest<typeof administrationEndpoints.cloudflareDomainCreate>["body"]) => apiClient.request(administrationEndpoints.cloudflareDomainCreate, { headers: idempotencyHeaders(), body }),
+    mutationFn: (
+      body: EndpointRequest<
+        typeof administrationEndpoints.cloudflareDomainCreate
+      >["body"],
+    ) =>
+      apiClient.request(administrationEndpoints.cloudflareDomainCreate, {
+        headers: idempotencyHeaders(),
+        body,
+      }),
     onSuccess: async () => {
       await invalidateCheckpoints(queryClient);
       await queryClient.invalidateQueries({ queryKey: adminKeys.domains });
@@ -74,14 +102,29 @@ export function cloudflareDomainMutationOptions(queryClient: QueryClient) {
 
 export function cloudflareInboundMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
-    mutationFn: (token?: string) => apiClient.request(administrationEndpoints.cloudflareInboundSmokeTest, { headers: idempotencyHeaders(), body: token ? { token } : {} }),
+    mutationFn: (token?: string) =>
+      apiClient.request(administrationEndpoints.cloudflareInboundSmokeTest, {
+        headers: idempotencyHeaders(),
+        body: token ? { token } : {},
+      }),
     onSuccess: async () => invalidateCheckpoints(queryClient),
   });
 }
 
 export function cloudflareProviderMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
-    mutationFn: (body: Omit<EndpointRequest<typeof administrationEndpoints.cloudflareBrevoConnect>["body"], "providerKey">) => apiClient.request(administrationEndpoints.cloudflareBrevoConnect, { headers: idempotencyHeaders(), body: { ...body, providerKey: "brevo" } }),
+    mutationFn: (
+      body: Omit<
+        EndpointRequest<
+          typeof administrationEndpoints.cloudflareBrevoConnect
+        >["body"],
+        "providerKey"
+      >,
+    ) =>
+      apiClient.request(administrationEndpoints.cloudflareBrevoConnect, {
+        headers: idempotencyHeaders(),
+        body: { ...body, providerKey: "brevo" },
+      }),
     onSuccess: async () => {
       await invalidateCheckpoints(queryClient);
       await queryClient.invalidateQueries({ queryKey: adminKeys.providers });
@@ -92,16 +135,29 @@ export function cloudflareProviderMutationOptions(queryClient: QueryClient) {
 
 export function cloudflareOutboundMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
-    mutationFn: (body: EndpointRequest<typeof administrationEndpoints.cloudflareOutboundSmokeTest>["body"]) => apiClient.request(administrationEndpoints.cloudflareOutboundSmokeTest, { headers: idempotencyHeaders(), body }),
+    mutationFn: (
+      body: EndpointRequest<
+        typeof administrationEndpoints.cloudflareOutboundSmokeTest
+      >["body"],
+    ) =>
+      apiClient.request(administrationEndpoints.cloudflareOutboundSmokeTest, {
+        headers: idempotencyHeaders(),
+        body,
+      }),
     onSuccess: async () => invalidateCheckpoints(queryClient),
   });
 }
 
 export function r2VerifyMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
-    mutationFn: () => apiClient.request(administrationEndpoints.r2Verify, { headers: idempotencyHeaders() }),
+    mutationFn: () =>
+      apiClient.request(administrationEndpoints.r2Verify, {
+        headers: idempotencyHeaders(),
+      }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: settingsKeys.infrastructure() });
+      await queryClient.invalidateQueries({
+        queryKey: settingsKeys.infrastructure(),
+      });
       await invalidateCheckpoints(queryClient);
     },
   });
@@ -109,36 +165,64 @@ export function r2VerifyMutationOptions(queryClient: QueryClient) {
 
 export function identityEmailMutationOptions() {
   return mutationOptions({
-    mutationFn: (body: EndpointRequest<typeof authEndpoints.email>["body"]) => apiClient.request(authEndpoints.email, { body }),
+    mutationFn: (body: EndpointRequest<typeof authEndpoints.email>["body"]) =>
+      apiClient.request(authEndpoints.email, { body }),
   });
 }
 
 export function identityPasswordMutationOptions() {
   return mutationOptions({
-    mutationFn: (body: EndpointRequest<typeof authEndpoints.passwordReset>["body"]) => apiClient.request(authEndpoints.passwordReset, { body }),
+    mutationFn: (
+      body: EndpointRequest<typeof authEndpoints.passwordReset>["body"],
+    ) => apiClient.request(authEndpoints.passwordReset, { body }),
   });
 }
 
 export function mailboxCreateSettingsMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
-    mutationFn: (body: EndpointRequest<typeof mailboxEndpoints.create>["body"]) => apiClient.request(mailboxEndpoints.create, { body }),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ["mail", "mailboxes"] }),
+    mutationFn: (
+      body: EndpointRequest<typeof mailboxEndpoints.create>["body"],
+    ) => apiClient.request(mailboxEndpoints.create, { body }),
+    onSuccess: async () =>
+      queryClient.invalidateQueries({ queryKey: ["mail", "mailboxes"] }),
   });
 }
 
 export function mailboxMembersQueryOptions(mailboxId: string) {
-  return queryOptions({ queryKey: ["mail", "mailboxes", mailboxId.trim(), "members"], queryFn: () => apiClient.request(mailboxEndpoints.listMembers, { params: { mailboxId } }) });
+  return queryOptions({
+    queryKey: ["mail", "mailboxes", mailboxId.trim(), "members"],
+    queryFn: () =>
+      apiClient.request(mailboxEndpoints.listMembers, {
+        params: { mailboxId },
+      }),
+  });
 }
 
 export function mailboxMemberSettingsMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
-    mutationFn: (input: { action: "add" | "update" | "remove"; mailboxId: string; userId: string; role?: "viewer" | "sender" | "admin" }) => input.action === "add"
-      ? apiClient.request(mailboxEndpoints.addMember, { params: { mailboxId: input.mailboxId }, body: { userId: input.userId, role: input.role! } })
-      : input.action === "update"
-        ? apiClient.request(mailboxEndpoints.updateMember, { params: { mailboxId: input.mailboxId, userId: input.userId }, body: { role: input.role! } })
-        : apiClient.request(mailboxEndpoints.removeMember, { params: { mailboxId: input.mailboxId, userId: input.userId } }),
+    mutationFn: (input: {
+      action: "add" | "update" | "remove";
+      mailboxId: string;
+      userId: string;
+      role?: "viewer" | "sender" | "admin";
+    }) =>
+      input.action === "add"
+        ? apiClient.request(mailboxEndpoints.addMember, {
+            params: { mailboxId: input.mailboxId },
+            body: { userId: input.userId, role: input.role! },
+          })
+        : input.action === "update"
+          ? apiClient.request(mailboxEndpoints.updateMember, {
+              params: { mailboxId: input.mailboxId, userId: input.userId },
+              body: { role: input.role! },
+            })
+          : apiClient.request(mailboxEndpoints.removeMember, {
+              params: { mailboxId: input.mailboxId, userId: input.userId },
+            }),
     onSuccess: async (_result, input) => {
-      await queryClient.invalidateQueries({ queryKey: ["mail", "mailboxes", input.mailboxId.trim(), "members"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["mail", "mailboxes", input.mailboxId.trim(), "members"],
+      });
       await queryClient.invalidateQueries({ queryKey: ["mail", "mailboxes"] });
     },
   });
