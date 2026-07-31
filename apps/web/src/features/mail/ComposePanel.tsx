@@ -6,9 +6,23 @@ import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Bold, Italic, Link2, Paperclip, Send, X } from "lucide-react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
+import {
+  attachmentEndpoints,
+  draftEndpoints,
+  messageEndpoints,
+  type EndpointRequest,
+  type EndpointResponse,
+} from "@unimailbox/contracts";
 import { draftsDb } from "../../lib/drafts-db";
-import { apiRequest, jsonBody } from "../../lib/api";
+import { apiClient, ApiClientError } from "../../lib/api/index";
+import { apiErrorToken } from "../../i18n/errors";
 import { type ComposeIntent, useUiStore } from "../../lib/ui-store";
+import {
+  draftQueryOptions,
+  mailKeys,
+  messageQueryOptions,
+} from "./api";
 
 interface ComposeForm {
   to: string;
@@ -17,24 +31,9 @@ interface ComposeForm {
   subject: string;
 }
 
-interface DraftDetail {
-  id: string;
-  mailboxId: string;
-  subject: string;
-  html_body: string;
-  text_body: string;
-  updated_at: string;
-  recipients: Array<{ type: "to" | "cc" | "bcc"; address: string }>;
-  attachments: Array<{ id: string }>;
-}
-
-interface ParentMessage {
-  id: string;
-  from_address: string;
-  subject: string;
-  html_body: string;
-  text_body: string;
-}
+type DraftDetail = EndpointResponse<typeof draftEndpoints.get>;
+type ParentMessage = EndpointResponse<typeof messageEndpoints.get>;
+type MessageInput = EndpointRequest<typeof messageEndpoints.send>["body"];
 
 function addresses(value: string): string[] {
   return [
@@ -52,6 +51,16 @@ function addresses(value: string): string[] {
 // Tiptap `onUpdate` events without re-writing on every input.
 const LOCAL_DRAFT_DEBOUNCE_MS = 400;
 
+function InlineMutationError({ error }: { error: unknown }) {
+  const { t } = useTranslation(["errors"]);
+  const token = apiErrorToken(error);
+  return (
+    <strong className="inline-error" role="alert">
+      {String(t(token.key, token.values))}
+    </strong>
+  );
+}
+
 export function ComposePanel({
   mailboxId,
   intent,
@@ -59,6 +68,7 @@ export function ComposePanel({
   mailboxId: string;
   intent: ComposeIntent | null;
 }) {
+  const { t, i18n } = useTranslation("mail");
   const close = useUiStore((state) => state.setComposeOpen);
   const client = useQueryClient();
   const [attachmentIds, setAttachmentIds] = useState<string[]>([]);
@@ -75,23 +85,38 @@ export function ComposePanel({
   const editor = useEditor({
     extensions: [
       StarterKit,
-      Placeholder.configure({ placeholder: "Write your message…" }),
+      Placeholder.configure({ placeholder: t("compose.editorPlaceholder") }),
     ],
     content: "",
     onUpdate: () => setEditorRevision((current) => current + 1),
   });
   const watched = form.watch();
   const draft = useQuery({
-    queryKey: ["draft", intent?.draftId],
-    queryFn: () => apiRequest<DraftDetail>(`/drafts/${intent?.draftId}`),
+    ...draftQueryOptions(intent?.draftId ?? "00000000-0000-4000-8000-000000000000"),
     enabled: Boolean(intent?.draftId),
   });
   const parent = useQuery({
-    queryKey: ["message", intent?.parentMessageId],
-    queryFn: () =>
-      apiRequest<ParentMessage>(`/messages/${intent?.parentMessageId}`),
+    ...messageQueryOptions(
+      intent?.parentMessageId ?? "00000000-0000-4000-8000-000000000000",
+    ),
     enabled: Boolean(intent?.parentMessageId),
   });
+
+  // Tiptap's placeholder plugin reads its option while decorating the existing
+  // editor state. Updating that option and dispatching a metadata-only
+  // transaction refreshes the decoration without reconstructing the editor or
+  // changing its document/selection.
+  useEffect(() => {
+    if (!editor) return;
+    const placeholder = editor.extensionManager.extensions.find(
+      (extension) => extension.name === "placeholder",
+    ) as { options: { placeholder: string } } | undefined;
+    if (!placeholder) return;
+    placeholder.options.placeholder = t("compose.editorPlaceholder");
+    editor.view.dispatch(
+      editor.state.tr.setMeta("unimailbox-placeholder", i18n.language),
+    );
+  }, [editor, i18n.language, t]);
 
   useEffect(() => {
     if (!editor || !draft.data || hydratedSource.current === draft.data.id)
@@ -203,7 +228,7 @@ export function ComposePanel({
     workingId,
   ]);
 
-  function messageInput(values: ComposeForm) {
+  function messageInput(values: ComposeForm): MessageInput {
     return {
       mailboxId,
       to: addresses(values.to),
@@ -220,14 +245,13 @@ export function ComposePanel({
 
   async function persistDraft(values: ComposeForm): Promise<DraftDetail> {
     const result = serverDraftId
-      ? await apiRequest<DraftDetail>(`/drafts/${serverDraftId}`, {
-          method: "PUT",
+      ? await apiClient.request(draftEndpoints.update, {
+          params: { draftId: serverDraftId },
           headers: { "if-match": `"${draftVersion ?? ""}"` },
-          body: jsonBody(messageInput(values)),
+          body: messageInput(values),
         })
-      : await apiRequest<DraftDetail>("/drafts", {
-          method: "POST",
-          body: jsonBody(messageInput(values)),
+      : await apiClient.request(draftEndpoints.create, {
+          body: messageInput(values),
         });
     setServerDraftId(result.id);
     setDraftVersion(result.updated_at);
@@ -239,30 +263,30 @@ export function ComposePanel({
 
   const save = useMutation({
     mutationFn: persistDraft,
-    onSuccess: () => client.invalidateQueries({ queryKey: ["drafts"] }),
+    onSuccess: () => client.invalidateQueries({ queryKey: mailKeys.drafts() }),
   });
 
   const send = useMutation({
     mutationFn: async (values: ComposeForm) => {
       if (serverDraftId) {
         const saved = await persistDraft(values);
-        return apiRequest<{ messageId: string }>(`/drafts/${saved.id}/send`, {
-          method: "POST",
+        return apiClient.request(draftEndpoints.send, {
+          params: { draftId: saved.id },
           headers: {
             "idempotency-key": crypto.randomUUID(),
             "if-match": `"${saved.updated_at}"`,
           },
         });
       }
-      return apiRequest<{ messageId: string }>("/messages/send", {
-        method: "POST",
+      return apiClient.request(messageEndpoints.send, {
         headers: { "idempotency-key": crypto.randomUUID() },
-        body: jsonBody(messageInput(values)),
+        body: messageInput(values),
       });
     },
     onSuccess: async () => {
       await draftsDb.workingDrafts.delete(workingId);
-      await client.invalidateQueries({ queryKey: ["messages"] });
+      await client.invalidateQueries({ queryKey: mailKeys.messagesRoot() });
+      await client.invalidateQueries({ queryKey: mailKeys.drafts() });
       close(false);
     },
   });
@@ -270,27 +294,23 @@ export function ComposePanel({
   async function uploadFile(file: File) {
     setUploading(true);
     try {
-      const upload = await apiRequest<{
-        attachmentId: string;
-        uploadUrl: string;
-        uploadHeaders: Record<string, string>;
-      }>("/attachments/uploads", {
-        method: "POST",
-        body: jsonBody({
+      const upload = await apiClient.request(attachmentEndpoints.createUpload, {
+        body: {
           filename: file.name,
           contentType: file.type || "application/octet-stream",
           size: file.size,
           disposition: "attachment",
-        }),
+        },
       });
       const response = await fetch(upload.uploadUrl, {
         method: "PUT",
         headers: upload.uploadHeaders,
         body: file,
       });
-      if (!response.ok) throw new Error("Attachment upload failed");
-      await apiRequest(`/attachments/uploads/${upload.attachmentId}/complete`, {
-        method: "POST",
+      if (!response.ok)
+        throw new ApiClientError("ATTACHMENT_UPLOAD_UNAVAILABLE", response.status);
+      await apiClient.request(attachmentEndpoints.completeUpload, {
+        params: { attachmentId: upload.attachmentId },
       });
       setAttachmentIds((current) => [...current, upload.attachmentId]);
     } finally {
@@ -299,14 +319,14 @@ export function ComposePanel({
   }
 
   return (
-    <aside className="compose-panel" aria-label="Compose message">
+    <aside className="compose-panel" aria-label={t("compose.panelLabel")}>
       <header>
         <div>
           <span className="live-dot" />
-          <strong>New transmission</strong>
+          <strong>{t("compose.newTransmission")}</strong>
         </div>
         <button
-          aria-label="Close composer"
+          aria-label={t("compose.close")}
           className="icon-button"
           onClick={() => close(false)}
           type="button"
@@ -314,37 +334,45 @@ export function ComposePanel({
           <X />
         </button>
       </header>
-      <form onSubmit={form.handleSubmit((values) => send.mutate(values))}>
+      <form
+        noValidate
+        onSubmit={form.handleSubmit((values) => send.mutate(values))}
+      >
         <label className="compose-line">
-          <span>TO</span>
+          <span>{t("compose.toShort")}</span>
           <input
-            {...form.register("to", { required: true })}
-            aria-label="To"
+            {...form.register("to", {
+              required: {
+                value: true,
+                message: t("compose.validation.recipientRequired"),
+              },
+            })}
+            aria-label={t("compose.to")}
             placeholder="recipient@example.com"
           />
         </label>
         <details className="recipient-details">
-          <summary>Add CC / BCC</summary>
+          <summary>{t("compose.addRecipients")}</summary>
           <label className="compose-line">
-            <span>CC</span>
-            <input {...form.register("cc")} aria-label="CC" />
+            <span>{t("compose.cc")}</span>
+            <input {...form.register("cc")} aria-label={t("compose.cc")} />
           </label>
           <label className="compose-line">
-            <span>BCC</span>
-            <input {...form.register("bcc")} aria-label="BCC" />
+            <span>{t("compose.bcc")}</span>
+            <input {...form.register("bcc")} aria-label={t("compose.bcc")} />
           </label>
         </details>
         <label className="compose-line subject-line">
-          <span>SUBJ</span>
+          <span>{t("compose.subjectShort")}</span>
           <input
             {...form.register("subject")}
-            aria-label="Subject"
-            placeholder="Subject"
+            aria-label={t("compose.subject")}
+            placeholder={t("compose.subjectPlaceholder")}
           />
         </label>
-        <div className="editor-toolbar" aria-label="Message formatting">
+        <div className="editor-toolbar" aria-label={t("compose.formatting")}>
           <button
-            aria-label="Bold"
+            aria-label={t("compose.bold")}
             className={editor?.isActive("bold") ? "active" : ""}
             onClick={() => editor?.chain().focus().toggleBold().run()}
             type="button"
@@ -352,7 +380,7 @@ export function ComposePanel({
             <Bold />
           </button>
           <button
-            aria-label="Italic"
+            aria-label={t("compose.italic")}
             className={editor?.isActive("italic") ? "active" : ""}
             onClick={() => editor?.chain().focus().toggleItalic().run()}
             type="button"
@@ -362,7 +390,7 @@ export function ComposePanel({
           <span />
           <label className="toolbar-upload">
             <Paperclip />
-            <span className="sr-only">Attach file</span>
+            <span className="sr-only">{t("compose.attach")}</span>
             <input
               disabled={uploading}
               onChange={(event) => {
@@ -372,25 +400,26 @@ export function ComposePanel({
               type="file"
             />
           </label>
-          <button aria-label="Insert link" disabled type="button">
+          <button aria-label={t("compose.insertLink")} disabled type="button">
             <Link2 />
           </button>
         </div>
         <EditorContent className="message-editor" editor={editor} />
         <footer>
           <div className="compose-meta">
-            <span>Autosaved locally</span>
+            <span>{t("compose.autosaved")}</span>
             {attachmentIds.length ? (
-              <strong>{attachmentIds.length} attachment(s) ready</strong>
+              <strong>{t("compose.attachmentCount", { count: attachmentIds.length })}</strong>
             ) : null}
-            {uploading ? <strong>Uploading…</strong> : null}
-            {send.error ? (
-              <strong className="inline-error">{send.error.message}</strong>
+            {uploading ? <strong>{t("compose.uploading")}</strong> : null}
+            {send.error ? <InlineMutationError error={send.error} /> : null}
+            {save.error ? <InlineMutationError error={save.error} /> : null}
+            {form.formState.errors.to?.message ? (
+              <strong className="inline-error" role="alert">
+                {form.formState.errors.to.message}
+              </strong>
             ) : null}
-            {save.error ? (
-              <strong className="inline-error">{save.error.message}</strong>
-            ) : null}
-            {save.isSuccess ? <strong>Saved to server</strong> : null}
+            {save.isSuccess ? <strong>{t("compose.saved")}</strong> : null}
           </div>
           <div className="compose-actions">
             <button
@@ -399,13 +428,13 @@ export function ComposePanel({
               onClick={form.handleSubmit((values) => save.mutate(values))}
               type="button"
             >
-              {save.isPending ? "Saving…" : "Save draft"}
+              {save.isPending ? t("compose.saving") : t("compose.saveDraft")}
             </button>
             <button
               className="button primary"
               disabled={send.isPending || save.isPending}
             >
-              <span>{send.isPending ? "Queueing…" : "Send message"}</span>
+              <span>{send.isPending ? t("compose.sending") : t("compose.send")}</span>
               <Send />
             </button>
           </div>
