@@ -7,7 +7,10 @@ import { ApiClientError, apiErrorCode } from "./errors";
 
 const ACCESS_TOKEN_KEY = "unimailbox.access-token";
 
-type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+type FetchLike = (
+  input: RequestInfo | URL,
+  init?: RequestInit,
+) => Promise<Response>;
 
 export type ApiTransport = {
   request<T = unknown>(
@@ -21,7 +24,7 @@ export type ApiTransport = {
     init?: RequestInit,
     retry?: boolean,
     mediaType?: MediaType,
-  ): Promise<{ data: T; status: number }>;
+  ): Promise<{ data: T; status: number; headers?: Headers }>;
   response(
     path: string,
     init?: RequestInit,
@@ -54,7 +57,10 @@ function readErrorEnvelope(
     .json()
     .then((body: unknown) => {
       const result = ApiErrorEnvelopeSchema.safeParse(body);
-      return { envelope: result.success ? result.data : undefined, parsedJson: true };
+      return {
+        envelope: result.success ? result.data : undefined,
+        parsedJson: true,
+      };
     })
     .catch(() => ({ parsedJson: false }));
 }
@@ -72,12 +78,17 @@ function responseError(
     );
   }
 
-  const { code, message, details, params, requestId } = errorBody.envelope.error;
+  const { code, message, details, params, requestId } =
+    errorBody.envelope.error;
   return new ApiClientError(apiErrorCode(code), status, {
     ...(apiErrorCode(code) === "UNKNOWN_SERVER_ERROR" ? { rawCode: code } : {}),
-    ...(params === undefined && details === undefined ? {} : { params: params ?? details }),
+    ...(params === undefined && details === undefined
+      ? {}
+      : { params: params ?? details }),
     ...(details === undefined ? {} : { details }),
-    ...(requestId ?? headerRequestId ? { requestId: requestId ?? headerRequestId ?? undefined } : {}),
+    ...((requestId ?? headerRequestId)
+      ? { requestId: requestId ?? headerRequestId ?? undefined }
+      : {}),
     diagnosticMessage: message,
   });
 }
@@ -87,7 +98,9 @@ function joinPath(basePath: string, path: string): string {
   return `${base}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-export function createApiTransport(options: ApiTransportOptions = {}): ApiTransport {
+export function createApiTransport(
+  options: ApiTransportOptions = {},
+): ApiTransport {
   const fetcher: FetchLike =
     options.fetch ?? ((input, init) => window.fetch(input, init));
   const basePath = options.basePath ?? "/api/v1";
@@ -153,7 +166,10 @@ export function createApiTransport(options: ApiTransportOptions = {}): ApiTransp
     ) {
       return response(path, init, false, mediaType);
     }
-    if (!result.ok && !(mediaType === "redirect" && result.status >= 300 && result.status < 400)) {
+    if (
+      !result.ok &&
+      !(mediaType === "redirect" && result.status >= 300 && result.status < 400)
+    ) {
       throw responseError(
         result.status,
         await readErrorEnvelope(result),
@@ -177,11 +193,7 @@ export function createApiTransport(options: ApiTransportOptions = {}): ApiTransp
     }
     try {
       const body: unknown = await result.json();
-      if (
-        !body ||
-        typeof body !== "object" ||
-        !("data" in body)
-      ) {
+      if (!body || typeof body !== "object" || !("data" in body)) {
         throw new ApiClientError("CLIENT_RESPONSE_INVALID", result.status);
       }
       return (body as { data: T }).data;
@@ -196,9 +208,13 @@ export function createApiTransport(options: ApiTransportOptions = {}): ApiTransp
     init?: RequestInit,
     retry?: boolean,
     mediaType: MediaType = "json",
-  ): Promise<{ data: T; status: number }> {
+  ): Promise<{ data: T; status: number; headers?: Headers }> {
     const result = await response(path, init, retry, mediaType);
-    return { data: await decodeSuccess<T>(result, mediaType), status: result.status };
+    return {
+      data: await decodeSuccess<T>(result, mediaType),
+      status: result.status,
+      headers: result.headers,
+    };
   }
 
   async function request<T>(

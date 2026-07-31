@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { defineEndpoint } from "@unimailbox/contracts";
+import { attachmentEndpoints, defineEndpoint } from "@unimailbox/contracts";
 import { createApiClient } from "./client";
 import { createApiTransport } from "./transport";
 
@@ -32,7 +32,9 @@ const startProviderAuthorization = defineEndpoint({
 
 describe("typed API client", () => {
   it("builds encoded paths and validates the selected response schema", async () => {
-    const request = vi.fn().mockResolvedValue({ id: "d9fbf784-e709-4ec4-a2ca-3385e5ff1aa6" });
+    const request = vi
+      .fn()
+      .mockResolvedValue({ id: "d9fbf784-e709-4ec4-a2ca-3385e5ff1aa6" });
     const client = createApiClient({ request } as never);
 
     await expect(
@@ -47,7 +49,9 @@ describe("typed API client", () => {
   });
 
   it("rejects a successful body that violates the endpoint schema", async () => {
-    const client = createApiClient({ request: vi.fn().mockResolvedValue({ id: 123 }) } as never);
+    const client = createApiClient({
+      request: vi.fn().mockResolvedValue({ id: 123 }),
+    } as never);
 
     await expect(
       client.request(readMailbox, {
@@ -68,6 +72,29 @@ describe("typed API client", () => {
     });
 
     expect([...new Uint8Array(download)]).toEqual([1, 2, 3]);
+  });
+
+  it("returns a contract-defined binary download blob with content-disposition metadata", async () => {
+    const client = createApiClient(
+      createApiTransport({
+        fetch: vi.fn().mockResolvedValue(
+          new Response("contents", {
+            headers: {
+              "content-disposition": "attachment; filename*=UTF-8''runbook.txt",
+            },
+          }),
+        ),
+      }),
+    );
+
+    await expect(
+      client.request(attachmentEndpoints.download, {
+        params: { attachmentId: "d9fbf784-e709-4ec4-a2ca-3385e5ff1aa6" },
+      }),
+    ).resolves.toMatchObject({
+      blob: expect.any(Blob),
+      contentDisposition: "attachment; filename*=UTF-8''runbook.txt",
+    });
   });
 
   it("returns a redirect endpoint location without JSON-envelope decoding", async () => {

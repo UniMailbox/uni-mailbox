@@ -23,42 +23,22 @@ import {
   Trash2,
 } from "lucide-react";
 import { canOpenAdminConsole } from "@unimailbox/contracts";
-import { apiRequest } from "../../lib/api";
 import { endSession, useSession } from "../../lib/session";
 import { logoutMutationOptions } from "../auth/api";
 import { useUiStore } from "../../lib/ui-store";
 import { ErrorState, LoadingState } from "../../components/Status";
+import {
+  draftsQueryOptions,
+  mailboxesQueryOptions,
+  messageStarMutationOptions,
+  messagesInfiniteQueryOptions,
+} from "./api";
 
 const ComposePanel = lazy(() =>
   import("./ComposePanel").then((module) => ({
     default: module.ComposePanel,
   })),
 );
-
-interface Mailbox {
-  id: string;
-  address: string;
-  display_name: string;
-  unread_count?: number;
-}
-
-interface MessageSummary {
-  id: string;
-  from_address: string;
-  from_name?: string;
-  subject: string;
-  status: string;
-  created_at: string;
-  received_at?: string;
-  sent_at?: string;
-  is_read: number;
-  is_starred: number;
-}
-
-interface MessagePage {
-  items: MessageSummary[];
-  nextCursor: string | null;
-}
 
 const folders = [
   ["inbox", "Inbox", Inbox],
@@ -114,10 +94,7 @@ export function MailWorkspace({
   const setComposeOpen = useUiStore((state) => state.setComposeOpen);
   const sidebarOpen = useUiStore((state) => state.sidebarOpen);
   const setSidebarOpen = useUiStore((state) => state.setSidebarOpen);
-  const mailboxes = useQuery({
-    queryKey: ["mailboxes"],
-    queryFn: () => apiRequest<Mailbox[]>("/mailboxes"),
-  });
+  const mailboxes = useQuery(mailboxesQueryOptions());
   // The authenticated Router parent has already resolved this query before the workspace
   // mounts, so this reads from cache rather than issuing a second request.
   const session = useSession();
@@ -134,36 +111,24 @@ export function MailWorkspace({
   }, [activeMailboxId, selectedMailboxId, setSelectedMailboxId]);
 
   const drafts = useQuery({
-    queryKey: ["drafts"],
-    queryFn: () => apiRequest<MessageSummary[]>("/drafts"),
+    ...draftsQueryOptions(),
     enabled: folder === "drafts",
   });
   const messages = useInfiniteQuery({
-    queryKey: ["messages", activeMailboxId, folder],
-    initialPageParam: null as string | null,
-    queryFn: ({ pageParam }) => {
-      const actualFolder = folder === "starred" ? "inbox" : folder;
-      const params = new URLSearchParams({
-        folder: actualFolder,
-        limit: "50",
-      });
-      if (folder === "starred") params.set("starred", "true");
-      if (pageParam) params.set("cursor", pageParam);
-      return apiRequest<MessagePage>(
-        `/mailboxes/${activeMailboxId}/messages?${params}`,
-      );
-    },
-    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    ...messagesInfiniteQueryOptions({
+      mailboxId: activeMailboxId ?? "00000000-0000-4000-8000-000000000000",
+      folder: folder as
+        | "inbox"
+        | "sent"
+        | "drafts"
+        | "starred"
+        | "archive"
+        | "trash",
+      search,
+    }),
     enabled: Boolean(activeMailboxId) && folder !== "drafts",
   });
-  const star = useMutation({
-    mutationFn: (input: { id: string; value: boolean }) =>
-      apiRequest(`/messages/${input.id}/star`, {
-        method: "PATCH",
-        body: JSON.stringify({ isStarred: input.value }),
-      }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["messages"] }),
-  });
+  const star = useMutation(messageStarMutationOptions(queryClient));
   const logout = useMutation({
     ...logoutMutationOptions(queryClient),
     // `onSettled`, not `onSuccess`: if the logout call itself fails we still
@@ -299,7 +264,9 @@ export function MailWorkspace({
                 onChange={(event) => {
                   setSelectedMailboxId(event.target.value);
                   if (!["drafts", "starred"].includes(folder)) {
-                    void navigate({ to: `/${folder}/${event.target.value}` as "/inbox" });
+                    void navigate({
+                      to: `/${folder}/${event.target.value}` as "/inbox",
+                    });
                   }
                 }}
                 value={activeMailboxId ?? ""}
@@ -349,8 +316,8 @@ export function MailWorkspace({
                     className={`star-button ${message.is_starred ? "active" : ""}`}
                     onClick={() =>
                       star.mutate({
-                        id: message.id,
-                        value: !message.is_starred,
+                        messageId: message.id,
+                        isStarred: !message.is_starred,
                       })
                     }
                   >
@@ -365,10 +332,7 @@ export function MailWorkspace({
                       if (folder !== "drafts") return;
                       event.preventDefault();
                       setSelectedMailboxId(
-                        (message as MessageSummary & { mailbox_id?: string })
-                          .mailbox_id ??
-                          activeMailboxId ??
-                          "",
+                        message.mailbox_id ?? activeMailboxId ?? "",
                       );
                       setComposeOpen(true, { draftId: message.id });
                     }}

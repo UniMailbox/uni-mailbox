@@ -1,5 +1,5 @@
 import DOMPurify from "dompurify";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Archive,
@@ -9,58 +9,27 @@ import {
   Star,
   Trash2,
 } from "lucide-react";
-import { apiRequest, apiResponse, jsonBody } from "../../lib/api";
 import { useUiStore } from "../../lib/ui-store";
 import { ErrorState, LoadingState } from "../../components/Status";
-
-interface MessageDetail {
-  id: string;
-  mailboxId: string;
-  from_address: string;
-  from_name?: string;
-  subject: string;
-  html_body: string;
-  text_body: string;
-  received_at?: string;
-  sent_at?: string;
-  recipients: Array<{ type: string; address: string }>;
-}
+import {
+  attachmentDownloadMutationOptions,
+  messageAttachmentsQueryOptions,
+  messageMoveMutationOptions,
+  messageQueryOptions,
+} from "./api";
 
 export function MessagePage({ messageId }: { messageId: string }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const openComposer = useUiStore((state) => state.setComposeOpen);
   const selectMailbox = useUiStore((state) => state.setSelectedMailboxId);
-  const message = useQuery({
-    queryKey: ["message", messageId],
-    queryFn: () => apiRequest<MessageDetail>(`/messages/${messageId}`),
-  });
-  const attachments = useQuery({
-    queryKey: ["message-attachments", messageId],
-    queryFn: () =>
-      apiRequest<
-        Array<{
-          id: string;
-          filename: string;
-          mime_type: string;
-          size_bytes: number;
-        }>
-      >(`/messages/${messageId}/attachments`),
-  });
-  const move = useMutation({
-    mutationFn: (folder: "archive" | "trash") =>
-      apiRequest(`/messages/${messageId}/folder`, {
-        method: "PATCH",
-        body: jsonBody({ mailboxId: message.data?.mailboxId, folder }),
-      }),
-    onSuccess: (_result, folder) =>
-      navigate({ to: `/${folder}/${message.data?.mailboxId}` as "/inbox" }),
-  });
+  const message = useQuery(messageQueryOptions(messageId));
+  const attachments = useQuery(messageAttachmentsQueryOptions(messageId));
+  const move = useMutation(messageMoveMutationOptions(queryClient));
   const download = useMutation({
-    mutationFn: async (attachment: { id: string; filename: string }) => {
-      const response = await apiResponse(
-        `/attachments/${attachment.id}/download`,
-      );
-      const objectUrl = URL.createObjectURL(await response.blob());
+    ...attachmentDownloadMutationOptions(),
+    onSuccess: (response, attachment) => {
+      const objectUrl = URL.createObjectURL(response.blob);
       const anchor = document.createElement("a");
       anchor.href = objectUrl;
       anchor.download = attachment.filename || "attachment";
@@ -93,14 +62,42 @@ export function MessagePage({ messageId }: { messageId: string }) {
           <button
             className="icon-button"
             aria-label="Archive message"
-            onClick={() => move.mutate("archive")}
+            onClick={() =>
+              move.mutate(
+                {
+                  messageId,
+                  mailboxId: message.data.mailboxId,
+                  folder: "archive",
+                },
+                {
+                  onSuccess: () =>
+                    navigate({
+                      to: `/archive/${message.data.mailboxId}` as "/inbox",
+                    }),
+                },
+              )
+            }
           >
             <Archive />
           </button>
           <button
             className="icon-button"
             aria-label="Move message to trash"
-            onClick={() => move.mutate("trash")}
+            onClick={() =>
+              move.mutate(
+                {
+                  messageId,
+                  mailboxId: message.data.mailboxId,
+                  folder: "trash",
+                },
+                {
+                  onSuccess: () =>
+                    navigate({
+                      to: `/trash/${message.data.mailboxId}` as "/inbox",
+                    }),
+                },
+              )
+            }
           >
             <Trash2 />
           </button>
@@ -112,7 +109,9 @@ export function MessagePage({ messageId }: { messageId: string }) {
             onClick={() => {
               selectMailbox(message.data.mailboxId);
               openComposer(true, { parentMessageId: message.data.id });
-              void navigate({ to: `/inbox/${message.data.mailboxId}` as "/inbox" });
+              void navigate({
+                to: `/inbox/${message.data.mailboxId}` as "/inbox",
+              });
             }}
           >
             <Reply /> Reply
