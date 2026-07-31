@@ -79,16 +79,22 @@ describe("API transport", () => {
     } satisfies Partial<ApiClientError>);
   });
 
-  it("maps non-JSON errors to a safe generic error", async () => {
+  it("maps non-JSON errors to a safe generic error and preserves the header request ID", async () => {
     const transport = createApiTransport({
       fetch: vi
         .fn()
-        .mockResolvedValue(new Response("upstream unavailable", { status: 503 })),
+        .mockResolvedValue(
+          new Response("upstream unavailable", {
+            status: 503,
+            headers: { "x-request-id": "header-503" },
+          }),
+        ),
     });
 
     await expect(transport.request("/provider", {}, false)).rejects.toMatchObject({
       code: "UNKNOWN_SERVER_ERROR",
       status: 503,
+      requestId: "header-503",
     } satisfies Partial<ApiClientError>);
   });
 
