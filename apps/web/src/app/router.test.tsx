@@ -4,7 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ADMINISTRATOR_PERMISSIONS } from "@unimailbox/contracts";
 import { authKeys } from "../features/auth/api";
 import { createI18nInstance } from "../i18n";
@@ -30,7 +30,26 @@ function apiError(code: string, status: number): Response {
   });
 }
 
-afterEach(() => vi.unstubAllGlobals());
+function renderRouter(router: ReturnType<typeof createAppRouter>, queryClient: QueryClient) {
+  return render(
+    <I18nextProvider i18n={createI18nInstance("en")}>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} context={{ queryClient }} />
+      </QueryClientProvider>
+    </I18nextProvider>,
+  );
+}
+
+beforeEach(() => {
+  vi.stubGlobal("scrollTo", vi.fn());
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("safe post-login destinations", () => {
   it.each([
@@ -71,49 +90,49 @@ describe("router memory history", () => {
   });
 
   it("replaces a 401 protected route with login and preserves its safe target", async () => {
+    const calls: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input).replace(/^.*\/api\/v1/u, "");
+      calls.push(path);
       return path === "/auth/session"
         ? apiError("AUTH_REQUIRED", 401)
         : apiError("REFRESH_TOKEN_REQUIRED", 401);
     }));
-    const { history, router } = routerAt("/messages/message-1", null);
+    const { history, queryClient, router } = routerAt("/messages/message-1", null);
     const length = history.length;
-    await router.load();
+    renderRouter(router, queryClient);
+    expect(await screen.findByRole("heading", { name: "Sign in to your mail plane." })).toBeVisible();
     expect(router.state.location.href).toBe("/login?next=%2Fmessages%2Fmessage-1");
     expect(history.length).toBe(length);
+    expect(calls).not.toEqual([]);
+    expect(calls.every((path) => path === "/auth/session" || path === "/auth/refresh")).toBe(true);
   });
 
   it("keeps a member on an admin route as a forbidden error instead of redirecting to login", async () => {
-    const { router } = routerAt("/admin/users", {
+    const { queryClient, router } = routerAt("/admin/users", {
       ...ADMIN_SESSION,
       permissions: ["message.read"],
     });
-    await router.load();
+    renderRouter(router, queryClient);
+    expect(await screen.findByText("You do not have access to this area")).toBeVisible();
     expect(router.state.location.pathname).toBe("/admin/users");
-    expect(router.state.matches.at(-1)?.error).toMatchObject({ permission: "user.read" });
+    expect(screen.getByText("This page requires the user.read permission.")).toBeVisible();
   });
 
   it.each([[503, "BOOTSTRAP_INCOMPLETE"], [500, "INTERNAL_ERROR"]])(
     "keeps a %i session failure on its protected URL",
     async (status, code) => {
       vi.stubGlobal("fetch", vi.fn(async () => apiError(code, status)));
-      const { router } = routerAt("/inbox", null);
-      await router.load();
+      const { queryClient, router } = routerAt("/inbox", null);
+      renderRouter(router, queryClient);
+      expect(await screen.findByText(code === "BOOTSTRAP_INCOMPLETE" ? "Setup is not complete." : "Something went wrong.")).toBeVisible();
       expect(router.state.location.pathname).toBe("/inbox");
-      expect(router.state.matches.find((match) => match.error)?.error).toMatchObject({ status });
     },
   );
 
   it("keeps an unknown path for the localized not-found boundary", async () => {
     const { queryClient, router } = routerAt("/not-a-route");
-    render(
-      <I18nextProvider i18n={createI18nInstance("en")}>
-        <QueryClientProvider client={queryClient}>
-          <RouterProvider router={router} context={{ queryClient }} />
-        </QueryClientProvider>
-      </I18nextProvider>,
-    );
+    renderRouter(router, queryClient);
     await router.load();
     expect(router.state.location.pathname).toBe("/not-a-route");
     expect(router.state.matches.at(-1)?.globalNotFound).toBe(true);
