@@ -93,11 +93,6 @@ export const MailboxCreateSchema = z.object({
   displayName: z.string().trim().max(120).default(""),
 });
 
-export const MailboxMemberSchema = z.object({
-  userId: z.string().uuid(),
-  role: z.enum(["viewer", "sender", "admin"]),
-});
-
 export const ProviderConnectionSchema = z.object({
   providerKey: z.string().min(2).max(32),
   label: z.string().trim().min(1).max(80),

@@ -13,7 +13,6 @@ import { useTranslation } from "react-i18next";
 import {
   EmailChangeSchema,
   MailboxCreateSchema,
-  MailboxMemberSchema,
   PasswordResetSchema,
   type EndpointResponse,
   mailboxEndpoints,
@@ -64,7 +63,7 @@ function MailboxMembers({ mailboxId }: { mailboxId: string }) {
       userId: "",
       role: "viewer" as "viewer" | "sender" | "admin",
     },
-    validators: { onSubmit: MailboxMemberSchema },
+    validators: { onSubmit: mailboxEndpoints.addMember.request.body },
     onSubmit: async ({ value }) => {
       await member.mutateAsync({ action: "add", mailboxId, ...value });
       form.reset();

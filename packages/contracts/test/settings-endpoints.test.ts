@@ -39,4 +39,10 @@ describe("current Worker settings endpoint contracts", () => {
     expect(administrationEndpoints.cloudflareDomainCreate.errors).toContain("CLOUDFLARE_OAUTH_REFRESH_FAILED");
     expect(administrationEndpoints.cloudflareStatus.errors).not.toContain("R2_VERIFICATION_FAILED");
   });
+
+  it("declares invalid bearer tokens for every protected settings endpoint", () => {
+    for (const endpoint of Object.values(administrationEndpoints)) {
+      expect(endpoint.errors).toContain("AUTH_TOKEN_INVALID");
+    }
+  });
 });
