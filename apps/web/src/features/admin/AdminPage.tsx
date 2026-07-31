@@ -25,16 +25,25 @@ type AdminTableData = AdminTableRow | AdminTableRow[] | undefined;
 type Domain = EndpointResponse<typeof administrationEndpoints.domains>[number];
 type Settings = EndpointResponse<typeof administrationEndpoints.settings>;
 
+const technicalFieldLabels = new Set([
+  "id", "email", "roleIds", "permissions", "apiKey", "webhookSecret",
+  "outboundConnectionId", "htmlSignature",
+]);
+
+function technicalFieldDirection(label: string): "ltr" | undefined {
+  return technicalFieldLabels.has(label) ? "ltr" : undefined;
+}
+
 function AdminTextField({ label, type = "text", autoComplete, inputMode, disabled = false }: { label: string; type?: "email" | "password" | "text"; autoComplete?: string; inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"]; disabled?: boolean }) {
   const field = useAppFieldContext<string>();
   const { t } = useTranslation("admin");
-  return <label className="field" htmlFor={field.name}><span>{t(`fields.${label}`)}</span><input autoComplete={autoComplete} disabled={disabled} id={field.name} inputMode={inputMode} onBlur={field.handleBlur} onChange={(event) => field.handleChange(event.target.value)} type={type} value={field.state.value} /><FieldError labelKey={`admin:fields.${label}`} /></label>;
+  return <label className="field" htmlFor={field.name}><span>{t(`fields.${label}`)}</span><input autoComplete={autoComplete} dir={technicalFieldDirection(label)} disabled={disabled} id={field.name} inputMode={inputMode} onBlur={field.handleBlur} onChange={(event) => field.handleChange(event.target.value)} type={type} value={field.state.value} /><FieldError labelKey={`admin:fields.${label}`} /></label>;
 }
 
 function AdminTextArea({ label, disabled = false }: { label: string; disabled?: boolean }) {
   const field = useAppFieldContext<string>();
   const { t } = useTranslation("admin");
-  return <label className="field" htmlFor={field.name}><span>{t(`fields.${label}`)}</span><textarea disabled={disabled} id={field.name} onBlur={field.handleBlur} onChange={(event) => field.handleChange(event.target.value)} value={field.state.value} /><FieldError labelKey={`admin:fields.${label}`} /></label>;
+  return <label className="field" htmlFor={field.name}><span>{t(`fields.${label}`)}</span><textarea dir={technicalFieldDirection(label)} disabled={disabled} id={field.name} onBlur={field.handleBlur} onChange={(event) => field.handleChange(event.target.value)} value={field.state.value} /><FieldError labelKey={`admin:fields.${label}`} /></label>;
 }
 
 function AdminSelectField({ label, children, disabled = false }: { label: string; children: React.ReactNode; disabled?: boolean }) {
@@ -149,7 +158,7 @@ function SignatureEditor({ domains, canSave }: { domains: Domain[]; canSave: boo
   const form = useAppForm({ defaultValues: { html: "", text: "", enabled: false }, validators: { onSubmit: adminFormSchemas.signature }, onSubmit: async ({ value }) => { await save.mutateAsync(value); } });
   useEffect(() => { if (!domainId && domains[0]) setDomainId(domains[0].id); }, [domainId, domains]);
   useEffect(() => { if (signature.data) form.reset({ html: signature.data.html_content, text: signature.data.text_content, enabled: Boolean(signature.data.is_enabled) }); }, [form, signature.data]);
-  return <section className="admin-editor"><h2>{t("navigation.signatures")}</h2><label className="field"><span>{t("fields.domain")}</span><select onChange={(event) => setDomainId(event.target.value)} value={domainId}>{domains.map((domain) => <option key={domain.id} value={domain.id}>{domain.name}</option>)}</select></label>{signature.isLoading ? <LoadingState /> : null}<form onSubmit={(event) => { event.preventDefault(); void form.handleSubmit(); }}><form.AppField name="text">{() => <AdminTextArea disabled={!canSave} label="plainSignature" />}</form.AppField><form.AppField name="html">{() => <AdminTextArea disabled={!canSave} label="htmlSignature" />}</form.AppField><form.AppField name="enabled">{() => <SignatureEnabledField disabled={!canSave} />}</form.AppField>{save.error ? <ErrorState error={save.error} /> : null}{save.isSuccess ? <SuccessNote>{t("states.signatureSaved")}</SuccessNote> : null}{canSave ? <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting] as const}>{([canSubmit, isSubmitting]) => <button className="button primary" disabled={!canSubmit || isSubmitting || save.isPending || !domainId} type="submit">{t("actions.saveSignature")}</button>}</form.Subscribe> : null}</form></section>;
+  return <section className="admin-editor"><h2>{t("navigation.signatures")}</h2><label className="field"><span>{t("fields.domain")}</span><select dir="ltr" onChange={(event) => setDomainId(event.target.value)} value={domainId}>{domains.map((domain) => <option key={domain.id} value={domain.id}>{domain.name}</option>)}</select></label>{signature.isLoading ? <LoadingState /> : null}<form onSubmit={(event) => { event.preventDefault(); void form.handleSubmit(); }}><form.AppField name="text">{() => <AdminTextArea disabled={!canSave} label="plainSignature" />}</form.AppField><form.AppField name="html">{() => <AdminTextArea disabled={!canSave} label="htmlSignature" />}</form.AppField><form.AppField name="enabled">{() => <SignatureEnabledField disabled={!canSave} />}</form.AppField>{save.error ? <ErrorState error={save.error} /> : null}{save.isSuccess ? <SuccessNote>{t("states.signatureSaved")}</SuccessNote> : null}{canSave ? <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting] as const}>{([canSubmit, isSubmitting]) => <button className="button primary" disabled={!canSubmit || isSubmitting || save.isPending || !domainId} type="submit">{t("actions.saveSignature")}</button>}</form.Subscribe> : null}</form></section>;
 }
 
 function SignatureEnabledField({ disabled }: { disabled: boolean }) {

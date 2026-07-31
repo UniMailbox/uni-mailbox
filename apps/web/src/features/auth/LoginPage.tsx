@@ -42,7 +42,7 @@ export function LoginPage() {
           <h1>{t("login.title")}</h1>
           <p className="lede">{t("login.description")}</p>
           <form className="form-stack" onSubmit={(event) => { event.preventDefault(); void form.handleSubmit(); }}>
-            <form.AppField name="email">{(field) => <label className="field"><span>{t("login.email")}</span><input autoComplete="email" inputMode="email" onBlur={field.handleBlur} onChange={(event) => field.handleChange(event.target.value)} placeholder={t("login.emailPlaceholder")} type="email" value={field.state.value} /></label>}</form.AppField>
+            <form.AppField name="email">{(field) => <label className="field"><span>{t("login.email")}</span><input autoComplete="email" dir="ltr" inputMode="email" onBlur={field.handleBlur} onChange={(event) => field.handleChange(event.target.value)} placeholder={t("login.emailPlaceholder")} type="email" value={field.state.value} /></label>}</form.AppField>
             <form.AppField name="password">{(field) => <label className="field"><span>{t("login.password")}</span><input autoComplete="current-password" onBlur={field.handleBlur} onChange={(event) => field.handleChange(event.target.value)} type="password" value={field.state.value} /></label>}</form.AppField>
             {login.error ? <ErrorState error={login.error} /> : null}
             <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting] as const}>
