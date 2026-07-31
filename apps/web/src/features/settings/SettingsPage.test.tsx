@@ -1,18 +1,35 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { I18nextProvider } from "react-i18next";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setAccessToken } from "../../lib/api";
+import { createI18nInstance, LOCALE_STORAGE_KEY } from "../../i18n";
 import { SettingsPage } from "./SettingsPage";
 
+vi.mock("@tanstack/react-router", async () => {
+  const { createElement } = await import("react");
+  return {
+    Link: ({ children, to: _to, ...props }: { children: ReactNode; to: string }) =>
+      createElement("a", props, children),
+    useNavigate: () => (input: { to: string }) => {
+      window.history.replaceState({}, "", input.to);
+      return Promise.resolve();
+    },
+  };
+});
+
 function renderSettings(
-  section: "account" | "mailboxes" | "cloudflare" | "storage",
+  section: "account" | "mailboxes" | "cloudflare" | "storage" | "preferences",
 ) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={client}>
-      <SettingsPage section={section} />
+      <I18nextProvider i18n={createI18nInstance("en")}>
+        <SettingsPage section={section} />
+      </I18nextProvider>
     </QueryClientProvider>,
   );
 }
@@ -21,7 +38,21 @@ describe("authenticated settings", () => {
   beforeEach(() => {
     window.history.replaceState({}, "", "/settings");
     window.sessionStorage.clear();
+    window.localStorage.clear();
     vi.restoreAllMocks();
+  });
+
+  it("changes language immediately and persists it without exposing the test-only locale", async () => {
+    renderSettings("preferences");
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Language" }), {
+      target: { value: "zh-CN" },
+    });
+
+    await waitFor(() => expect(document.documentElement.lang).toBe("zh-CN"));
+    expect(localStorage.getItem(LOCALE_STORAGE_KEY)).toBe("zh-CN");
+    expect(screen.getByRole("heading", { name: "语言与地区" })).toBeVisible();
+    expect(screen.queryByRole("option", { name: /ar-XB/i })).not.toBeInTheDocument();
   });
 
   it("changes only the login email and returns to login", async () => {

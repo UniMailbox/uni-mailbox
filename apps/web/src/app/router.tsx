@@ -81,7 +81,7 @@ function AdminRoute() {
   return <AdminPage resource={resource} />;
 }
 function SettingsRoute() {
-  const { section } = useParams({ strict: false }) as { section: "account" | "mailboxes" | "cloudflare" | "storage" };
+  const { section } = useParams({ strict: false }) as { section: "account" | "mailboxes" | "cloudflare" | "storage" | "preferences" };
   return <SettingsPage section={section} />;
 }
 const folderRoutes = folders.flatMap((folder) => [
