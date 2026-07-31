@@ -3,6 +3,7 @@ import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const productionLocales = ["en", "zh-CN"];
+const requiredNamespaces = ["common", "auth", "mail", "settings", "admin", "errors"];
 const pluralSuffixes = new Set(["zero", "one", "two", "few", "many", "other"]);
 
 async function jsonFiles(directory) {
@@ -24,6 +25,10 @@ function lineFor(content, key) {
 
 function flatten(value, file, content, prefix = "", output = new Map()) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
+    output.set(prefix, { file, line: 1, value });
+    return output;
+  }
+  if (Object.keys(value).length === 0) {
     output.set(prefix, { file, line: 1, value });
     return output;
   }
@@ -86,7 +91,7 @@ export async function checkI18nResources(root = process.cwd()) {
 
   const english = namespaces.get("en");
   const chinese = namespaces.get("zh-CN");
-  const allNamespaces = new Set([...english.keys(), ...chinese.keys()]);
+  const allNamespaces = new Set([...requiredNamespaces, ...english.keys(), ...chinese.keys()]);
   for (const namespace of [...allNamespaces].sort()) {
     const en = english.get(namespace);
     const zh = chinese.get(namespace);
@@ -106,11 +111,11 @@ export async function checkI18nResources(root = process.cwd()) {
         continue;
       }
       for (const value of [enValue, zhValue]) {
-        if (value.value.trim() === "") {
-          errors.push(format(root, value.file, value.line, `${namespace}.${key} has an empty translation value`));
+        if (typeof value.value !== "string" || value.value.trim() === "") {
+          errors.push(format(root, value.file, value.line, `${namespace}.${key} must be a non-empty string translation value`));
         }
       }
-      if (JSON.stringify(interpolationVariables(enValue.value)) !== JSON.stringify(interpolationVariables(zhValue.value))) {
+      if (typeof enValue.value === "string" && typeof zhValue.value === "string" && JSON.stringify(interpolationVariables(enValue.value)) !== JSON.stringify(interpolationVariables(zhValue.value))) {
         errors.push(format(root, zhValue.file, zhValue.line, `${namespace}.${key} has unequal interpolation variables`));
       }
     }

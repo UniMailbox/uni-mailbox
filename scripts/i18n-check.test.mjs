@@ -20,40 +20,59 @@ async function withResources(resources, assertion) {
   }
 }
 
-const english = {
-  common: {
-    greeting: "Hello {{name}}",
-    inbox_one: "{{count}} message",
-    inbox_other: "{{count}} messages",
-  },
-};
+const requiredNamespaces = ["common", "auth", "mail", "settings", "admin", "errors"];
+const english = Object.fromEntries(requiredNamespaces.map((namespace) => [namespace, {
+  greeting: "Hello {{name}}",
+  inbox_one: "{{count}} message",
+  inbox_other: "{{count}} messages",
+}]));
+const chinese = Object.fromEntries(requiredNamespaces.map((namespace) => [namespace, {
+  greeting: "你好 {{name}}",
+  inbox_one: "{{count}} 封邮件",
+  inbox_other: "{{count}} 封邮件",
+}]));
 
 describe("i18n resource enforcement", () => {
   it("accepts identical production resources", async () => {
     await withResources(
-      { en: english, "zh-CN": { common: { greeting: "你好 {{name}}", inbox_one: "{{count}} 封邮件", inbox_other: "{{count}} 封邮件" } } },
+      { en: english, "zh-CN": chinese },
       async (root) => expect(await checkI18nResources(root)).toEqual([]),
     );
   });
 
   it("rejects unequal leaf keys", async () => {
     await withResources(
-      { en: english, "zh-CN": { common: { greeting: "你好 {{name}}", inbox_one: "{{count}} 封邮件" } } },
+      { en: english, "zh-CN": { ...chinese, common: { greeting: "你好 {{name}}", inbox_one: "{{count}} 封邮件" } } },
       async (root) => expect(await checkI18nResources(root)).toContainEqual(expect.stringMatching(/common\.inbox_other/u)),
     );
   });
 
   it("rejects unequal interpolation variables", async () => {
     await withResources(
-      { en: english, "zh-CN": { common: { greeting: "你好 {{operator}}", inbox_one: "{{count}} 封邮件", inbox_other: "{{count}} 封邮件" } } },
+      { en: english, "zh-CN": { ...chinese, common: { greeting: "你好 {{operator}}", inbox_one: "{{count}} 封邮件", inbox_other: "{{count}} 封邮件" } } },
       async (root) => expect(await checkI18nResources(root)).toContainEqual(expect.stringMatching(/interpolation/u)),
     );
   });
 
   it("rejects empty translation values", async () => {
     await withResources(
-      { en: english, "zh-CN": { common: { greeting: "", inbox_one: "{{count}} 封邮件", inbox_other: "{{count}} 封邮件" } } },
+      { en: english, "zh-CN": { ...chinese, common: { greeting: "", inbox_one: "{{count}} 封邮件", inbox_other: "{{count}} 封邮件" } } },
       async (root) => expect(await checkI18nResources(root)).toContainEqual(expect.stringMatching(/empty/u)),
+    );
+  });
+
+  it("rejects a missing required namespace", async () => {
+    const { errors: _errors, ...withoutErrors } = chinese;
+    await withResources(
+      { en: english, "zh-CN": withoutErrors },
+      async (root) => expect(await checkI18nResources(root)).toContainEqual(expect.stringMatching(/errors.*missing/u)),
+    );
+  });
+
+  it("rejects non-string translation leaves", async () => {
+    await withResources(
+      { en: { ...english, common: { ...english.common, greeting: 42 } }, "zh-CN": chinese },
+      async (root) => expect(await checkI18nResources(root)).toContainEqual(expect.stringMatching(/non-empty string/u)),
     );
   });
 });

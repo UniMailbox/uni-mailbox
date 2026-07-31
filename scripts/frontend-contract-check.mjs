@@ -10,6 +10,7 @@ const ALLOWED_LEGACY_API_FILE = "apps/web/src/lib/api.ts";
 const ALLOWED_DIRECT_FETCH_FILE = "apps/web/src/features/mail/ComposePanel.tsx";
 // The transport is the one approved owner of fetch for endpoint contracts.
 const API_TRANSPORT_FILE = "apps/web/src/lib/api/transport.ts";
+const CONTRACTS_API_DIRECTORY = "packages/contracts/src/api";
 
 async function walk(directory) {
   try {
@@ -79,7 +80,7 @@ export async function checkFrontendContracts(root = process.cwd()) {
   const errors = [];
   const sourceRoot = resolve(root, "apps/web/src");
   const files = (await walk(sourceRoot)).filter(isProductionSource).sort();
-  const usedEndpointGroups = new Set();
+  const usedEndpointOperations = new Map();
 
   for (const file of files) {
     const content = await readFile(file, "utf8");
@@ -95,12 +96,17 @@ export async function checkFrontendContracts(root = process.cwd()) {
     }
     patternFailures(root, file, content, /\berror\.message\b/gu, "error.message must not be rendered as product copy", errors);
     patternFailures(root, file, content, /(?:from\s+["']react-hook-form["']|require\(["']react-hook-form["']\))/gu, "react-hook-form is prohibited; use the application TanStack Form composition", errors);
+    if (fileName.endsWith(".tsx") && /<form(?:\s|>)/u.test(content) && !/\buseAppForm\s*\(/u.test(content)) {
+      errors.push(format(root, file, content, content.indexOf("<form"), "production forms must use the application TanStack Form composition"));
+    }
 
     if (fileName !== ALLOWED_DIRECT_FETCH_FILE && fileName !== API_TRANSPORT_FILE) {
       patternFailures(root, file, content, /\bfetch\s*\(/gu, "direct fetch bypasses endpoint contracts", errors);
     }
-    for (const match of content.matchAll(/\bapiClient\.request\(\s*([A-Za-z_$][\w$]*Endpoints)\.[A-Za-z_$][\w$]*/gu)) {
-      usedEndpointGroups.add(match[1]);
+    for (const match of content.matchAll(/\bapiClient\.request\(\s*([A-Za-z_$][\w$]*Endpoints)\.([A-Za-z_$][\w$]*)/gu)) {
+      const operations = usedEndpointOperations.get(match[1]) ?? new Set();
+      operations.add(match[2]);
+      usedEndpointOperations.set(match[1], operations);
     }
   }
 
@@ -109,11 +115,19 @@ export async function checkFrontendContracts(root = process.cwd()) {
   try {
     endpointSource = await readFile(endpointIndex, "utf8");
   } catch (error) {
-    if (usedEndpointGroups.size) errors.push(`${relative(root, endpointIndex)}:1: endpoint index is required for frontend-used contracts`);
+    if (usedEndpointOperations.size) errors.push(`${relative(root, endpointIndex)}:1: endpoint index is required for frontend-used contracts`);
   }
-  for (const group of [...usedEndpointGroups].sort()) {
-    if (!new RegExp(`\\b${group}\\b`, "u").test(endpointSource)) {
+  const contractFiles = await walk(resolve(root, CONTRACTS_API_DIRECTORY));
+  for (const [group, operations] of [...usedEndpointOperations.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+    if (!new RegExp(`\\b[A-Za-z_$][\\w$]*\\s*:\\s*${group}\\b`, "u").test(endpointSource)) {
       errors.push(`${relative(root, endpointIndex)}:1: frontend uses ${group} without registering its endpoint contracts`);
+      continue;
+    }
+    const groupSource = (await Promise.all(contractFiles.map(async (file) => ({ file, content: await readFile(file, "utf8") })))).find(({ content }) => new RegExp(`export\\s+const\\s+${group}\\s*=`, "u").test(content));
+    for (const operation of operations) {
+      if (!groupSource || !new RegExp(`\\b${operation}\\s*:`, "u").test(groupSource.content)) {
+        errors.push(`${relative(root, endpointIndex)}:1: frontend uses ${group}.${operation} but that operation is absent from the exported endpoint registry`);
+      }
     }
   }
 

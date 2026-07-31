@@ -12,6 +12,7 @@ test("pseudo RTL keeps layout, directional controls, and technical values readab
   });
   await page.goto(`/inbox/${mailboxId}`);
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+  await expect(page.locator("html")).toHaveAttribute("lang", "ar-XB");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 
   const sidebar = page.locator(".mail-sidebar");
@@ -21,6 +22,8 @@ test("pseudo RTL keeps layout, directional controls, and technical values readab
   } else {
     await page.locator(".mobile-menu").click();
     await expect(sidebar).toHaveClass(/open/u);
+    const box = await sidebar.boundingBox();
+    expect(box && box.x + box.width).toBeGreaterThanOrEqual(((await page.viewportSize())?.width ?? 0) - 1);
   }
   await page.locator(".compose-button").click();
   const composer = page.locator(".compose-panel");
@@ -28,6 +31,7 @@ test("pseudo RTL keeps layout, directional controls, and technical values readab
   const composerBox = await composer.boundingBox();
   expect(composerBox?.x).toBeLessThanOrEqual(30);
   await expect(page.locator("bdi[dir=ltr]").first()).toContainText("sender@example.net");
+  await expect(page.locator("bdi[dir=auto]").first()).toContainText("Sender");
   await expect(page.locator(".directional-icon").first()).toHaveCSS("transform", "matrix(-1, 0, 0, 1, 0, 0)");
   await expect(page.locator(".compose-button svg").first()).toHaveCSS("transform", "none");
 });
