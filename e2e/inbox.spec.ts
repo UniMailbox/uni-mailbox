@@ -39,11 +39,6 @@ test("mailbox route loads messages and toggles the sidebar", async ({
   await page.route(
     `**/api/v1/mailboxes/${mailboxId}/messages**`,
     async (route) => {
-      if (route.request().method() === "PATCH") {
-        starred = true;
-        await route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: { is_starred: 1 } }) });
-        return;
-      }
       pageRequests += 1;
       await route.fulfill({
         contentType: "application/json",
@@ -67,6 +62,10 @@ test("mailbox route loads messages and toggles the sidebar", async ({
       });
     },
   );
+  await page.route("**/api/v1/messages/*/star", async (route) => {
+    starred = true;
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: { updated: true } }) });
+  });
 
   await page.goto(`/inbox/${mailboxId}`);
 

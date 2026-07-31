@@ -69,6 +69,13 @@ describe("i18n resource enforcement", () => {
     );
   });
 
+  it("rejects an extra production namespace", async () => {
+    await withResources(
+      { en: { ...english, experimental: { label: "Experimental" } }, "zh-CN": { ...chinese, experimental: { label: "实验" } } },
+      async (root) => expect(await checkI18nResources(root)).toContainEqual(expect.stringMatching(/experimental.*not an allowed production namespace/u)),
+    );
+  });
+
   it("rejects non-string translation leaves", async () => {
     await withResources(
       { en: { ...english, common: { ...english.common, greeting: 42 } }, "zh-CN": chinese },

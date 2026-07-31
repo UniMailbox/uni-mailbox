@@ -70,6 +70,20 @@ function patternFailures(root, file, content, pattern, message, errors) {
   }
 }
 
+function rawFormFailures(content) {
+  const forms = [];
+  for (const match of content.matchAll(/<form(?!\.)\b/gu)) {
+    const end = content.indexOf("</form>", match.index);
+    const markup = content.slice(match.index, end === -1 ? content.length : end + "</form>".length);
+    const owner = /\b([A-Za-z_$][\w$]*)\.handleSubmit\b/u.exec(markup)?.[1];
+    const isAppForm = Boolean(owner)
+      && markup.includes("onSubmit")
+      && (markup.includes(`<${owner}.AppField`) || markup.includes(`<${owner}.AppForm`) || markup.includes(`<${owner}.Subscribe`));
+    if (!isAppForm) forms.push(match.index);
+  }
+  return forms;
+}
+
 /**
  * Validates frontend-only invariants that TypeScript cannot express: no visible
  * untranslated copy, no physical directional CSS, no React Hook Form, and no
@@ -96,8 +110,10 @@ export async function checkFrontendContracts(root = process.cwd()) {
     }
     patternFailures(root, file, content, /\berror\.message\b/gu, "error.message must not be rendered as product copy", errors);
     patternFailures(root, file, content, /(?:from\s+["']react-hook-form["']|require\(["']react-hook-form["']\))/gu, "react-hook-form is prohibited; use the application TanStack Form composition", errors);
-    if (fileName.endsWith(".tsx") && /<form(?:\s|>)/u.test(content) && !/\buseAppForm\s*\(/u.test(content)) {
-      errors.push(format(root, file, content, content.indexOf("<form"), "production forms must use the application TanStack Form composition"));
+    if (fileName.endsWith(".tsx")) {
+      for (const index of rawFormFailures(content)) {
+        errors.push(format(root, file, content, index, "production forms must use the application TanStack Form composition"));
+      }
     }
 
     if (fileName !== ALLOWED_DIRECT_FETCH_FILE && fileName !== API_TRANSPORT_FILE) {

@@ -22,11 +22,11 @@ test("authorized administration uses localized navigation", async ({ page, uiLoc
   await page.route("**/api/v1/**", (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/auth/session")) {
-      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: { userId: "operator-1", email: "operator@example.com", permissions: ["user.read"] } }) });
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: { userId: "operator-1", email: "operator@example.com", permissions: ["user.read", "user.manage"] } }) });
     }
     if (path.endsWith("/admin/users") && route.request().method() === "POST") {
       created = true;
-      return route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ data: { id: "11111111-1111-4111-8111-111111111111" } }) });
+      return route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ data: { id: "11111111-1111-4111-8111-111111111111", email: "operator@example.com" } }) });
     }
     return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: [] }) });
   });

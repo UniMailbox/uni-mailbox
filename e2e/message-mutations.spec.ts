@@ -11,7 +11,7 @@ test("message detail moves an item to archive", async ({ page, uiLocale }) => {
     if (path === `/api/v1/messages/${messageId}`) return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: { id: messageId, mailboxId, from_address: "sender@example.net", subject: "Archive me", html_body: "<p>Message</p>", text_body: "Message", recipients: [] } }) });
     if (path.endsWith("/folder")) {
       moved = (route.request().postDataJSON() as { folder?: string }).folder === "archive";
-      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: { updated: true } }) });
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: { updated: true, folder: "archive" } }) });
     }
     return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: [] }) });
   });

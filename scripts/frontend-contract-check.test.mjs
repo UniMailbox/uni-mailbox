@@ -89,13 +89,22 @@ describe("frontend contract enforcement", () => {
     await withFrontend(
       {
         "apps/web/src/features/Example.tsx": "export const Example = () => <form><input /></form>;",
-        "apps/web/src/lib/form/AppForm.tsx": "export const Example = () => { const form = useAppForm({}); return <form><form.AppField name='name'>{() => null}</form.AppField></form>; };",
+        "apps/web/src/lib/form/AppForm.tsx": "export const Example = () => { const form = useAppForm({}); return <form onSubmit={() => form.handleSubmit()}><form.AppField name='name'>{() => null}</form.AppField></form>; };",
       },
       async (root) => {
         const errors = await checkFrontendContracts(root);
         expect(errors).toContainEqual(expect.stringMatching(/TanStack Form composition/u));
         expect(errors).not.toContainEqual(expect.stringMatching(/AppForm/u));
       },
+    );
+  });
+
+  it("rejects a raw form even when the same file also uses useAppForm", async () => {
+    await withFrontend(
+      {
+        "apps/web/src/features/Example.tsx": "const form = useAppForm({}); export const Example = () => <><form onSubmit={() => form.handleSubmit()}><form.AppField name='name'>{() => null}</form.AppField></form><form><input /></form></>;",
+      },
+      async (root) => expect(await checkFrontendContracts(root)).toContainEqual(expect.stringMatching(/TanStack Form composition/u)),
     );
   });
 });
