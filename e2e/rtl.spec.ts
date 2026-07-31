@@ -35,3 +35,15 @@ test("pseudo RTL keeps layout, directional controls, and technical values readab
   await expect(page.locator(".directional-icon").first()).toHaveCSS("transform", "matrix(-1, 0, 0, 1, 0, 0)");
   await expect(page.locator(".compose-button svg").first()).toHaveCSS("transform", "none");
 });
+
+test("pseudo RTL keeps request UUIDs LTR-isolated", async ({ page }) => {
+  const requestId = "11111111-1111-4111-8111-111111111111";
+  await page.route("**/api/v1/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/auth/session")) return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: { userId: "operator-1", email: "operator@example.com", permissions: ["settings.manage"] } }) });
+    if (path.endsWith("/admin/infrastructure")) return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: { code: "UNKNOWN_SERVER_ERROR", requestId } }) });
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: [] }) });
+  });
+  await page.goto("/settings/storage");
+  await expect(page.locator(".request-id bdi[dir=ltr]")).toHaveText(requestId);
+});
