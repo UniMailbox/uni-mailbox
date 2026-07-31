@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import {
   Activity,
   ArrowLeft,
@@ -15,7 +16,6 @@ import {
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { apiRequest, jsonBody } from "../../lib/api";
-import { Link } from "../../lib/navigation";
 import { ErrorState, LoadingState, SuccessNote } from "../../components/Status";
 
 type AdminResource =

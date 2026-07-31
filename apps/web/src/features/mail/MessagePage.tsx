@@ -1,5 +1,6 @@
 import DOMPurify from "dompurify";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Archive,
   ArrowLeft,
@@ -9,7 +10,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { apiRequest, apiResponse, jsonBody } from "../../lib/api";
-import { Link, navigate } from "../../lib/navigation";
 import { useUiStore } from "../../lib/ui-store";
 import { ErrorState, LoadingState } from "../../components/Status";
 
@@ -27,6 +27,7 @@ interface MessageDetail {
 }
 
 export function MessagePage({ messageId }: { messageId: string }) {
+  const navigate = useNavigate();
   const openComposer = useUiStore((state) => state.setComposeOpen);
   const selectMailbox = useUiStore((state) => state.setSelectedMailboxId);
   const message = useQuery({
@@ -52,7 +53,7 @@ export function MessagePage({ messageId }: { messageId: string }) {
         body: jsonBody({ mailboxId: message.data?.mailboxId, folder }),
       }),
     onSuccess: (_result, folder) =>
-      navigate(`/${folder}/${message.data?.mailboxId}`),
+      navigate({ to: `/${folder}/${message.data?.mailboxId}` as "/inbox" }),
   });
   const download = useMutation({
     mutationFn: async (attachment: { id: string; filename: string }) => {
@@ -111,7 +112,7 @@ export function MessagePage({ messageId }: { messageId: string }) {
             onClick={() => {
               selectMailbox(message.data.mailboxId);
               openComposer(true, { parentMessageId: message.data.id });
-              navigate(`/inbox/${message.data.mailboxId}`);
+              void navigate({ to: `/inbox/${message.data.mailboxId}` as "/inbox" });
             }}
           >
             <Reply /> Reply

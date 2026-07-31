@@ -1,12 +1,9 @@
-import {
-  useQuery,
-  type QueryClient,
-  type UseQueryResult,
-} from "@tanstack/react-query";
+import { useQuery, type QueryClient, type UseQueryResult } from "@tanstack/react-query";
 import type { PermissionKey, SessionProfile } from "@unimailbox/contracts";
-import { ApiError, apiRequest, setAccessToken } from "./api";
+import { ApiError, setAccessToken } from "./api";
+import { authKeys, sessionQueryOptions } from "../features/auth/api";
 
-export const SESSION_QUERY_KEY = ["session"] as const;
+export const SESSION_QUERY_KEY = authKeys.session();
 
 /**
  * Resolves the signed-in operator from the Worker.
@@ -20,15 +17,7 @@ export const SESSION_QUERY_KEY = ["session"] as const;
  * `retry: false` is required — retrying a 401 just delays the login redirect.
  */
 export function useSession(): UseQueryResult<SessionProfile, unknown> {
-  return useQuery({
-    queryKey: SESSION_QUERY_KEY,
-    queryFn: () => apiRequest<SessionProfile>("/auth/session"),
-    retry: false,
-    // The session rarely changes within a tab, and every protected route waits
-    // on it. Refetching on focus keeps a revoked session from lingering.
-    staleTime: 60_000,
-    refetchOnWindowFocus: true,
-  });
+  return useQuery(sessionQueryOptions());
 }
 
 /** True when the failure means "not signed in" rather than "server problem". */

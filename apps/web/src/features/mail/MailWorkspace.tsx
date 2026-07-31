@@ -5,6 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Archive,
   ChevronDown,
@@ -23,8 +24,8 @@ import {
 } from "lucide-react";
 import { canOpenAdminConsole } from "@unimailbox/contracts";
 import { apiRequest } from "../../lib/api";
-import { Link, navigate } from "../../lib/navigation";
 import { endSession, useSession } from "../../lib/session";
+import { logoutMutationOptions } from "../auth/api";
 import { useUiStore } from "../../lib/ui-store";
 import { ErrorState, LoadingState } from "../../components/Status";
 
@@ -101,6 +102,7 @@ export function MailWorkspace({
   folder: string;
   routeMailboxId?: string;
 }) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const selectedMailboxId = useUiStore((state) => state.selectedMailboxId);
@@ -116,7 +118,7 @@ export function MailWorkspace({
     queryKey: ["mailboxes"],
     queryFn: () => apiRequest<Mailbox[]>("/mailboxes"),
   });
-  // `RequireSession` has already resolved this query before the workspace
+  // The authenticated Router parent has already resolved this query before the workspace
   // mounts, so this reads from cache rather than issuing a second request.
   const session = useSession();
   const adminConsoleAvailable = canOpenAdminConsole(
@@ -163,12 +165,12 @@ export function MailWorkspace({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["messages"] }),
   });
   const logout = useMutation({
-    mutationFn: () => apiRequest("/auth/logout", { method: "POST" }),
+    ...logoutMutationOptions(queryClient),
     // `onSettled`, not `onSuccess`: if the logout call itself fails we still
     // want the local session gone rather than a half-signed-out tab.
     onSettled: () => {
       endSession(queryClient);
-      navigate("/login");
+      void navigate({ to: "/login", replace: true });
     },
   });
 
@@ -297,7 +299,7 @@ export function MailWorkspace({
                 onChange={(event) => {
                   setSelectedMailboxId(event.target.value);
                   if (!["drafts", "starred"].includes(folder)) {
-                    navigate(`/${folder}/${event.target.value}`);
+                    void navigate({ to: `/${folder}/${event.target.value}` as "/inbox" });
                   }
                 }}
                 value={activeMailboxId ?? ""}

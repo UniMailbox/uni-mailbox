@@ -9,6 +9,7 @@ export * from "./common/endpoint";
 export * from "./common/envelope";
 export * from "./common/errors";
 export * from "./common/pagination";
+export * from "./auth";
 export * from "./endpoints";
 
 export interface ApiSuccess<T> {
@@ -76,20 +77,6 @@ export interface AttachmentUpload {
   expiresAt: string;
 }
 
-export const LoginSchema = z.object({
-  email: z
-    .string()
-    .trim()
-    .email()
-    .transform((value) => value.toLowerCase()),
-  password: z.string().min(12).max(1024),
-});
-
-export const RegisterSchema = LoginSchema.extend({
-  displayName: z.string().trim().min(1).max(120),
-  registrationKey: z.string().trim().min(8).max(255).optional(),
-});
-
 export const MailboxCreateSchema = z.object({
   localPart: z
     .string()
@@ -123,12 +110,6 @@ export interface CursorPage<T> {
  * client is allowed to base access decisions on — it is derived from a verified
  * access token, so a tampered client cannot widen it.
  */
-export interface SessionProfile {
-  userId: string;
-  email: string;
-  permissions: PermissionKey[];
-}
-
 /**
  * The permission the Worker asserts for the primary listing behind each
  * `/admin/<resource>` screen. The web client uses this to avoid rendering a
