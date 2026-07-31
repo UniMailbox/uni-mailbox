@@ -21,6 +21,10 @@ export function zodIssueToken(issue: ZodIssue): ValidationToken {
       return issue.validation === "email"
         ? { key: "errors:validation.email", values: { field } }
         : { key: "errors:validation.invalidType", values: { field } };
+    case "invalid_type":
+      return issue.received === "undefined"
+        ? { key: "errors:validation.required", values: { field } }
+        : { key: "errors:validation.invalidType", values: { field } };
     default:
       return { key: "errors:validation.invalidType", values: { field } };
   }

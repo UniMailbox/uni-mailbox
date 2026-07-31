@@ -8,6 +8,7 @@ describe("zodIssueToken", () => {
     [z.object({ email: z.string().max(8) }), "abcdefghi", "validation.maxLength", { field: "fields.email", max: 8 }],
     [z.object({ email: z.string().email() }), "not-an-email", "validation.email", { field: "fields.email" }],
     [z.object({ email: z.string() }), 42, "validation.invalidType", { field: "fields.email" }],
+    [z.object({ email: z.string() }), undefined, "validation.required", { field: "fields.email" }],
   ])(
     "maps a Zod issue for %p to a stable token",
     (schema, input, key, values) => {

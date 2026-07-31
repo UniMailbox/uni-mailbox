@@ -34,7 +34,9 @@ export function ErrorState({
             onClick={() => void navigator.clipboard?.writeText(token.requestId!)}
             type="button"
           >
-            <code dir="ltr">{token.requestId}</code>
+            <bdi dir="ltr">
+              <code>{token.requestId}</code>
+            </bdi>
           </button>
         ) : null}
       </div>
