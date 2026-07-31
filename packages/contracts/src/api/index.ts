@@ -11,6 +11,7 @@ export * from "./common/errors";
 export * from "./common/pagination";
 export * from "./auth";
 export * from "./attachments";
+export * from "./administration";
 export * from "./drafts";
 export * from "./endpoints";
 export * from "./mailboxes";
