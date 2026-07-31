@@ -10,7 +10,11 @@ export * from "./common/envelope";
 export * from "./common/errors";
 export * from "./common/pagination";
 export * from "./auth";
+export * from "./attachments";
+export * from "./drafts";
 export * from "./endpoints";
+export * from "./mailboxes";
+export * from "./messages";
 
 export interface ApiSuccess<T> {
   data: T;

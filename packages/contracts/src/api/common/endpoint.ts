@@ -16,6 +16,8 @@ export type EndpointDefinition = {
   responses: Record<number, z.ZodTypeAny | null>;
   errors: readonly ErrorCode[];
   mediaType: MediaType;
+  /** A binary endpoint may expose only safe, contract-defined response metadata. */
+  binaryResponse?: "blob-with-content-disposition";
 };
 
 export function defineEndpoint<const TDefinition extends EndpointDefinition>(
@@ -27,11 +29,12 @@ export function defineEndpoint<const TDefinition extends EndpointDefinition>(
 type RequestMember<
   TEndpoint extends EndpointDefinition,
   TMember extends "params" | "query" | "headers" | "body",
-> = TEndpoint["request"] extends Record<TMember, infer TSchema>
-  ? TSchema extends z.ZodTypeAny
-    ? { [TKey in TMember]: z.input<TSchema> }
-    : {}
-  : {};
+> =
+  TEndpoint["request"] extends Record<TMember, infer TSchema>
+    ? TSchema extends z.ZodTypeAny
+      ? { [TKey in TMember]: z.input<TSchema> }
+      : {}
+    : {};
 
 export type EndpointRequest<TEndpoint extends EndpointDefinition> =
   RequestMember<TEndpoint, "params"> &
@@ -41,7 +44,8 @@ export type EndpointRequest<TEndpoint extends EndpointDefinition> =
 
 export type EndpointResponse<
   TEndpoint extends EndpointDefinition,
-  TStatus extends keyof TEndpoint["responses"] & number = keyof TEndpoint["responses"] & number,
+  TStatus extends keyof TEndpoint["responses"] &
+    number = keyof TEndpoint["responses"] & number,
 > = TEndpoint["responses"][TStatus] extends z.ZodTypeAny
   ? z.output<TEndpoint["responses"][TStatus]>
   : undefined;
