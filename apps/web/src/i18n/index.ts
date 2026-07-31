@@ -2,11 +2,14 @@ import i18next, { type i18n, type Resource } from "i18next";
 import enCommon from "./resources/en/common.json";
 import enErrors from "./resources/en/errors.json";
 import enAuth from "./resources/en/auth.json";
+import enMail from "./resources/en/mail.json";
 import zhCNCommon from "./resources/zh-CN/common.json";
 import zhCNErrors from "./resources/zh-CN/errors.json";
 import zhCNAuth from "./resources/zh-CN/auth.json";
+import zhCNMail from "./resources/zh-CN/mail.json";
 import arXBErrors from "./resources/ar-XB/errors.json";
 import arXBAuth from "./resources/ar-XB/auth.json";
+import arXBMail from "./resources/ar-XB/mail.json";
 import {
   LOCALE_STORAGE_KEY,
   localeMetadata,
@@ -15,8 +18,8 @@ import {
 } from "./locale";
 
 const productionResources = {
-  en: { common: enCommon, errors: enErrors, auth: enAuth },
-  "zh-CN": { common: zhCNCommon, errors: zhCNErrors, auth: zhCNAuth },
+  en: { common: enCommon, errors: enErrors, auth: enAuth, mail: enMail },
+  "zh-CN": { common: zhCNCommon, errors: zhCNErrors, auth: zhCNAuth, mail: zhCNMail },
 };
 
 function synchronizeDocument(instance: i18n, locale: RuntimeLocale): void {
@@ -38,7 +41,7 @@ export function createI18nInstance(
   testResources?: Resource,
 ): i18n {
   const resources = testResources
-    ? { ...productionResources, "ar-XB": { common: testResources, errors: arXBErrors, auth: arXBAuth } }
+    ? { ...productionResources, "ar-XB": { common: testResources, errors: arXBErrors, auth: arXBAuth, mail: arXBMail } }
     : productionResources;
   const instance = i18next.createInstance();
 
@@ -52,7 +55,7 @@ export function createI18nInstance(
     lng: locale,
     fallbackLng: false,
     defaultNS: "common",
-    ns: ["common", "errors", "auth"],
+    ns: ["common", "errors", "auth", "mail"],
     initImmediate: false,
     showSupportNotice: false,
   });

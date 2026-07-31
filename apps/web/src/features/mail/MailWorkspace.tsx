@@ -6,6 +6,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import {
   Archive,
   ChevronDown,
@@ -27,6 +28,7 @@ import { endSession, useSession } from "../../lib/session";
 import { logoutMutationOptions } from "../auth/api";
 import { useUiStore } from "../../lib/ui-store";
 import { ErrorState, LoadingState } from "../../components/Status";
+import type { RuntimeLocale } from "../../i18n";
 import {
   draftsQueryOptions,
   mailboxesQueryOptions,
@@ -41,12 +43,12 @@ const ComposePanel = lazy(() =>
 );
 
 const folders = [
-  ["inbox", "Inbox", Inbox],
-  ["sent", "Sent", Send],
-  ["drafts", "Drafts", FilePenLine],
-  ["starred", "Starred", Star],
-  ["archive", "Archive", Archive],
-  ["trash", "Trash", Trash2],
+  ["inbox", Inbox],
+  ["sent", Send],
+  ["drafts", FilePenLine],
+  ["starred", Star],
+  ["archive", Archive],
+  ["trash", Trash2],
 ] as const;
 
 function initials(value: string): string {
@@ -57,19 +59,19 @@ function initials(value: string): string {
     .join("");
 }
 
-function relativeDate(value: string): string {
+function relativeDate(value: string, locale: RuntimeLocale): string | null {
   const date = new Date(
     value.replace(" ", "T") + (value.includes("Z") ? "" : "Z"),
   );
-  if (Number.isNaN(date.getTime())) return value;
+  if (Number.isNaN(date.getTime())) return null;
   const today = new Date();
   if (date.toDateString() === today.toDateString()) {
-    return new Intl.DateTimeFormat(undefined, {
+    return new Intl.DateTimeFormat(locale, {
       hour: "numeric",
       minute: "2-digit",
     }).format(date);
   }
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(locale, {
     month: "short",
     day: "numeric",
   }).format(date);
@@ -82,6 +84,7 @@ export function MailWorkspace({
   folder: string;
   routeMailboxId?: string;
 }) {
+  const { t, i18n } = useTranslation("mail");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -155,7 +158,8 @@ export function MailWorkspace({
     (mailbox) => mailbox.id === activeMailboxId,
   );
   const activeFolder = folders.find(([id]) => id === folder) ?? folders[0];
-  const EmptyIcon = activeFolder[2];
+  const EmptyIcon = activeFolder[1];
+  const locale = i18n.resolvedLanguage as RuntimeLocale;
 
   return (
     <div className="mail-app">
@@ -165,7 +169,7 @@ export function MailWorkspace({
             <span>CM</span> UniMailbox
           </Link>
           <button
-            aria-label="Close navigation"
+            aria-label={t("navigation.close")}
             className="sidebar-close"
             onClick={() => setSidebarOpen(false)}
           >
@@ -177,11 +181,11 @@ export function MailWorkspace({
           disabled={!activeMailboxId}
           onClick={() => setComposeOpen(true)}
         >
-          <PenLine /> Compose
+          <PenLine /> {t("compose.panelLabel")}
         </button>
-        <nav aria-label="Mail folders">
-          <div className="nav-label">Workspace</div>
-          {folders.map(([id, label, Icon]) => {
+        <nav aria-label={t("navigation.folders")}>
+          <div className="nav-label">{t("navigation.workspace")}</div>
+          {folders.map(([id, Icon]) => {
             const path =
               id === "drafts" || id === "starred"
                 ? `/${id}`
@@ -194,37 +198,37 @@ export function MailWorkspace({
                 to={path}
               >
                 <Icon />
-                <span>{label}</span>
+                <span>{t(`folders.${id}`)}</span>
                 {id === "inbox" && activeMailbox?.unread_count ? (
                   <strong>{activeMailbox.unread_count}</strong>
                 ) : null}
               </Link>
             );
           })}
-          <div className="nav-label admin-label">Control plane</div>
+          <div className="nav-label admin-label">{t("navigation.controlPlane")}</div>
           <Link to="/settings/mailboxes">
-            <Settings /> <span>Settings</span>
+            <Settings /> <span>{t("navigation.settings")}</span>
           </Link>
           {/* Hidden rather than disabled: a member has no console permissions
               at all, so the entry point would only ever lead to a denial. */}
           {adminConsoleAvailable ? (
             <Link to="/admin/users">
-              <Shield /> <span>Administration</span>
+              <Shield /> <span>{t("navigation.administration")}</span>
             </Link>
           ) : null}
         </nav>
         <footer>
           <span className="system-pulse" />
           <div>
-            <strong>Systems nominal</strong>
-            <small>D1 · Storage · Queue online</small>
+            <strong>{t("system.nominal")}</strong>
+            <small>{t("system.online")}</small>
           </div>
         </footer>
       </aside>
       <main className="mail-main">
         <header className="mail-topbar">
           <button
-            aria-label="Open navigation"
+            aria-label={t("navigation.open")}
             className="icon-button mobile-menu"
             onClick={() => setSidebarOpen(true)}
           >
@@ -232,16 +236,16 @@ export function MailWorkspace({
           </button>
           <label className="search-field">
             <Search />
-            <span className="sr-only">Search mail</span>
+            <span className="sr-only">{t("navigation.search")}</span>
             <input
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search loaded mail"
+              placeholder={t("navigation.searchPlaceholder")}
               value={search}
             />
             <kbd>⌘ K</kbd>
           </label>
           <button
-            aria-label="Sign out"
+            aria-label={t("navigation.signOut")}
             className="icon-button"
             onClick={() => logout.mutate()}
           >
@@ -253,14 +257,14 @@ export function MailWorkspace({
           <header className="folder-header">
             <div>
               <p className="section-kicker">
-                {activeMailbox?.address ?? "Mailbox"}
+                <bdi dir="ltr">{activeMailbox?.address ?? t("messages.mailbox")}</bdi>
               </p>
-              <h1>{activeFolder[1]}</h1>
+              <h1>{t(`folders.${activeFolder[0]}`)}</h1>
             </div>
             <label className="mailbox-select">
               <Mail />
               <select
-                aria-label="Active mailbox"
+                aria-label={t("navigation.activeMailbox")}
                 onChange={(event) => {
                   setSelectedMailboxId(event.target.value);
                   if (!["drafts", "starred"].includes(folder)) {
@@ -281,7 +285,7 @@ export function MailWorkspace({
             </label>
           </header>
           {mailboxes.isLoading || messages.isLoading || drafts.isLoading ? (
-            <LoadingState label="Loading messages" />
+            <LoadingState label={t("messages.loading")} />
           ) : mailboxes.error || messages.error || drafts.error ? (
             <ErrorState
               error={mailboxes.error ?? messages.error ?? drafts.error}
@@ -296,10 +300,8 @@ export function MailWorkspace({
               <span>
                 <EmptyIcon />
               </span>
-              <h2>No messages here</h2>
-              <p>
-                This folder is clear. New activity will appear automatically.
-              </p>
+              <h2>{t("messages.emptyTitle")}</h2>
+              <p>{t("messages.emptyBody")}</p>
             </div>
           ) : (
             <div className="message-list" role="list">
@@ -311,7 +313,9 @@ export function MailWorkspace({
                 >
                   <button
                     aria-label={
-                      message.is_starred ? "Remove star" : "Star message"
+                      message.is_starred
+                        ? t("messages.unstar")
+                        : t("messages.star")
                     }
                     className={`star-button ${message.is_starred ? "active" : ""}`}
                     onClick={() =>
@@ -344,20 +348,25 @@ export function MailWorkspace({
                   >
                     <div className="message-sender">
                       <strong>
-                        {message.from_name || message.from_address}
+                        <bdi dir="auto">{message.from_name || message.from_address}</bdi>
                       </strong>
-                      <small>{message.from_address}</small>
+                      <small><bdi dir="ltr">{message.from_address}</bdi></small>
                     </div>
                     <div className="message-preview">
-                      <strong>{message.subject || "(No subject)"}</strong>
-                      <span>{message.status}</span>
+                      <strong><bdi dir="auto">{message.subject || t("messages.noSubject")}</bdi></strong>
+                      <span>
+                        {message.status && ["draft", "queued", "sent", "received"].includes(message.status)
+                          ? t(`messages.status.${message.status}`)
+                          : t("messages.unknownStatus")}
+                      </span>
                     </div>
                     <time>
                       {relativeDate(
                         message.received_at ??
                           message.sent_at ??
                           message.created_at,
-                      )}
+                        locale,
+                      ) ?? t("message.unavailableDate")}
                     </time>
                   </Link>
                 </article>
@@ -370,8 +379,8 @@ export function MailWorkspace({
                   type="button"
                 >
                   {messages.isFetchingNextPage
-                    ? "Loading…"
-                    : "Load older messages"}
+                    ? t("messages.loadingMore")
+                    : t("messages.loadMore")}
                 </button>
               ) : null}
             </div>

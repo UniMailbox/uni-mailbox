@@ -1,6 +1,7 @@
 import DOMPurify from "dompurify";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import {
   Archive,
   ArrowLeft,
@@ -11,6 +12,8 @@ import {
 } from "lucide-react";
 import { useUiStore } from "../../lib/ui-store";
 import { ErrorState, LoadingState } from "../../components/Status";
+import type { RuntimeLocale } from "../../i18n";
+import { formatDate } from "../../i18n/format";
 import {
   attachmentDownloadMutationOptions,
   messageAttachmentsQueryOptions,
@@ -19,6 +22,7 @@ import {
 } from "./api";
 
 export function MessagePage({ messageId }: { messageId: string }) {
+  const { t, i18n } = useTranslation("mail");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const openComposer = useUiStore((state) => state.setComposeOpen);
@@ -32,12 +36,12 @@ export function MessagePage({ messageId }: { messageId: string }) {
       const objectUrl = URL.createObjectURL(response.blob);
       const anchor = document.createElement("a");
       anchor.href = objectUrl;
-      anchor.download = attachment.filename || "attachment";
+      anchor.download = attachment.filename || t("message.attachmentFallback");
       anchor.click();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
     },
   });
-  if (message.isLoading) return <LoadingState label="Opening message" />;
+  if (message.isLoading) return <LoadingState label={t("message.loading")} />;
   if (message.error || !message.data)
     return <ErrorState error={message.error} />;
   const safeHtml = DOMPurify.sanitize(message.data.html_body || "", {
@@ -52,16 +56,26 @@ export function MessagePage({ messageId }: { messageId: string }) {
       "embed",
     ],
   });
+  const timestamp = message.data.received_at ?? message.data.sent_at;
+  const date = timestamp ? new Date(timestamp) : null;
+  const formattedTimestamp =
+    date && !Number.isNaN(date.getTime())
+      ? formatDate(date, i18n.resolvedLanguage as RuntimeLocale)
+      : t("message.unavailableDate");
   return (
     <main className="message-page">
       <header className="message-topbar">
-        <Link className="icon-button" to={`/inbox/${message.data.mailboxId}`}>
-          <ArrowLeft aria-label="Back to inbox" />
+        <Link
+          aria-label={t("message.back")}
+          className="icon-button"
+          to={`/inbox/${message.data.mailboxId}`}
+        >
+          <ArrowLeft aria-hidden="true" />
         </Link>
         <div className="message-actions">
           <button
             className="icon-button"
-            aria-label="Archive message"
+            aria-label={t("message.archive")}
             onClick={() =>
               move.mutate(
                 {
@@ -82,7 +96,7 @@ export function MessagePage({ messageId }: { messageId: string }) {
           </button>
           <button
             className="icon-button"
-            aria-label="Move message to trash"
+            aria-label={t("message.trash")}
             onClick={() =>
               move.mutate(
                 {
@@ -101,7 +115,7 @@ export function MessagePage({ messageId }: { messageId: string }) {
           >
             <Trash2 />
           </button>
-          <button className="icon-button" aria-label="Star message">
+          <button className="icon-button" aria-label={t("message.star")}>
             <Star />
           </button>
           <button
@@ -114,50 +128,52 @@ export function MessagePage({ messageId }: { messageId: string }) {
               });
             }}
           >
-            <Reply /> Reply
+            <Reply aria-hidden="true" /> {t("message.reply")}
           </button>
         </div>
       </header>
       <article className="message-sheet">
         <div className="section-kicker">
-          Message / {message.data.id.slice(0, 8)}
+          {t("message.identifier", { id: message.data.id.slice(0, 8) })}
         </div>
-        <h1>{message.data.subject || "(No subject)"}</h1>
+        <h1><bdi dir="auto">{message.data.subject || t("messages.noSubject")}</bdi></h1>
         <dl className="message-envelope">
           <div>
-            <dt>From</dt>
+            <dt>{t("message.from")}</dt>
             <dd>
-              {message.data.from_name || message.data.from_address}
-              <small>{message.data.from_address}</small>
+              <bdi dir="auto">{message.data.from_name || message.data.from_address}</bdi>
+              <small><bdi dir="ltr">{message.data.from_address}</bdi></small>
             </dd>
           </div>
           <div>
-            <dt>To</dt>
+            <dt>{t("message.to")}</dt>
             <dd>
-              {message.data.recipients
-                .filter((item) => item.type === "to")
-                .map((item) => item.address)
-                .join(", ")}
+              <bdi dir="ltr">
+                {message.data.recipients
+                  .filter((item) => item.type === "to")
+                  .map((item) => item.address)
+                  .join(", ")}
+              </bdi>
             </dd>
           </div>
           <div>
-            <dt>Timestamp</dt>
-            <dd>{message.data.received_at ?? message.data.sent_at ?? "—"}</dd>
+            <dt>{t("message.timestamp")}</dt>
+            <dd>{formattedTimestamp}</dd>
           </div>
         </dl>
         {safeHtml ? (
           <iframe
             className="message-frame"
             sandbox=""
-            srcDoc={`<!doctype html><meta name="color-scheme" content="light"><style>body{font:15px/1.65 system-ui,sans-serif;color:#202521;margin:0;padding:8px}img{max-width:100%;height:auto}a{color:#155c4b}</style>${safeHtml}`}
-            title="Message content"
+            srcDoc={`<!doctype html><html dir="ltr"><meta name="color-scheme" content="light"><style>body{font:15px/1.65 system-ui,sans-serif;color:#202521;margin:0;padding:8px}img{max-width:100%;height:auto}a{color:#155c4b}</style>${safeHtml}</html>`}
+            title={t("message.contentTitle")}
           />
         ) : (
           <pre className="message-text">{message.data.text_body}</pre>
         )}
         {attachments.data?.length ? (
           <section className="attachments">
-            <h2>Attachments</h2>
+            <h2>{t("message.attachments")}</h2>
             {attachments.data.map((attachment) => (
               <button
                 className="attachment-row"
@@ -169,8 +185,10 @@ export function MessagePage({ messageId }: { messageId: string }) {
                 <span>
                   <strong>{attachment.filename}</strong>
                   <small>
-                    {attachment.mime_type} ·{" "}
-                    {Math.ceil(attachment.size_bytes / 1024)} KB
+                    {t("message.attachmentMeta", {
+                      mimeType: attachment.mime_type,
+                      size: Math.ceil(attachment.size_bytes / 1024),
+                    })}
                   </small>
                 </span>
               </button>
