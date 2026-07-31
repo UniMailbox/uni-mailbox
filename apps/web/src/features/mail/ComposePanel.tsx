@@ -4,8 +4,8 @@ import DOMPurify from "dompurify";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
+import { useStore } from "@tanstack/react-form";
 import { Bold, Italic, Link2, Paperclip, Send, X } from "lucide-react";
-import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import {
   attachmentEndpoints,
@@ -16,6 +16,11 @@ import {
 } from "@unimailbox/contracts";
 import { draftsDb } from "../../lib/drafts-db";
 import { apiClient, ApiClientError } from "../../lib/api/index";
+import {
+  FieldError,
+  useAppFieldContext,
+  useAppForm,
+} from "../../lib/form/app-form";
 import { apiErrorToken } from "../../i18n/errors";
 import { type ComposeIntent, useUiStore } from "../../lib/ui-store";
 import {
@@ -24,7 +29,7 @@ import {
   messageQueryOptions,
 } from "./api";
 
-interface ComposeForm {
+interface ComposeFormValues {
   to: string;
   cc: string;
   bcc: string;
@@ -46,6 +51,34 @@ function addresses(value: string): string[] {
   ];
 }
 
+const ComposeFormSchema = {
+  "~standard": {
+    version: 1,
+    vendor: "unimailbox",
+    validate(value: ComposeFormValues) {
+      const result = messageEndpoints.send.request.body.safeParse({
+        mailboxId: "00000000-0000-4000-8000-000000000000",
+        to: addresses(value.to),
+        cc: addresses(value.cc),
+        bcc: addresses(value.bcc),
+        subject: value.subject,
+        html: "",
+        text: "",
+        includeSignature: true,
+        attachmentIds: [],
+      });
+      if (result.success) return { value: result.data };
+      return {
+        issues: result.error.issues.map((issue) => ({
+          ...issue,
+          message: issue.message,
+          path: issue.path?.slice(0, 1),
+        })),
+      };
+    },
+  },
+};
+
 // Debounce window for persisting the in-flight composer to IndexedDB. Keeping
 // it short reduces typing lag while still absorbing keystroke bursts and
 // Tiptap `onUpdate` events without re-writing on every input.
@@ -59,6 +92,28 @@ function InlineMutationError({ error }: { error: unknown }) {
       {String(t(token.key, token.values))}
     </strong>
   );
+}
+
+function ComposeFieldError({ label, recipient }: { label: string; recipient?: boolean }) {
+  const field = useAppFieldContext<unknown>();
+  const { t } = useTranslation("mail");
+  const error = field.state.meta.errors.find(
+    (candidate) =>
+      typeof candidate === "object" &&
+      candidate !== null &&
+      "code" in candidate &&
+      candidate.code === "too_small",
+  );
+
+  if (recipient && error) {
+    return (
+      <strong className="inline-error" role="alert">
+        {t("compose.validation.recipientRequired")}
+      </strong>
+    );
+  }
+
+  return <FieldError label={label} />;
 }
 
 export function ComposePanel({
@@ -82,9 +137,23 @@ export function ComposePanel({
   const hydratedSource = useRef<string>();
   const restoredLocal = useRef(false);
   const [workingId, setWorkingId] = useState<string>(() => crypto.randomUUID());
-  const form = useForm<ComposeForm>({
+  const form = useAppForm({
     defaultValues: { to: "", cc: "", bcc: "", subject: "" },
+    validators: { onSubmit: ComposeFormSchema as never },
+    onSubmit: async ({ value }) => {
+      await submitMessage(value);
+    },
   });
+  const formValues = useStore(form.store, (state) => state.values);
+  const sendPending = useRef(false);
+
+  function hydrateForm(values: ComposeFormValues) {
+    form.reset(values);
+    form.setFieldValue("to", values.to);
+    form.setFieldValue("cc", values.cc);
+    form.setFieldValue("bcc", values.bcc);
+    form.setFieldValue("subject", values.subject);
+  }
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -93,7 +162,6 @@ export function ComposePanel({
     content: "",
     onUpdate: () => setEditorRevision((current) => current + 1),
   });
-  const watched = form.watch();
   const draft = useQuery({
     ...draftQueryOptions(intent?.draftId ?? "00000000-0000-4000-8000-000000000000"),
     enabled: Boolean(intent?.draftId),
@@ -129,7 +197,7 @@ export function ComposePanel({
         .filter((recipient) => recipient.type === type)
         .map((recipient) => recipient.address)
         .join(", ");
-    form.reset({
+    hydrateForm({
       to: recipientValue("to"),
       cc: recipientValue("cc"),
       bcc: recipientValue("bcc"),
@@ -151,7 +219,7 @@ export function ComposePanel({
     const quoted = parent.data.html_body
       ? DOMPurify.sanitize(parent.data.html_body)
       : `<pre>${parent.data.text_body}</pre>`;
-    form.reset({
+    hydrateForm({
       to: parent.data.from_address,
       cc: "",
       bcc: "",
@@ -179,7 +247,7 @@ export function ComposePanel({
       .then((drafts) => {
         const local = drafts.at(-1);
         if (local) {
-          form.reset({
+          hydrateForm({
             to: local.to.join(", "),
             cc: local.cc.join(", "),
             bcc: local.bcc.join(", "),
@@ -209,10 +277,10 @@ export function ComposePanel({
         id: workingId,
         mailboxId,
         serverDraftId,
-        to: addresses(watched.to),
-        cc: addresses(watched.cc),
-        bcc: addresses(watched.bcc),
-        subject: watched.subject,
+        to: addresses(formValues.to),
+        cc: addresses(formValues.cc),
+        bcc: addresses(formValues.bcc),
+        subject: formValues.subject,
         html: editor?.getHTML() ?? "",
         text: editor?.getText() ?? "",
         includeSignature: true,
@@ -233,11 +301,11 @@ export function ComposePanel({
     mailboxId,
     localRecoveryComplete,
     serverDraftId,
-    watched,
+    formValues,
     workingId,
   ]);
 
-  function messageInput(values: ComposeForm): MessageInput {
+  function messageInput(values: ComposeFormValues): MessageInput {
     return {
       mailboxId,
       to: addresses(values.to),
@@ -252,15 +320,16 @@ export function ComposePanel({
     };
   }
 
-  async function persistDraft(values: ComposeForm): Promise<DraftDetail> {
+  async function persistDraft(values: ComposeFormValues): Promise<DraftDetail> {
+    const input = draftEndpoints.create.request.body.parse(messageInput(values));
     const result = serverDraftId
       ? await apiClient.request(draftEndpoints.update, {
           params: { draftId: serverDraftId },
           headers: { "if-match": `"${draftVersion ?? ""}"` },
-          body: messageInput(values),
+          body: input,
         })
       : await apiClient.request(draftEndpoints.create, {
-          body: messageInput(values),
+          body: input,
         });
     setServerDraftId(result.id);
     setDraftVersion(result.updated_at);
@@ -276,7 +345,7 @@ export function ComposePanel({
   });
 
   const send = useMutation({
-    mutationFn: async (values: ComposeForm) => {
+    mutationFn: async (values: ComposeFormValues) => {
       if (serverDraftId) {
         const saved = await persistDraft(values);
         return apiClient.request(draftEndpoints.send, {
@@ -289,7 +358,7 @@ export function ComposePanel({
       }
       return apiClient.request(messageEndpoints.send, {
         headers: { "idempotency-key": crypto.randomUUID() },
-        body: messageInput(values),
+        body: messageEndpoints.send.request.body.parse(messageInput(values)),
       });
     },
     onSuccess: async () => {
@@ -299,6 +368,21 @@ export function ComposePanel({
       close(false);
     },
   });
+
+  async function saveDraft() {
+    if (save.isPending || send.isPending) return;
+    await save.mutateAsync(formValues);
+  }
+
+  async function submitMessage(values: ComposeFormValues) {
+    if (sendPending.current || send.isPending || save.isPending) return;
+    sendPending.current = true;
+    try {
+      await send.mutateAsync(values);
+    } finally {
+      sendPending.current = false;
+    }
+  }
 
   async function uploadFile(file: File) {
     setUploading(true);
@@ -345,41 +429,75 @@ export function ComposePanel({
       </header>
       <form
         noValidate
-        onSubmit={form.handleSubmit((values) => send.mutate(values))}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void form.handleSubmit();
+        }}
       >
-        <label className="compose-line">
-          <span>{t("compose.toShort")}</span>
-          <input
-            {...form.register("to", {
-              required: {
-                value: true,
-                message: t("compose.validation.recipientRequired"),
-              },
-            })}
-            aria-label={t("compose.to")}
-            dir="ltr"
-            placeholder="recipient@example.com"
-          />
-        </label>
+        <form.AppField name="to">
+          {(field) => (
+            <label className="compose-line">
+              <span>{t("compose.toShort")}</span>
+              <input
+                aria-label={t("compose.to")}
+                dir="ltr"
+                onBlur={field.handleBlur}
+                onChange={(event) => field.handleChange(event.target.value)}
+                placeholder="recipient@example.com"
+                value={formValues.to}
+              />
+              <ComposeFieldError label={t("compose.to")} recipient />
+            </label>
+          )}
+        </form.AppField>
         <details className="recipient-details">
           <summary>{t("compose.addRecipients")}</summary>
-          <label className="compose-line">
-            <span>{t("compose.cc")}</span>
-            <input {...form.register("cc")} aria-label={t("compose.cc")} dir="ltr" />
-          </label>
-          <label className="compose-line">
-            <span>{t("compose.bcc")}</span>
-            <input {...form.register("bcc")} aria-label={t("compose.bcc")} dir="ltr" />
-          </label>
+          <form.AppField name="cc">
+            {(field) => (
+              <label className="compose-line">
+                <span>{t("compose.cc")}</span>
+                <input
+                  aria-label={t("compose.cc")}
+                  dir="ltr"
+                  onBlur={field.handleBlur}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  value={formValues.cc}
+                />
+                <ComposeFieldError label={t("compose.cc")} />
+              </label>
+            )}
+          </form.AppField>
+          <form.AppField name="bcc">
+            {(field) => (
+              <label className="compose-line">
+                <span>{t("compose.bcc")}</span>
+                <input
+                  aria-label={t("compose.bcc")}
+                  dir="ltr"
+                  onBlur={field.handleBlur}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  value={formValues.bcc}
+                />
+                <ComposeFieldError label={t("compose.bcc")} />
+              </label>
+            )}
+          </form.AppField>
         </details>
-        <label className="compose-line subject-line">
-          <span>{t("compose.subjectShort")}</span>
-          <input
-            {...form.register("subject")}
-            aria-label={t("compose.subject")}
-            placeholder={t("compose.subjectPlaceholder")}
-          />
-        </label>
+        <form.AppField name="subject">
+          {(field) => (
+            <label className="compose-line subject-line">
+              <span>{t("compose.subjectShort")}</span>
+              <input
+                aria-label={t("compose.subject")}
+                onBlur={field.handleBlur}
+                onChange={(event) => field.handleChange(event.target.value)}
+                placeholder={t("compose.subjectPlaceholder")}
+                value={formValues.subject}
+              />
+              <ComposeFieldError label={t("compose.subject")} />
+            </label>
+          )}
+        </form.AppField>
         <div className="editor-toolbar" aria-label={t("compose.formatting")}>
           <button
             aria-label={t("compose.bold")}
@@ -424,18 +542,15 @@ export function ComposePanel({
             {uploading ? <strong>{t("compose.uploading")}</strong> : null}
             {send.error ? <InlineMutationError error={send.error} /> : null}
             {save.error ? <InlineMutationError error={save.error} /> : null}
-            {form.formState.errors.to?.message ? (
-              <strong className="inline-error" role="alert">
-                {form.formState.errors.to.message}
-              </strong>
-            ) : null}
             {save.isSuccess ? <strong>{t("compose.saved")}</strong> : null}
           </div>
           <div className="compose-actions">
             <button
               className="button secondary"
               disabled={save.isPending || send.isPending}
-              onClick={form.handleSubmit((values) => save.mutate(values))}
+              onClick={() => {
+                void saveDraft();
+              }}
               type="button"
             >
               {save.isPending ? t("compose.saving") : t("compose.saveDraft")}
