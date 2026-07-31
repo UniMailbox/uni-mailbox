@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestI18n } from "../../i18n/test-instance";
@@ -249,6 +249,44 @@ describe("ComposePanel", () => {
     expect(draftStore.put).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
     expect(draftStore.put).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not persist a blank generated draft while local recovery is pending", async () => {
+    vi.useFakeTimers();
+    let resolveDrafts!: (value: unknown[]) => void;
+    draftStore.sortBy.mockReturnValue(
+      new Promise((resolve) => {
+        resolveDrafts = resolve;
+      }),
+    );
+    renderCompose();
+
+    await vi.advanceTimersByTimeAsync(401);
+    expect(draftStore.put).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveDrafts([
+        {
+          id: "recovered-after-delay",
+          mailboxId,
+          to: ["local@example.com"],
+          cc: [],
+          bcc: [],
+          subject: "Delayed recovery",
+          html: "<p>Recovered body</p>",
+          text: "Recovered body",
+          includeSignature: true,
+          attachments: [],
+          updatedAt: 1,
+        },
+      ]);
+      await Promise.resolve();
+    });
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(draftStore.put).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "recovered-after-delay" }),
+    );
   });
 
   it("keeps typed recipient and subject values while an attachment uploads", async () => {

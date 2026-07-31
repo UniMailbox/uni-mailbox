@@ -76,6 +76,9 @@ export function ComposePanel({
   const [editorRevision, setEditorRevision] = useState(0);
   const [serverDraftId, setServerDraftId] = useState(intent?.draftId);
   const [draftVersion, setDraftVersion] = useState<string>();
+  const [localRecoveryComplete, setLocalRecoveryComplete] = useState(
+    () => Boolean(intent?.draftId || intent?.parentMessageId),
+  );
   const hydratedSource = useRef<string>();
   const restoredLocal = useRef(false);
   const [workingId, setWorkingId] = useState<string>(() => crypto.randomUUID());
@@ -175,28 +178,32 @@ export function ComposePanel({
       .sortBy("updatedAt")
       .then((drafts) => {
         const local = drafts.at(-1);
-        if (!local) return;
-        form.reset({
-          to: local.to.join(", "),
-          cc: local.cc.join(", "),
-          bcc: local.bcc.join(", "),
-          subject: local.subject,
-        });
-        editor.commands.setContent(local.html || local.text);
-        setAttachmentIds(
-          local.attachments
-            .filter((attachment) => attachment.uploadState === "ready")
-            .map((attachment) => attachment.attachmentId),
-        );
-        setServerDraftId(local.serverDraftId);
-        setWorkingId(local.id);
-      });
+        if (local) {
+          form.reset({
+            to: local.to.join(", "),
+            cc: local.cc.join(", "),
+            bcc: local.bcc.join(", "),
+            subject: local.subject,
+          });
+          editor.commands.setContent(local.html || local.text);
+          setAttachmentIds(
+            local.attachments
+              .filter((attachment) => attachment.uploadState === "ready")
+              .map((attachment) => attachment.attachmentId),
+          );
+          setServerDraftId(local.serverDraftId);
+          setWorkingId(local.id);
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => setLocalRecoveryComplete(true));
   }, [editor, form, intent, mailboxId]);
 
   // Hydration order matters: an explicit server draft or reply context wins
   // first; only when both are absent do we restore a previously typed
   // working draft from IndexedDB so users never lose their in-flight text.
   useEffect(() => {
+    if (!localRecoveryComplete) return;
     const handle = window.setTimeout(() => {
       void draftsDb.workingDrafts.put({
         id: workingId,
@@ -224,6 +231,7 @@ export function ComposePanel({
     editor,
     editorRevision,
     mailboxId,
+    localRecoveryComplete,
     serverDraftId,
     watched,
     workingId,
