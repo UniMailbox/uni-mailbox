@@ -19,7 +19,9 @@ describe("API transport", () => {
       fetch: vi.fn().mockResolvedValue(response({ data: { ok: true } })),
     });
 
-    await expect(transport.request("/mailboxes")).resolves.toEqual({ ok: true });
+    await expect(transport.request("/mailboxes")).resolves.toEqual({
+      ok: true,
+    });
   });
 
   it("preserves known error code, status, and body request ID", async () => {
@@ -38,21 +40,48 @@ describe("API transport", () => {
       ),
     });
 
-    await expect(transport.request("/protected", {}, false)).rejects.toMatchObject({
+    await expect(
+      transport.request("/protected", {}, false),
+    ).rejects.toMatchObject({
       code: "AUTH_REQUIRED",
       status: 401,
       requestId: "request-1",
     } satisfies Partial<ApiClientError>);
   });
 
+  it.each(["DRAFT_NOT_FOUND", "PARENT_MESSAGE_NOT_FOUND"] as const)(
+    "maps the Worker-issued %s code without degrading it to unknown",
+    async (code) => {
+      const transport = createApiTransport({
+        fetch: vi
+          .fn()
+          .mockResolvedValue(
+            response(
+              { error: { code, message: "diagnostic only" } },
+              { status: 404 },
+            ),
+          ),
+      });
+
+      await expect(transport.request("/mail", {}, false)).rejects.toMatchObject(
+        {
+          code,
+          status: 404,
+        } satisfies Partial<ApiClientError>,
+      );
+    },
+  );
+
   it("uses the header request ID when the error body has none", async () => {
     const transport = createApiTransport({
-      fetch: vi.fn().mockResolvedValue(
-        response(
-          { error: { code: "PERMISSION_DENIED", message: "No access" } },
-          { status: 403, headers: { "x-request-id": "header-1" } },
+      fetch: vi
+        .fn()
+        .mockResolvedValue(
+          response(
+            { error: { code: "PERMISSION_DENIED", message: "No access" } },
+            { status: 403, headers: { "x-request-id": "header-1" } },
+          ),
         ),
-      ),
     });
 
     await expect(transport.request("/admin", {}, false)).rejects.toMatchObject({
@@ -63,15 +92,24 @@ describe("API transport", () => {
 
   it("maps unknown codes to a safe generic error while retaining diagnostics", async () => {
     const transport = createApiTransport({
-      fetch: vi.fn().mockResolvedValue(
-        response(
-          { error: { code: "PROVIDER_PRIVATE_FAILURE", message: "do not show" } },
-          { status: 503 },
+      fetch: vi
+        .fn()
+        .mockResolvedValue(
+          response(
+            {
+              error: {
+                code: "PROVIDER_PRIVATE_FAILURE",
+                message: "do not show",
+              },
+            },
+            { status: 503 },
+          ),
         ),
-      ),
     });
 
-    await expect(transport.request("/provider", {}, false)).rejects.toMatchObject({
+    await expect(
+      transport.request("/provider", {}, false),
+    ).rejects.toMatchObject({
       code: "UNKNOWN_SERVER_ERROR",
       rawCode: "PROVIDER_PRIVATE_FAILURE",
       status: 503,
@@ -81,17 +119,17 @@ describe("API transport", () => {
 
   it("maps non-JSON errors to a safe generic error and preserves the header request ID", async () => {
     const transport = createApiTransport({
-      fetch: vi
-        .fn()
-        .mockResolvedValue(
-          new Response("upstream unavailable", {
-            status: 503,
-            headers: { "x-request-id": "header-503" },
-          }),
-        ),
+      fetch: vi.fn().mockResolvedValue(
+        new Response("upstream unavailable", {
+          status: 503,
+          headers: { "x-request-id": "header-503" },
+        }),
+      ),
     });
 
-    await expect(transport.request("/provider", {}, false)).rejects.toMatchObject({
+    await expect(
+      transport.request("/provider", {}, false),
+    ).rejects.toMatchObject({
       code: "UNKNOWN_SERVER_ERROR",
       status: 503,
       requestId: "header-503",
@@ -108,7 +146,9 @@ describe("API transport", () => {
       ),
     });
 
-    await expect(transport.request("/provider", {}, false)).rejects.toMatchObject({
+    await expect(
+      transport.request("/provider", {}, false),
+    ).rejects.toMatchObject({
       code: "UNKNOWN_SERVER_ERROR",
       status: 503,
       requestId: "malformed-503",
@@ -131,7 +171,10 @@ describe("API transport", () => {
     const fetch = vi
       .fn()
       .mockResolvedValueOnce(
-        response({ error: { code: "AUTH_REQUIRED", message: "expired" } }, { status: 401 }),
+        response(
+          { error: { code: "AUTH_REQUIRED", message: "expired" } },
+          { status: 401 },
+        ),
       )
       .mockResolvedValueOnce(response({ data: { accessToken: "fresh" } }))
       .mockResolvedValueOnce(response({ data: { ok: true } }));
@@ -143,7 +186,9 @@ describe("API transport", () => {
       },
     });
 
-    await expect(transport.request("/protected")).resolves.toEqual({ ok: true });
+    await expect(transport.request("/protected")).resolves.toEqual({
+      ok: true,
+    });
     expect(fetch).toHaveBeenCalledTimes(3);
     expect(fetch.mock.calls[1]?.[0]).toBe("/api/v1/auth/refresh");
     expect(token).toBe("fresh");
@@ -154,10 +199,16 @@ describe("API transport", () => {
     const fetch = vi
       .fn()
       .mockResolvedValueOnce(
-        response({ error: { code: "AUTH_REQUIRED", message: "expired" } }, { status: 401 }),
+        response(
+          { error: { code: "AUTH_REQUIRED", message: "expired" } },
+          { status: 401 },
+        ),
       )
       .mockResolvedValueOnce(
-        response({ error: { code: "AUTH_REQUIRED", message: "bad refresh" } }, { status: 401 }),
+        response(
+          { error: { code: "AUTH_REQUIRED", message: "bad refresh" } },
+          { status: 401 },
+        ),
       );
     const transport = createApiTransport({
       fetch,
@@ -176,12 +227,19 @@ describe("API transport", () => {
   });
 
   it("never refreshes the login endpoint", async () => {
-    const fetch = vi.fn().mockResolvedValue(
-      response(
-        { error: { code: "AUTH_CREDENTIALS_INVALID", message: "bad credentials" } },
-        { status: 401 },
-      ),
-    );
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(
+        response(
+          {
+            error: {
+              code: "AUTH_CREDENTIALS_INVALID",
+              message: "bad credentials",
+            },
+          },
+          { status: 401 },
+        ),
+      );
     const transport = createApiTransport({ fetch });
 
     await expect(transport.request("/auth/login")).rejects.toMatchObject({

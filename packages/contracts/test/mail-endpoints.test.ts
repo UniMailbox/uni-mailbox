@@ -210,6 +210,13 @@ describe("current Worker mail endpoint contracts", () => {
     ).toEqual({ "if-match": '"version"', "idempotency-key": "request-1" });
   });
 
+  it("declares Worker draft-not-found and reply-parent-not-found errors", () => {
+    expect(draftEndpoints.get.errors).toContain("DRAFT_NOT_FOUND");
+    expect(draftEndpoints.update.errors).toContain("DRAFT_NOT_FOUND");
+    expect(draftEndpoints.send.errors).toContain("DRAFT_NOT_FOUND");
+    expect(messageEndpoints.send.errors).toContain("PARENT_MESSAGE_NOT_FOUND");
+  });
+
   it("preserves draft and attachment wire fields", () => {
     const detail = draftEndpoints.get.responses[200].parse({
       id: messageId,
