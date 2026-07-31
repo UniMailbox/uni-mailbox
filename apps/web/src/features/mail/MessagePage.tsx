@@ -1,7 +1,7 @@
 import DOMPurify from "dompurify";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import {
   Archive,
   ArrowLeft,
@@ -13,7 +13,7 @@ import {
 import { useUiStore } from "../../lib/ui-store";
 import { ErrorState, LoadingState } from "../../components/Status";
 import type { RuntimeLocale } from "../../i18n";
-import { formatDate } from "../../i18n/format";
+import { formatDate, formatKibibytes } from "../../i18n/format";
 import {
   attachmentDownloadMutationOptions,
   messageAttachmentsQueryOptions,
@@ -134,7 +134,12 @@ export function MessagePage({ messageId }: { messageId: string }) {
       </header>
       <article className="message-sheet">
         <div className="section-kicker">
-          {t("message.identifier", { id: message.data.id.slice(0, 8) })}
+          <Trans
+            components={{ id: <bdi dir="ltr" /> }}
+            i18nKey="message.identifier"
+            ns="mail"
+            values={{ id: message.data.id.slice(0, 8) }}
+          />
         </div>
         <h1><bdi dir="auto">{message.data.subject || t("messages.noSubject")}</bdi></h1>
         <dl className="message-envelope">
@@ -187,7 +192,10 @@ export function MessagePage({ messageId }: { messageId: string }) {
                   <small>
                     {t("message.attachmentMeta", {
                       mimeType: attachment.mime_type,
-                      size: Math.ceil(attachment.size_bytes / 1024),
+                      size: formatKibibytes(
+                        attachment.size_bytes,
+                        i18n.resolvedLanguage as RuntimeLocale,
+                      ),
                     })}
                   </small>
                 </span>

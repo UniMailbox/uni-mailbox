@@ -10,3 +10,12 @@ export function formatDate(value: Date | number, locale: RuntimeLocale): string 
 export function formatNumber(value: number, locale: RuntimeLocale): string {
   return new Intl.NumberFormat(locale).format(value);
 }
+
+export function formatKibibytes(value: number, locale: RuntimeLocale): string {
+  return new Intl.NumberFormat(locale, {
+    style: "unit",
+    unit: "kilobyte",
+    unitDisplay: "short",
+    maximumFractionDigits: 1,
+  }).format(value / 1024);
+}
