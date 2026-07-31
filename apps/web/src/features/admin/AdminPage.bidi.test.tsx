@@ -20,4 +20,16 @@ describe("AdminPage bidi inputs", () => {
     expect(container.querySelector("input#roleIds")).toHaveAttribute("dir", "ltr");
     expect(container.querySelector("input#displayName")).not.toHaveAttribute("dir");
   });
+
+  it("keeps a domain hostname LTR without forcing a role name LTR", () => {
+    const domainsClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    domainsClient.setQueryData(["auth", "session"], { user: { id: "1", email: "admin@example.com" }, permissions: ["domain.read", "domain.manage"] });
+    const domains = render(<I18nextProvider i18n={createTestI18n("ar-XB")}><QueryClientProvider client={domainsClient}><AdminPage resource="domains" /></QueryClientProvider></I18nextProvider>);
+    expect(domains.container.querySelector("input#name")).toHaveAttribute("dir", "ltr");
+
+    const rolesClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    rolesClient.setQueryData(["auth", "session"], { user: { id: "1", email: "admin@example.com" }, permissions: ["role.read", "role.manage"] });
+    const roles = render(<I18nextProvider i18n={createTestI18n("ar-XB")}><QueryClientProvider client={rolesClient}><AdminPage resource="roles" /></QueryClientProvider></I18nextProvider>);
+    expect(roles.container.querySelector("input#name")).not.toHaveAttribute("dir");
+  });
 });
