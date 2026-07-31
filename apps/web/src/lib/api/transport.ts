@@ -94,7 +94,11 @@ export function createApiTransport(options: ApiTransportOptions = {}): ApiTransp
   const getAccessToken = options.getAccessToken ?? storageToken;
   const setAccessToken = options.setAccessToken ?? storeToken;
 
-  async function fetchResponse(path: string, init: RequestInit = {}): Promise<Response> {
+  async function fetchResponse(
+    path: string,
+    init: RequestInit = {},
+    mediaType: MediaType = "json",
+  ): Promise<Response> {
     const headers = new Headers(init.headers);
     const token = getAccessToken();
     if (token) headers.set("authorization", `Bearer ${token}`);
@@ -109,6 +113,7 @@ export function createApiTransport(options: ApiTransportOptions = {}): ApiTransp
       ...init,
       headers,
       credentials: "same-origin",
+      ...(mediaType === "redirect" ? { redirect: "manual" } : {}),
     });
   }
 
@@ -138,7 +143,7 @@ export function createApiTransport(options: ApiTransportOptions = {}): ApiTransp
     retry = true,
     mediaType: MediaType = "json",
   ): Promise<Response> {
-    const result = await fetchResponse(path, init);
+    const result = await fetchResponse(path, init, mediaType);
     if (
       result.status === 401 &&
       retry &&
