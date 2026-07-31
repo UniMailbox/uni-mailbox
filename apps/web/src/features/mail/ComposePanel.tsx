@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import DOMPurify from "dompurify";
 import { useEditor, EditorContent } from "@tiptap/react";
@@ -78,7 +78,7 @@ export function ComposePanel({
   const [draftVersion, setDraftVersion] = useState<string>();
   const hydratedSource = useRef<string>();
   const restoredLocal = useRef(false);
-  const workingId = useMemo(() => crypto.randomUUID(), []);
+  const [workingId, setWorkingId] = useState<string>(() => crypto.randomUUID());
   const form = useForm<ComposeForm>({
     defaultValues: { to: "", cc: "", bcc: "", subject: "" },
   });
@@ -189,6 +189,7 @@ export function ComposePanel({
             .map((attachment) => attachment.attachmentId),
         );
         setServerDraftId(local.serverDraftId);
+        setWorkingId(local.id);
       });
   }, [editor, form, intent, mailboxId]);
 
@@ -348,6 +349,7 @@ export function ComposePanel({
               },
             })}
             aria-label={t("compose.to")}
+            dir="ltr"
             placeholder="recipient@example.com"
           />
         </label>
@@ -355,11 +357,11 @@ export function ComposePanel({
           <summary>{t("compose.addRecipients")}</summary>
           <label className="compose-line">
             <span>{t("compose.cc")}</span>
-            <input {...form.register("cc")} aria-label={t("compose.cc")} />
+            <input {...form.register("cc")} aria-label={t("compose.cc")} dir="ltr" />
           </label>
           <label className="compose-line">
             <span>{t("compose.bcc")}</span>
-            <input {...form.register("bcc")} aria-label={t("compose.bcc")} />
+            <input {...form.register("bcc")} aria-label={t("compose.bcc")} dir="ltr" />
           </label>
         </details>
         <label className="compose-line subject-line">

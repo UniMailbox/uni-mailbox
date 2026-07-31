@@ -80,7 +80,7 @@
     "trash": "Move message to trash",
     "star": "Star message",
     "reply": "Reply",
-    "identifier": "Message / {{id}}",
+    "identifier": "Message / <id>{{id}}</id>",
     "from": "From",
     "to": "To",
     "timestamp": "Timestamp",
@@ -88,6 +88,6 @@
     "attachments": "Attachments",
     "attachmentFallback": "attachment",
     "unavailableDate": "—",
-    "attachmentMeta": "{{mimeType}} · {{size}} KB"
+    "attachmentMeta": "{{mimeType}} · {{size}}"
   }
 }

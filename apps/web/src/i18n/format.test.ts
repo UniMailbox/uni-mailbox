@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDate, formatNumber } from "./format";
+import { formatDate, formatKibibytes, formatNumber } from "./format";
 
 describe("locale-aware formatters", () => {
   it("formats a fixed UTC date in English and Chinese", () => {
@@ -12,5 +12,10 @@ describe("locale-aware formatters", () => {
   it("formats numbers using the supplied locale", () => {
     expect(formatNumber(1234567.89, "en")).toBe("1,234,567.89");
     expect(formatNumber(1234567.89, "zh-CN")).toBe("1,234,567.89");
+  });
+
+  it("formats attachment KiB using the supplied locale and a unit", () => {
+    expect(formatKibibytes(1536, "en")).toContain("1.5");
+    expect(formatKibibytes(1536, "zh-CN")).toContain("1.5");
   });
 });

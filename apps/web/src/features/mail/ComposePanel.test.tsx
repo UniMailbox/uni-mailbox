@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestI18n } from "../../i18n/test-instance";
+import type { RuntimeLocale } from "../../i18n";
 import { ComposePanel } from "./ComposePanel";
 
 const draftStore = vi.hoisted(() => {
@@ -78,7 +79,7 @@ function response(data: unknown, status = 200) {
 }
 
 function renderCompose(
-  locale: "en" | "zh-CN" = "en",
+  locale: RuntimeLocale = "en",
   intent: { draftId?: string; parentMessageId?: string } | null = null,
 ) {
   const client = new QueryClient({
@@ -201,6 +202,39 @@ describe("ComposePanel", () => {
     expect(screen.getByLabelText("Subject")).toHaveValue("Local recovery");
     expect(document.querySelector(".ProseMirror")).toHaveTextContent(
       "Recovered body",
+    );
+  });
+
+  it("deletes the recovered working draft after a successful send", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue(
+      "99999999-9999-4999-8999-999999999999",
+    );
+    draftStore.sortBy.mockResolvedValue([
+      {
+        id: "recovered-working-draft",
+        mailboxId,
+        to: ["local@example.com"],
+        cc: [],
+        bcc: [],
+        subject: "Recovered draft",
+        html: "<p>Recovered body</p>",
+        text: "Recovered body",
+        includeSignature: true,
+        attachments: [],
+        updatedAt: 1,
+      },
+    ]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve(response({ messageId: draftId, status: "queued" }, 201))),
+    );
+    renderCompose();
+
+    await screen.findByDisplayValue("Recovered draft");
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() =>
+      expect(draftStore.delete).toHaveBeenCalledWith("recovered-working-draft"),
     );
   });
 
@@ -333,6 +367,14 @@ describe("ComposePanel", () => {
       "data-placeholder",
       "输入邮件内容…",
     );
+  });
+
+  it("keeps recipient address inputs LTR in the pseudo-RTL locale", () => {
+    renderCompose("ar-XB");
+
+    expect(screen.getByLabelText("[Ţø — ŘŢĻ Ţëšţ]")).toHaveAttribute("dir", "ltr");
+    expect(screen.getByLabelText("[ÇÇ — ŘŢĻ Ţëšţ]")).toHaveAttribute("dir", "ltr");
+    expect(screen.getByLabelText("[βÇÇ — ŘŢĻ Ţëšţ]")).toHaveAttribute("dir", "ltr");
   });
 
   it("reports an empty recipient with translated validation instead of sending", async () => {

@@ -29,6 +29,7 @@ import { logoutMutationOptions } from "../auth/api";
 import { useUiStore } from "../../lib/ui-store";
 import { ErrorState, LoadingState } from "../../components/Status";
 import type { RuntimeLocale } from "../../i18n";
+import { formatNumber } from "../../i18n/format";
 import {
   draftsQueryOptions,
   mailboxesQueryOptions,
@@ -200,7 +201,7 @@ export function MailWorkspace({
                 <Icon />
                 <span>{t(`folders.${id}`)}</span>
                 {id === "inbox" && activeMailbox?.unread_count ? (
-                  <strong>{activeMailbox.unread_count}</strong>
+                  <strong>{formatNumber(activeMailbox.unread_count, locale)}</strong>
                 ) : null}
               </Link>
             );
@@ -276,7 +277,7 @@ export function MailWorkspace({
                 value={activeMailboxId ?? ""}
               >
                 {(mailboxes.data ?? []).map((mailbox) => (
-                  <option key={mailbox.id} value={mailbox.id}>
+                  <option dir="ltr" key={mailbox.id} value={mailbox.id}>
                     {mailbox.address}
                   </option>
                 ))}
