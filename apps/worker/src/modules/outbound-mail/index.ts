@@ -204,6 +204,9 @@ export async function processOutboundJob(
 ): Promise<void> {
   const lockToken = crypto.randomUUID();
   const lockExpiresAt = Date.now() + runtimePolicy.outboundLockTtlMs;
+  // Only claim rows that are pending/enqueued, due now, and not currently
+  // owned by another worker. A row that is already 'processing' with a live
+  // lock is left alone — that worker's heartbeat owns the recovery path.
   const claim = await context.env.DB.prepare(
     `UPDATE outbound_jobs
      SET status = 'processing', attempts = attempts + 1,
@@ -289,6 +292,10 @@ export async function processOutboundJob(
       safe.retryable &&
       (current?.attempts ?? runtimePolicy.outboundAttemptLimit) <
         runtimePolicy.outboundAttemptLimit;
+    // Exponential backoff capped at 5 minutes (300s) per attempt so a hot
+    // message can't pin a worker with ever-shorter retries. `attempts` is
+    // incremented atomically by the claim UPDATE, so the floor is always 1
+    // for rows that ever entered 'processing'.
     const delaySeconds = Math.min(300, 2 ** (current?.attempts ?? 1));
     await context.env.DB.batch([
       context.env.DB.prepare(
@@ -306,6 +313,9 @@ export async function processOutboundJob(
       ),
       ...(!retryable
         ? [
+            // Mark the message failed only on the final, non-retryable
+            // failure; transient failures keep the message queryable as
+            // 'pending' for the next retry.
             context.env.DB.prepare(
               `UPDATE messages
                SET status = 'failed', error_code = ?, error_message = ?,
