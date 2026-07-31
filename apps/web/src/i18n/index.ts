@@ -4,15 +4,18 @@ import enErrors from "./resources/en/errors.json";
 import enAuth from "./resources/en/auth.json";
 import enMail from "./resources/en/mail.json";
 import enSettings from "./resources/en/settings.json";
+import enAdmin from "./resources/en/admin.json";
 import zhCNCommon from "./resources/zh-CN/common.json";
 import zhCNErrors from "./resources/zh-CN/errors.json";
 import zhCNAuth from "./resources/zh-CN/auth.json";
 import zhCNMail from "./resources/zh-CN/mail.json";
 import zhCNSettings from "./resources/zh-CN/settings.json";
+import zhCNAdmin from "./resources/zh-CN/admin.json";
 import arXBErrors from "./resources/ar-XB/errors.json";
 import arXBAuth from "./resources/ar-XB/auth.json";
 import arXBMail from "./resources/ar-XB/mail.json";
 import arXBSettings from "./resources/ar-XB/settings.json";
+import arXBAdmin from "./resources/ar-XB/admin.json";
 import {
   LOCALE_STORAGE_KEY,
   localeMetadata,
@@ -48,9 +51,20 @@ const settingsErrors = {
   },
 } as const;
 
+const administrationErrors = {
+  en: {
+    USER_CREATE_CONFLICT: "The user could not be created with the selected roles.",
+    USER_SELF_DELETE_FORBIDDEN: "You cannot delete your active account.",
+  },
+  "zh-CN": {
+    USER_CREATE_CONFLICT: "无法使用所选角色创建用户。",
+    USER_SELF_DELETE_FORBIDDEN: "无法删除当前活动账户。",
+  },
+} as const;
+
 const productionResources = {
-  en: { common: enCommon, errors: { ...enErrors, api: { ...enErrors.api, ...settingsErrors.en } }, auth: enAuth, mail: enMail, settings: enSettings },
-  "zh-CN": { common: zhCNCommon, errors: { ...zhCNErrors, api: { ...zhCNErrors.api, ...settingsErrors["zh-CN"] } }, auth: zhCNAuth, mail: zhCNMail, settings: zhCNSettings },
+  en: { common: enCommon, errors: { ...enErrors, api: { ...enErrors.api, ...settingsErrors.en, ...administrationErrors.en } }, auth: enAuth, mail: enMail, settings: enSettings, admin: enAdmin },
+  "zh-CN": { common: zhCNCommon, errors: { ...zhCNErrors, api: { ...zhCNErrors.api, ...settingsErrors["zh-CN"], ...administrationErrors["zh-CN"] } }, auth: zhCNAuth, mail: zhCNMail, settings: zhCNSettings, admin: zhCNAdmin },
 };
 
 function synchronizeDocument(instance: i18n, locale: RuntimeLocale): void {
@@ -72,7 +86,7 @@ export function createI18nInstance(
   testResources?: Resource,
 ): i18n {
   const resources = testResources
-    ? { ...productionResources, "ar-XB": { common: testResources, errors: arXBErrors, auth: arXBAuth, mail: arXBMail, settings: arXBSettings } }
+    ? { ...productionResources, "ar-XB": { common: testResources, errors: arXBErrors, auth: arXBAuth, mail: arXBMail, settings: arXBSettings, admin: arXBAdmin } }
     : productionResources;
   const instance = i18next.createInstance();
 
@@ -86,7 +100,7 @@ export function createI18nInstance(
     lng: locale,
     fallbackLng: false,
     defaultNS: "common",
-    ns: ["common", "errors", "auth", "mail", "settings"],
+    ns: ["common", "errors", "auth", "mail", "settings", "admin"],
     initImmediate: false,
     showSupportNotice: false,
   });
