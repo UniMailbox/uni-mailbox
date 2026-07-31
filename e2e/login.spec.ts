@@ -57,3 +57,72 @@ test("login form posts credentials and routes to the inbox", async ({
   expect(submittedPassword.length).toBeGreaterThan(0);
   await expect(page).toHaveURL(/\/inbox$/u);
 });
+
+// The e2e harness stubs the Worker (CI does not boot `wrangler dev` alongside
+// Playwright). The two tests below pin the front-end side of the route-guard
+// contract so the same `pnpm test:e2e` run that catches UI regressions also
+// catches the guard breaking.
+test("an anonymous visitor landing on /inbox is redirected to /login", async ({
+  page,
+}) => {
+  const protectedCalls: string[] = [];
+  await page.route("**/api/v1/**", async (route) => {
+    const path = new URL(route.request().url()).pathname.replace(
+      /^\/api\/v1/u,
+      "",
+    );
+    protectedCalls.push(path);
+    if (path === "/auth/session" || path === "/auth/refresh") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: {
+            code: "AUTH_REQUIRED",
+            message: "Authentication is required",
+            requestId: "test",
+          },
+        }),
+        status: 401,
+      });
+      return;
+    }
+    await route.abort("failed");
+  });
+  await page.goto("/inbox");
+
+  await expect(page).toHaveURL(/\/login/u);
+  // No mailbox/draft/message request must reach the API: the guard aborts
+  // before they fire. Otherwise a "broken" guard would look like a slow page.
+  expect(protectedCalls.filter((p) => !p.startsWith("/auth/"))).toEqual([]);
+});
+
+test("a signed-in operator hitting /login lands on /inbox", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/**", async (route) => {
+    const path = new URL(route.request().url()).pathname.replace(
+      /^\/api\/v1/u,
+      "",
+    );
+    if (path === "/auth/session") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            userId: "user-1",
+            email: "admin@example.com",
+            permissions: ["user.read"],
+          },
+        }),
+      });
+      return;
+    }
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: [] }),
+    });
+  });
+  await page.goto("/login");
+
+  await expect(page).toHaveURL(/\/inbox$/u);
+});

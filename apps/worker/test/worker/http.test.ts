@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { InstallationStep } from "@unimailbox/contracts";
+import { DomainError, InstallationStep } from "@unimailbox/contracts";
 import { createHttpApp, type HttpAppContext } from "../../src/http/router";
 import type { Env } from "../../src/platform/config";
 
@@ -226,6 +226,126 @@ describe("Worker HTTP boundary", () => {
     expect(createDomain).toHaveBeenCalledTimes(1);
     await expect(replay.json()).resolves.toEqual({
       data: { id: "domain-1", name: "mail.example.com" },
+    });
+  });
+
+  describe("GET /api/v1/auth/session", () => {
+    function completed(overrides: Partial<HttpAppContext> = {}) {
+      return context({
+        installation: {
+          getStatus: async () => ({
+            installationVersion: 2,
+            stateVersion: 8,
+            currentStep: InstallationStep.COMPLETE,
+            completedSteps: [],
+          }),
+        },
+        ...overrides,
+      });
+    }
+
+    it("returns the identity and permissions carried by the access token", async () => {
+      const verifyAccessToken = vi.fn(async () => ({
+        userId: "user-1",
+        email: "admin@example.com",
+        // Deliberately unsorted so the stable ordering of the response is
+        // covered: the web client memoises on this payload.
+        permissions: new Set(["user.read", "analytics.read", "domain.read"]),
+      }));
+      const app = createHttpApp(async () =>
+        completed({
+          auth: { verifyAccessToken } as unknown as HttpAppContext["auth"],
+        }),
+      );
+
+      const response = await app.request(
+        "https://mail.example/api/v1/auth/session",
+        { headers: { authorization: "Bearer access-token" } },
+        env,
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        data: {
+          userId: "user-1",
+          email: "admin@example.com",
+          permissions: ["analytics.read", "domain.read", "user.read"],
+        },
+      });
+      expect(verifyAccessToken).toHaveBeenCalledWith("access-token");
+    });
+
+    it("rejects an unauthenticated probe with AUTH_REQUIRED", async () => {
+      // This is the signal the web route guard turns into a /login redirect,
+      // so the status and code are part of the contract.
+      const app = createHttpApp(async () => completed());
+
+      const response = await app.request(
+        "https://mail.example/api/v1/auth/session",
+        {},
+        env,
+      );
+
+      expect(response.status).toBe(401);
+      const body = (await response.json()) as {
+        error: { code: string };
+      };
+      expect(body.error.code).toBe("AUTH_REQUIRED");
+    });
+
+    it("rejects a token the auth service refuses", async () => {
+      const app = createHttpApp(async () =>
+        completed({
+          auth: {
+            verifyAccessToken: async () => {
+              throw new DomainError(
+                "AUTH_TOKEN_INVALID",
+                "The access token is not valid",
+                401,
+              );
+            },
+          } as unknown as HttpAppContext["auth"],
+        }),
+      );
+
+      const response = await app.request(
+        "https://mail.example/api/v1/auth/session",
+        { headers: { authorization: "Bearer stale" } },
+        env,
+      );
+
+      expect(response.status).toBe(401);
+    });
+
+    it("reports an empty permission set rather than failing", async () => {
+      // A member with no console permissions must still get a 200: the guard
+      // distinguishes "signed in but unauthorised" from "not signed in".
+      const app = createHttpApp(async () =>
+        completed({
+          auth: {
+            verifyAccessToken: async () => ({
+              userId: "user-2",
+              email: "member@example.com",
+              permissions: new Set([]),
+            }),
+          } as unknown as HttpAppContext["auth"],
+        }),
+      );
+
+      const response = await app.request(
+        "https://mail.example/api/v1/auth/session",
+        { headers: { authorization: "Bearer access-token" } },
+        env,
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        data: {
+          userId: "user-2",
+          email: "member@example.com",
+          permissions: [],
+        },
+      });
     });
   });
 });

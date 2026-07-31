@@ -107,6 +107,9 @@ export class MessageApplicationService {
     await this.context.env.KV.put(rateKey, String(sendCount + 1), {
       expirationTtl: 60,
     });
+    // The canonical hash serialises the input with sorted object keys, so
+    // JSON field order differences across callers don't cause replay
+    // mismatches against the recorded idempotency record.
     const requestHash = await sha256(canonicalRequestHashInput(input));
     const replay = await this.findIdempotency(principal.userId, idempotencyKey);
     if (replay) {
@@ -195,7 +198,10 @@ export class MessageApplicationService {
           )
             .bind(principal.userId, ...input.attachmentIds)
             .all<UploadRow>();
-    if (uploads.results.length !== new Set(input.attachmentIds).size) {
+    // Compare the *unique* requested ids so duplicate references in the
+    // request body don't trip the validity check.
+    const uniqueRequestedAttachmentCount = new Set(input.attachmentIds).size;
+    if (uploads.results.length !== uniqueRequestedAttachmentCount) {
       throw new DomainError(
         "ATTACHMENT_UPLOAD_INVALID",
         "One or more attachment uploads are unavailable",

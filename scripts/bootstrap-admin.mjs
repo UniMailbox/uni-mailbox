@@ -83,6 +83,17 @@ function administratorCount() {
   );
 }
 
+function administratorEmail() {
+  // Used purely for the "already exists" warning so the operator knows which
+  // row to clear or which account to sign in with.
+  const results = executeD1({
+    command: "SELECT email FROM users ORDER BY created_at ASC LIMIT 1",
+  })[0]?.results;
+  return Array.isArray(results) && results.length > 0
+    ? String(results[0].email ?? "")
+    : null;
+}
+
 function ensureCompleteState() {
   executeD1({
     command: `UPDATE installation_state
@@ -97,9 +108,23 @@ WHERE id = 1`,
 
 if (administratorCount() > 0) {
   ensureCompleteState();
+  // When the operator runs `pnpm bootstrap:admin` a second time, we never
+  // know whether they meant "everything is fine" or "I forgot the password,
+  // please reset it". Silently exiting as `ok` was the wrong default — it
+  // swallowed the second case and the next login returned 401. Warn
+  // explicitly so the operator picks the right follow-up.
+  const email = administratorEmail();
+  process.stderr.write(
+    `\n⚠️  An administrator already exists (${email ?? "unknown email"}).\n` +
+      `    bootstrap:admin will NOT update the password.\n` +
+      `    If you need to reset it, run one of:\n` +
+      `      • wrangler d1 execute DB --local --command "UPDATE users SET password_hash = NULL, password_salt = NULL, password_iterations = NULL WHERE email = '${email ?? ""}'" then re-run bootstrap:admin\n` +
+      `      • sign in and use POST /api/v1/auth/password/reset\n\n`,
+  );
   output("bootstrap.administrator.existing", {
     status: "ok",
     target,
+    email,
   });
 } else {
   let credentials;

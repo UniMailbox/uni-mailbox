@@ -1,9 +1,10 @@
 import { ArrowRight, LockKeyhole, Radio } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { apiRequest, jsonBody, setAccessToken } from "../../lib/api";
-import { navigate } from "../../lib/navigation";
+import { navigate, postLoginTarget, useLocation } from "../../lib/navigation";
+import { SESSION_QUERY_KEY } from "../../lib/session";
 import { ErrorState } from "../../components/Status";
 
 const loginSchema = z.object({
@@ -13,15 +14,21 @@ const loginSchema = z.object({
 
 export function LoginPage() {
   const form = useForm<z.infer<typeof loginSchema>>();
+  const queryClient = useQueryClient();
+  const { search } = useLocation();
   const login = useMutation({
     mutationFn: async (values: z.infer<typeof loginSchema>) =>
       apiRequest<{ accessToken: string }>("/auth/login", {
         method: "POST",
         body: jsonBody(loginSchema.parse(values)),
       }),
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       setAccessToken(result.accessToken);
-      navigate("/inbox");
+      // The route guard reads the cached session. A stale "unauthenticated"
+      // entry from before the sign-in would bounce us straight back to /login,
+      // so refetch before navigating.
+      await queryClient.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
+      navigate(postLoginTarget(search));
     },
   });
 
@@ -75,6 +82,7 @@ export function LoginPage() {
             <button
               className="button primary auth-submit"
               disabled={login.isPending}
+              type="submit"
             >
               <LockKeyhole aria-hidden="true" />
               {login.isPending ? "Signing in…" : "Enter workspace"}

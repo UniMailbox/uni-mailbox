@@ -261,6 +261,21 @@ svg {
   color: var(--danger);
   background: #fff5f3;
 }
+/* Full-page wrapper for a route the guard refused to render. Without a page
+   container these cards would sit flush against the viewport edge, because no
+   dashboard shell is mounted around them. */
+.state-page {
+  display: grid;
+  place-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+.state-page .state-card {
+  max-width: 520px;
+}
+.state-page code {
+  font: 12px/1.65 var(--mono);
+}
 .success-note {
   border-color: #a6d4b8;
   color: #17553f;

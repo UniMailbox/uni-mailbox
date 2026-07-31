@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { MAX_ATTACHMENTS_PER_MESSAGE, MAX_ATTACHMENT_BYTES } from "../domain";
+import {
+  MAX_ATTACHMENTS_PER_MESSAGE,
+  MAX_ATTACHMENT_BYTES,
+  type PermissionKey,
+} from "../domain";
 
 export interface ApiSuccess<T> {
   data: T;
@@ -105,4 +109,50 @@ export const ProviderConnectionSchema = z.object({
 export interface CursorPage<T> {
   items: T[];
   nextCursor: string | null;
+}
+
+/**
+ * Response body of `GET /api/v1/auth/session`. This is the only thing the web
+ * client is allowed to base access decisions on — it is derived from a verified
+ * access token, so a tampered client cannot widen it.
+ */
+export interface SessionProfile {
+  userId: string;
+  email: string;
+  permissions: PermissionKey[];
+}
+
+/**
+ * The permission the Worker asserts for the primary listing behind each
+ * `/admin/<resource>` screen. The web client uses this to avoid rendering a
+ * console page that can only ever return 403. Keep each entry aligned with the
+ * matching `assertPermission` call in
+ * `apps/worker/src/modules/administration/index.ts`; the contract test in
+ * `packages/contracts/test/session.test.ts` pins the key set.
+ */
+export const ADMIN_RESOURCE_PERMISSIONS = {
+  users: "user.read",
+  roles: "role.read",
+  domains: "domain.read",
+  signatures: "signature.read",
+  settings: "settings.read",
+  "provider-connections": "domain.read",
+  "webhook-events": "webhook_event.read",
+  "audit-events": "analytics.read",
+  analytics: "analytics.read",
+} as const satisfies Record<string, PermissionKey>;
+
+export type AdminResourceKey = keyof typeof ADMIN_RESOURCE_PERMISSIONS;
+
+/**
+ * True when the principal can open at least one administration console page.
+ * Used to decide whether the "Administration" entry point is reachable at all.
+ */
+export function canOpenAdminConsole(
+  permissions: readonly PermissionKey[],
+): boolean {
+  const granted = new Set<string>(permissions);
+  return Object.values(ADMIN_RESOURCE_PERMISSIONS).some((permission) =>
+    granted.has(permission),
+  );
 }

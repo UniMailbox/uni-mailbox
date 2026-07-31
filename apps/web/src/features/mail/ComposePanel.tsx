@@ -47,6 +47,11 @@ function addresses(value: string): string[] {
   ];
 }
 
+// Debounce window for persisting the in-flight composer to IndexedDB. Keeping
+// it short reduces typing lag while still absorbing keystroke bursts and
+// Tiptap `onUpdate` events without re-writing on every input.
+const LOCAL_DRAFT_DEBOUNCE_MS = 400;
+
 export function ComposePanel({
   mailboxId,
   intent,
@@ -162,6 +167,9 @@ export function ComposePanel({
       });
   }, [editor, form, intent, mailboxId]);
 
+  // Hydration order matters: an explicit server draft or reply context wins
+  // first; only when both are absent do we restore a previously typed
+  // working draft from IndexedDB so users never lose their in-flight text.
   useEffect(() => {
     const handle = window.setTimeout(() => {
       void draftsDb.workingDrafts.put({
@@ -183,7 +191,7 @@ export function ComposePanel({
         })),
         updatedAt: Date.now(),
       });
-    }, 400);
+    }, LOCAL_DRAFT_DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
   }, [
     attachmentIds,
