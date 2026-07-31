@@ -5,6 +5,12 @@ import {
   type PermissionKey,
 } from "../domain";
 
+export * from "./common/endpoint";
+export * from "./common/envelope";
+export * from "./common/errors";
+export * from "./common/pagination";
+export * from "./endpoints";
+
 export interface ApiSuccess<T> {
   data: T;
 }
@@ -14,7 +20,8 @@ export interface ApiErrorBody {
     code: string;
     message: string;
     details?: unknown;
-    requestId: string;
+    params?: unknown;
+    requestId?: string;
   };
 }
 
