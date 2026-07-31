@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import type { AdminResourceKey, EndpointResponse, PermissionKey } from "@unimailbox/contracts";
 import { administrationEndpoints } from "@unimailbox/contracts";
 import { ErrorState, LoadingState, SuccessNote } from "../../components/Status";
+import { BidiText } from "../../components/BidiText";
 import { FieldError, useAppFieldContext, useAppForm } from "../../lib/form/app-form";
 import { sessionQueryOptions } from "../auth/api";
 import { adminFormSchemas, adminMutationOptions, adminQueryOptions, canAdminWrite, providerSyncMutationOptions, saveSettingsMutationOptions, saveSignatureMutationOptions, signatureQueryOptions } from "./api";
@@ -63,7 +64,7 @@ function DataTable({ data }: { data: AdminTableData }) {
     if (key === "reason" || key === "metadata_json" || raw === null || raw === undefined || raw === "") return t("values.empty");
     if (typeof raw === "boolean") return t(raw ? "values.true" : "values.false");
     if (typeof raw === "string" && localizedValues.has(raw)) return t(`values.${raw}`);
-    return <bdi dir="ltr">{String(raw)}</bdi>;
+    return <BidiText kind="identifier">{String(raw)}</BidiText>;
   };
   return <div className="data-table-wrap"><table className="data-table"><thead><tr>{columns.map((column) => <th key={column}>{t(`columns.${column}`)}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={String(row.id ?? index)}>{columns.map((column) => <td key={column}>{value(column, row[column as AdminColumnKey])}</td>)}</tr>)}</tbody></table></div>;
 }

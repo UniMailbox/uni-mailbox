@@ -22,6 +22,7 @@ import {
   useAppForm,
 } from "../../lib/form/app-form";
 import { apiErrorToken } from "../../i18n/errors";
+import { localeMetadata, type RuntimeLocale } from "../../i18n";
 import { type ComposeIntent, useUiStore } from "../../lib/ui-store";
 import {
   draftQueryOptions,
@@ -124,6 +125,8 @@ export function ComposePanel({
   intent: ComposeIntent | null;
 }) {
   const { t, i18n } = useTranslation("mail");
+  const editorDirection =
+    localeMetadata[i18n.resolvedLanguage as RuntimeLocale]?.direction ?? "ltr";
   const close = useUiStore((state) => state.setComposeOpen);
   const client = useQueryClient();
   const [attachmentIds, setAttachmentIds] = useState<string[]>([]);
@@ -184,10 +187,11 @@ export function ComposePanel({
     ) as { options: { placeholder: string } } | undefined;
     if (!placeholder) return;
     placeholder.options.placeholder = t("compose.editorPlaceholder");
+    editor.view.dom.setAttribute("dir", editorDirection);
     editor.view.dispatch(
       editor.state.tr.setMeta("unimailbox-placeholder", i18n.language),
     );
-  }, [editor, i18n.language, t]);
+  }, [editor, editorDirection, i18n.language, t]);
 
   useEffect(() => {
     if (!editor || !draft.data || hydratedSource.current === draft.data.id)
@@ -532,7 +536,7 @@ export function ComposePanel({
             <Link2 />
           </button>
         </div>
-        <EditorContent className="message-editor" editor={editor} />
+        <EditorContent className="message-editor" dir={editorDirection} editor={editor} />
         <footer>
           <div className="compose-meta">
             <span>{t("compose.autosaved")}</span>
