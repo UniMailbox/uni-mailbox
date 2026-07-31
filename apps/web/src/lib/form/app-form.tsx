@@ -35,7 +35,7 @@ function TextField({ label, placeholder, autoComplete, inputMode }: InputProps) 
   );
 }
 
-function PasswordField(props: Omit<InputProps, "inputMode">) {
+function PasswordField(props: InputProps) {
   const field = useFieldContext<string>();
   const { t } = useTranslation("common");
   const id = field.name;
@@ -46,6 +46,7 @@ function PasswordField(props: Omit<InputProps, "inputMode">) {
       <input
         autoComplete={props.autoComplete}
         id={id}
+        inputMode={props.inputMode}
         onBlur={field.handleBlur}
         onChange={(event) => field.handleChange(event.target.value)}
         placeholder={props.placeholder ? t(props.placeholder) : undefined}

@@ -2,6 +2,17 @@ import { useTranslation } from "react-i18next";
 import { useAppFieldContext } from "./app-form";
 import { zodIssueToken } from "./validation";
 
+function isZodIssue(error: unknown): error is Parameters<typeof zodIssueToken>[0] {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    "path" in error &&
+    typeof error.code === "string" &&
+    Array.isArray(error.path)
+  );
+}
+
 export function FieldError({ labelKey }: { labelKey: string }) {
   const field = useAppFieldContext<unknown>();
   const { t } = useTranslation(["common", "errors"]);
@@ -13,7 +24,9 @@ export function FieldError({ labelKey }: { labelKey: string }) {
   return (
     <p className="field-error" role="alert">
       {errors.map((error, index) => {
-        const token = zodIssueToken(error as Parameters<typeof zodIssueToken>[0]);
+        const token = isZodIssue(error)
+          ? zodIssueToken(error)
+          : { key: "errors:validation.invalidType" as const, values: {} };
         return <span key={index}>{t(token.key, { ...token.values, field: t(labelKey) })}</span>;
       })}
     </p>
