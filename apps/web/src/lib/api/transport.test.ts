@@ -98,6 +98,23 @@ describe("API transport", () => {
     } satisfies Partial<ApiClientError>);
   });
 
+  it("preserves the header request ID when an error body contains malformed JSON", async () => {
+    const transport = createApiTransport({
+      fetch: vi.fn().mockResolvedValue(
+        new Response('{"error":', {
+          status: 503,
+          headers: { "x-request-id": "malformed-503" },
+        }),
+      ),
+    });
+
+    await expect(transport.request("/provider", {}, false)).rejects.toMatchObject({
+      code: "UNKNOWN_SERVER_ERROR",
+      status: 503,
+      requestId: "malformed-503",
+    } satisfies Partial<ApiClientError>);
+  });
+
   it("rejects malformed successful JSON", async () => {
     const transport = createApiTransport({
       fetch: vi.fn().mockResolvedValue(response({ unexpected: true })),

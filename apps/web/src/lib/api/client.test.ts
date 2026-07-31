@@ -71,19 +71,21 @@ describe("typed API client", () => {
   });
 
   it("returns a redirect endpoint location without JSON-envelope decoding", async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(null, {
+        status: 302,
+        headers: { location: "https://provider.example.com/authorize" },
+      }),
+    );
     const client = createApiClient(
       createApiTransport({
-        fetch: vi.fn().mockResolvedValue(
-          new Response(null, {
-            status: 302,
-            headers: { location: "https://provider.example.com/authorize" },
-          }),
-        ),
+        fetch,
       }),
     );
 
     await expect(client.request(startProviderAuthorization, {})).resolves.toBe(
       "https://provider.example.com/authorize",
     );
+    expect(fetch.mock.calls[0]?.[1]).toMatchObject({ redirect: "manual" });
   });
 });
