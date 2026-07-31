@@ -41,7 +41,7 @@ test("pseudo RTL keeps request UUIDs LTR-isolated", async ({ page }) => {
   await page.route("**/api/v1/**", (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/auth/session")) return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: { userId: "operator-1", email: "operator@example.com", permissions: ["settings.manage"] } }) });
-    if (path.endsWith("/admin/infrastructure")) return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: { code: "UNKNOWN_SERVER_ERROR", requestId } }) });
+    if (path.endsWith("/admin/infrastructure")) return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: { code: "UNKNOWN_SERVER_ERROR", message: "ignored diagnostic", requestId } }) });
     return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: [] }) });
   });
   await page.goto("/settings/storage");

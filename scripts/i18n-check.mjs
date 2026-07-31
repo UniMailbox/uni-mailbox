@@ -91,6 +91,14 @@ export async function checkI18nResources(root = process.cwd()) {
 
   const english = namespaces.get("en");
   const chinese = namespaces.get("zh-CN");
+  for (const [locale, resources] of namespaces) {
+    for (const namespace of resources.keys()) {
+      if (!requiredNamespaces.includes(namespace)) {
+        const resource = resources.get(namespace);
+        errors.push(format(root, resource.file, 1, `${namespace} is not an allowed production namespace for ${locale}`));
+      }
+    }
+  }
   const allNamespaces = new Set([...requiredNamespaces, ...english.keys(), ...chinese.keys()]);
   for (const namespace of [...allNamespaces].sort()) {
     const en = english.get(namespace);
