@@ -13,6 +13,7 @@ const AddressSchema = z
 const ResourceStatusSchema = z.enum(["ok", "missing", "error"]);
 const protectedErrors = [
   "AUTH_REQUIRED",
+  "AUTH_TOKEN_INVALID",
   "PERMISSION_DENIED",
   "INTERNAL_ERROR",
 ] as const;

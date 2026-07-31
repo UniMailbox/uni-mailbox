@@ -140,6 +140,71 @@ describe("authenticated settings", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("submits a whitespace-padded member UUID normalized by the endpoint schema", async () => {
+    setAccessToken("access-token");
+    const mailboxId = "11111111-1111-4111-8111-111111111111";
+    const userId = "33333333-3333-4333-8333-333333333333";
+    const fetchMock = vi
+      .spyOn(window, "fetch")
+      .mockImplementation((input, init) => {
+        if (String(input).endsWith(`/mailboxes/${mailboxId}/members`)) {
+          if (init?.method === "POST") {
+            return Promise.resolve(
+              Response.json(
+                { data: { mailboxId, userId, role: "viewer" } },
+                { status: 201 },
+              ),
+            );
+          }
+          return Promise.resolve(Response.json({ data: [] }));
+        }
+        return Promise.resolve(
+          Response.json({
+            data: [
+              {
+                id: mailboxId,
+                address: "ops@example.com",
+                display_name: "Operations",
+                status: "active",
+                domain_id: "22222222-2222-4222-8222-222222222222",
+                role: "owner",
+              },
+            ],
+          }),
+        );
+      });
+    renderSettings("mailboxes");
+    fireEvent.click(await screen.findByText("Manage sharing"));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    fetchMock.mockClear();
+
+    fireEvent.change(screen.getByLabelText("Member user ID"), {
+      target: { value: `  ${userId}  ` },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Share mailbox" }));
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.find(
+          ([url, init]) =>
+            url === `/api/v1/mailboxes/${mailboxId}/members` &&
+            init?.method === "POST",
+        ),
+      ).toBeDefined(),
+    );
+    const [url, init] =
+      fetchMock.mock.calls.find(
+        ([requestUrl, requestInit]) =>
+          requestUrl === `/api/v1/mailboxes/${mailboxId}/members` &&
+          requestInit?.method === "POST",
+      ) ?? [];
+    expect(url).toBe(`/api/v1/mailboxes/${mailboxId}/members`);
+    expect(JSON.parse(String(init?.body))).toEqual({
+      userId,
+      role: "viewer",
+    });
+  });
+
   it("shows required services and keeps R2 verification disabled on KV", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
       Response.json({
