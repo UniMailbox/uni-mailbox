@@ -101,8 +101,13 @@ const adminRoute = createRoute({
   component: AdminRoute,
 });
 const settingsRoute = createRoute({ getParentRoute: () => authenticatedRoute, path: "settings/$section", component: SettingsRoute });
+const settingsIndexRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: "settings",
+  beforeLoad: () => { throw redirect({ to: "/settings/account", replace: true }); },
+});
 
-const routeTree = rootRoute.addChildren([indexRoute, setupRoute, loginRoute, registerRoute, authenticatedRoute.addChildren([...folderRoutes, messageRoute, adminRoute, settingsRoute])]);
+const routeTree = rootRoute.addChildren([indexRoute, setupRoute, loginRoute, registerRoute, authenticatedRoute.addChildren([...folderRoutes, messageRoute, adminRoute, settingsRoute, settingsIndexRoute])]);
 
 export function createAppRouter({ queryClient, history }: { queryClient: QueryClient; history?: RouterHistory }) {
   return createRouter({ routeTree, context: { queryClient }, history: history ?? createBrowserHistory() });

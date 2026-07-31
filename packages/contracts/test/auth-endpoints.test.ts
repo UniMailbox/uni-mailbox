@@ -65,4 +65,13 @@ describe("authentication endpoint contracts", () => {
       newPassword: "a different correct horse battery staple",
     });
   });
+
+  it("accepts the Worker email-change response without inventing a user ID", () => {
+    expect(
+      authEndpoints.email.responses[200].parse({
+        email: "new@example.com",
+        sessionsRevoked: true,
+      }),
+    ).toEqual({ email: "new@example.com", sessionsRevoked: true });
+  });
 });

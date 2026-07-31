@@ -65,7 +65,7 @@ export const authEndpoints = {
     method: "POST",
     path: "/auth/email",
     request: { body: z.object({ currentPassword: PasswordSchema, email: EmailSchema }) },
-    responses: { 200: z.object({ userId: z.string(), email: EmailSchema, sessionsRevoked: z.literal(true) }) },
+    responses: { 200: z.object({ email: EmailSchema, sessionsRevoked: z.literal(true) }) },
     errors: ["AUTH_CREDENTIALS_INVALID", "USER_EMAIL_CONFLICT", "AUTH_REQUIRED"],
     mediaType: "json",
   }),
