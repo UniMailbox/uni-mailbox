@@ -62,4 +62,40 @@ describe("frontend contract enforcement", () => {
       },
     );
   });
+
+  it("rejects each frontend-used endpoint operation missing from the registry", async () => {
+    await withFrontend(
+      {
+        "apps/web/src/features/Example.ts": "apiClient.request(authEndpoints.login, {});",
+        "packages/contracts/src/api/auth.ts": "export const authEndpoints = { session: {} };",
+        "packages/contracts/src/api/endpoints.ts": "export const endpoints = { auth: authEndpoints };",
+      },
+      async (root) => expect(await checkFrontendContracts(root)).toContainEqual(expect.stringMatching(/authEndpoints\.login.*operation/u)),
+    );
+  });
+
+  it("rejects an endpoint group missing from the exported registry", async () => {
+    await withFrontend(
+      {
+        "apps/web/src/features/Example.ts": "apiClient.request(authEndpoints.login, {});",
+        "packages/contracts/src/api/auth.ts": "export const authEndpoints = { login: {} };",
+        "packages/contracts/src/api/endpoints.ts": "export const endpoints = {};",
+      },
+      async (root) => expect(await checkFrontendContracts(root)).toContainEqual(expect.stringMatching(/authEndpoints.*register/u)),
+    );
+  });
+
+  it("rejects a plain production form while allowing the application form composition", async () => {
+    await withFrontend(
+      {
+        "apps/web/src/features/Example.tsx": "export const Example = () => <form><input /></form>;",
+        "apps/web/src/lib/form/AppForm.tsx": "export const Example = () => { const form = useAppForm({}); return <form><form.AppField name='name'>{() => null}</form.AppField></form>; };",
+      },
+      async (root) => {
+        const errors = await checkFrontendContracts(root);
+        expect(errors).toContainEqual(expect.stringMatching(/TanStack Form composition/u));
+        expect(errors).not.toContainEqual(expect.stringMatching(/AppForm/u));
+      },
+    );
+  });
 });

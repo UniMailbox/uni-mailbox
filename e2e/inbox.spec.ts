@@ -5,6 +5,8 @@ const mailboxId = "11111111-1111-4111-8111-111111111111";
 test("mailbox route loads messages and toggles the sidebar", async ({
   page, uiLocale,
 }) => {
+  let pageRequests = 0;
+  let starred = false;
   await page.route("**/api/v1/auth/session", async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -37,6 +39,12 @@ test("mailbox route loads messages and toggles the sidebar", async ({
   await page.route(
     `**/api/v1/mailboxes/${mailboxId}/messages**`,
     async (route) => {
+      if (route.request().method() === "PATCH") {
+        starred = true;
+        await route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: { is_starred: 1 } }) });
+        return;
+      }
+      pageRequests += 1;
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
@@ -53,7 +61,7 @@ test("mailbox route loads messages and toggles the sidebar", async ({
                 is_starred: 0,
               },
             ],
-            nextCursor: null,
+            nextCursor: pageRequests === 1 ? "next-page" : null,
           },
         }),
       });
@@ -64,4 +72,13 @@ test("mailbox route loads messages and toggles the sidebar", async ({
 
   await expect(page.getByText("Status update")).toBeVisible();
   await expect(page.getByRole("heading", { name: uiLocale.copy.inbox })).toBeVisible();
+  await page.getByRole("button", { name: uiLocale.copy.star }).click();
+  await expect.poll(() => starred).toBe(true);
+  await page.getByRole("button", { name: uiLocale.copy.loadMore }).click();
+  await expect.poll(() => pageRequests).toBe(2);
+  await page.getByRole("link", { name: uiLocale.copy.sent }).click();
+  await expect(page).toHaveURL(/\/sent/u);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator(".mobile-menu").click();
+  await expect(page.locator(".mail-sidebar")).toHaveClass(/open/u);
 });
