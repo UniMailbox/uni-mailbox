@@ -1,7 +1,7 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures/locale";
 
 test("storage settings show required services and healthy KV without R2", async ({
-  page,
+  page, uiLocale,
 }) => {
   await page.route("**/api/v1/auth/session", async (route) => {
     await route.fulfill({
@@ -32,15 +32,15 @@ test("storage settings show required services and healthy KV without R2", async 
   });
   await page.goto("/settings/storage");
 
-  await expect(page.getByText("KV storage is active")).toBeVisible();
-  await expect(page.getByText("KV healthy")).toBeVisible();
+  await expect(page.getByText(uiLocale.copy.kvActive)).toBeVisible();
+  await expect(page.getByText(uiLocale.copy.kvHealthy)).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Verify R2 write access" }),
+    page.getByRole("button", { name: uiLocale.copy.verifyR2 }),
   ).toBeDisabled();
 });
 
 test("Cloudflare mail configuration is available after login", async ({
-  page,
+  page, uiLocale,
 }) => {
   await page.route("**/api/v1/auth/session", async (route) => {
     await route.fulfill({
@@ -75,9 +75,9 @@ test("Cloudflare mail configuration is available after login", async ({
   });
   await page.goto("/settings/cloudflare");
 
-  await expect(page.getByText("Connect the control plane")).toBeVisible();
-  await expect(page.getByText("Email Routing domain")).toBeVisible();
+  await expect(page.getByText(uiLocale.copy.controlPlane)).toBeVisible();
+  await expect(page.getByText(uiLocale.copy.domainHeading)).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Connect Brevo" }),
+    page.getByRole("heading", { name: uiLocale.copy.brevo }),
   ).toBeVisible();
 });

@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures/locale";
 
-test("login route surfaces an accessible credential form", async ({ page }) => {
+test("login route surfaces an accessible credential form", async ({ page, uiLocale }) => {
   await page.route("**/api/v1/**", async (route) => {
     if (route.request().url().endsWith("/auth/session")) {
       await route.fulfill({
@@ -18,17 +18,17 @@ test("login route surfaces an accessible credential form", async ({ page }) => {
   await page.goto("/login");
 
   await expect(
-    page.getByRole("heading", { name: "Sign in to your mail plane." }),
+    page.getByRole("heading", { name: uiLocale.copy.loginTitle }),
   ).toBeVisible();
-  await expect(page.getByLabel("Email address")).toBeEditable();
-  await expect(page.getByLabel("Password")).toHaveAttribute(
+  await expect(page.getByLabel(uiLocale.copy.email)).toBeEditable();
+  await expect(page.getByLabel(uiLocale.copy.password)).toHaveAttribute(
     "autocomplete",
     "current-password",
   );
 });
 
 test("login form posts credentials and routes to the inbox", async ({
-  page,
+  page, uiLocale,
 }) => {
   let submittedEmail = "";
   let submittedPassword = "";
@@ -71,9 +71,9 @@ test("login form posts credentials and routes to the inbox", async ({
   });
   await page.goto("/login");
 
-  await page.getByLabel("Email address").fill("initial-admin@example.com");
-  await page.getByLabel("Password").fill("correct horse battery staple");
-  await page.getByRole("button", { name: /Enter workspace/ }).click();
+  await page.getByLabel(uiLocale.copy.email).fill("initial-admin@example.com");
+  await page.getByLabel(uiLocale.copy.password).fill("correct horse battery staple");
+  await page.getByRole("button", { name: uiLocale.copy.submit }).click();
 
   await expect.poll(() => submittedEmail).toBe("initial-admin@example.com");
   expect(submittedPassword.length).toBeGreaterThan(0);
