@@ -68,8 +68,14 @@ export function createApiClient(transport: Pick<ApiTransport, "request"> & Parti
           : { body: JSON.stringify(parsed.body) }),
       };
       const result = transport.requestWithResponse
-        ? await transport.requestWithResponse(path, init)
-        : { data: await transport.request(path, init), status: 200 };
+        ? await transport.requestWithResponse(path, init, true, endpoint.mediaType)
+        : {
+            data:
+              endpoint.mediaType === "json"
+                ? await transport.request(path, init)
+                : await transport.request(path, init, true, endpoint.mediaType),
+            status: 200,
+          };
       const schema = endpoint.responses[result.status];
       if (!schema) {
         if (schema === null && result.data === undefined) return undefined;

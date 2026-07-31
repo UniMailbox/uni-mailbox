@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { defineEndpoint } from "@unimailbox/contracts";
 import { createApiClient } from "./client";
+import { createApiTransport } from "./transport";
 
 const readMailbox = defineEndpoint({
   method: "GET",
@@ -10,6 +11,23 @@ const readMailbox = defineEndpoint({
   responses: { 200: z.object({ id: z.string().uuid() }) },
   errors: ["AUTH_REQUIRED", "NOT_FOUND"],
   mediaType: "json",
+});
+
+const downloadAttachment = defineEndpoint({
+  method: "GET",
+  path: "/attachments/:attachmentId/download",
+  request: { params: z.object({ attachmentId: z.string().uuid() }) },
+  responses: { 200: z.instanceof(ArrayBuffer) },
+  errors: ["AUTH_REQUIRED", "ATTACHMENT_NOT_FOUND"],
+  mediaType: "binary",
+});
+
+const startProviderAuthorization = defineEndpoint({
+  method: "POST",
+  path: "/admin/provider-authorization",
+  responses: { 302: z.string().url() },
+  errors: ["AUTH_REQUIRED", "PERMISSION_DENIED"],
+  mediaType: "redirect",
 });
 
 describe("typed API client", () => {
@@ -36,5 +54,36 @@ describe("typed API client", () => {
         params: { mailboxId: "d9fbf784-e709-4ec4-a2ca-3385e5ff1aa6" },
       }),
     ).rejects.toMatchObject({ code: "CLIENT_RESPONSE_INVALID", status: 200 });
+  });
+
+  it("returns a binary endpoint response without JSON-envelope decoding", async () => {
+    const client = createApiClient(
+      createApiTransport({
+        fetch: vi.fn().mockResolvedValue(new Response(Uint8Array.of(1, 2, 3))),
+      }),
+    );
+
+    const download = await client.request(downloadAttachment, {
+      params: { attachmentId: "d9fbf784-e709-4ec4-a2ca-3385e5ff1aa6" },
+    });
+
+    expect([...new Uint8Array(download)]).toEqual([1, 2, 3]);
+  });
+
+  it("returns a redirect endpoint location without JSON-envelope decoding", async () => {
+    const client = createApiClient(
+      createApiTransport({
+        fetch: vi.fn().mockResolvedValue(
+          new Response(null, {
+            status: 302,
+            headers: { location: "https://provider.example.com/authorize" },
+          }),
+        ),
+      }),
+    );
+
+    await expect(client.request(startProviderAuthorization, {})).resolves.toBe(
+      "https://provider.example.com/authorize",
+    );
   });
 });

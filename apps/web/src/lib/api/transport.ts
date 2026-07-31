@@ -1,6 +1,7 @@
 import {
   ApiErrorEnvelopeSchema,
   type ApiErrorEnvelope,
+  type MediaType,
 } from "@unimailbox/contracts";
 import { ApiClientError, apiErrorCode } from "./errors";
 
@@ -13,13 +14,20 @@ export type ApiTransport = {
     path: string,
     init?: RequestInit,
     retry?: boolean,
+    mediaType?: MediaType,
   ): Promise<T>;
   requestWithResponse<T = unknown>(
     path: string,
     init?: RequestInit,
     retry?: boolean,
+    mediaType?: MediaType,
   ): Promise<{ data: T; status: number }>;
-  response(path: string, init?: RequestInit, retry?: boolean): Promise<Response>;
+  response(
+    path: string,
+    init?: RequestInit,
+    retry?: boolean,
+    mediaType?: MediaType,
+  ): Promise<Response>;
 };
 
 export type ApiTransportOptions = {
@@ -60,6 +68,7 @@ function responseError(
     return new ApiClientError(
       errorBody.parsedJson ? "REQUEST_FAILED" : "UNKNOWN_SERVER_ERROR",
       status,
+      headerRequestId ? { requestId: headerRequestId } : {},
     );
   }
 
@@ -127,6 +136,7 @@ export function createApiTransport(options: ApiTransportOptions = {}): ApiTransp
     path: string,
     init: RequestInit = {},
     retry = true,
+    mediaType: MediaType = "json",
   ): Promise<Response> {
     const result = await fetchResponse(path, init);
     if (
@@ -136,9 +146,9 @@ export function createApiTransport(options: ApiTransportOptions = {}): ApiTransp
       path !== "/auth/refresh" &&
       (await refreshAccessToken())
     ) {
-      return response(path, init, false);
+      return response(path, init, false, mediaType);
     }
-    if (!result.ok) {
+    if (!result.ok && !(mediaType === "redirect" && result.status >= 300 && result.status < 400)) {
       throw responseError(
         result.status,
         await readErrorEnvelope(result),
@@ -148,8 +158,18 @@ export function createApiTransport(options: ApiTransportOptions = {}): ApiTransp
     return result;
   }
 
-  async function decodeSuccess<T>(result: Response): Promise<T> {
+  async function decodeSuccess<T>(
+    result: Response,
+    mediaType: MediaType = "json",
+  ): Promise<T> {
     if (result.status === 204) return undefined as T;
+    if (mediaType === "empty") return undefined as T;
+    if (mediaType === "binary") return (await result.arrayBuffer()) as T;
+    if (mediaType === "redirect") {
+      const location = result.headers.get("location") ?? result.url;
+      if (location) return location as T;
+      throw new ApiClientError("CLIENT_RESPONSE_INVALID", result.status);
+    }
     try {
       const body: unknown = await result.json();
       if (
@@ -170,17 +190,19 @@ export function createApiTransport(options: ApiTransportOptions = {}): ApiTransp
     path: string,
     init?: RequestInit,
     retry?: boolean,
+    mediaType: MediaType = "json",
   ): Promise<{ data: T; status: number }> {
-    const result = await response(path, init, retry);
-    return { data: await decodeSuccess<T>(result), status: result.status };
+    const result = await response(path, init, retry, mediaType);
+    return { data: await decodeSuccess<T>(result, mediaType), status: result.status };
   }
 
   async function request<T>(
     path: string,
     init?: RequestInit,
     retry?: boolean,
+    mediaType?: MediaType,
   ): Promise<T> {
-    return (await requestWithResponse<T>(path, init, retry)).data;
+    return (await requestWithResponse<T>(path, init, retry, mediaType)).data;
   }
 
   return { request, requestWithResponse, response };
