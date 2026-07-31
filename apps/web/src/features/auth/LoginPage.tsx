@@ -50,7 +50,7 @@ export function LoginPage() {
                 <button className="button primary auth-submit" disabled={!canSubmit || isSubmitting} type="submit">
                   <LockKeyhole aria-hidden="true" />
                   {isSubmitting ? t("login.submitting") : t("login.submit")}
-                  <ArrowRight aria-hidden="true" />
+                  <ArrowRight aria-hidden="true" className="directional-icon" />
                 </button>
               )}
             </form.Subscribe>

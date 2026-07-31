@@ -18,6 +18,7 @@ import {
   mailboxEndpoints,
 } from "@unimailbox/contracts";
 import { ErrorState, LoadingState } from "../../components/Status";
+import { BidiText } from "../../components/BidiText";
 import { FieldError, useAppForm } from "../../lib/form/app-form";
 import { endSession } from "../../lib/session";
 import { mailboxesQueryOptions } from "../mail/api";
@@ -81,8 +82,8 @@ function MailboxMembers({ mailboxId }: { mailboxId: string }) {
           {members.data?.map((item: Member) => (
             <div key={item.user_id}>
               <span>
-                <strong>{item.display_name || item.email}</strong>
-                <small dir="ltr">{item.email}</small>
+                <strong><BidiText>{item.display_name || item.email}</BidiText></strong>
+                <small><BidiText kind="identifier">{item.email}</BidiText></small>
               </span>
               <select
                 aria-label={t("mailboxes.roleFor", { email: item.email })}
@@ -242,7 +243,7 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
           to="/inbox"
           aria-label={t("tabs.account")}
         >
-          <ArrowLeft aria-hidden="true" />
+          <ArrowLeft aria-hidden="true" className="directional-icon" />
         </Link>
         <div>
           <div className="section-kicker">{t("kicker")}</div>
@@ -389,8 +390,8 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
               <div className="simple-list">
                 {mailboxes.data?.map((item) => (
                   <div key={item.id}>
-                    <strong>{item.display_name || item.address}</strong>
-                    <span dir="ltr">{item.address}</span>
+                    <strong><BidiText>{item.display_name || item.address}</BidiText></strong>
+                    <span><BidiText kind="identifier">{item.address}</BidiText></span>
                     <MailboxMembers mailboxId={item.id} />
                   </div>
                 ))}

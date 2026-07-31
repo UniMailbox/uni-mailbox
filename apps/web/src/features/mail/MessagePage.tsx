@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useUiStore } from "../../lib/ui-store";
 import { ErrorState, LoadingState } from "../../components/Status";
+import { BidiText } from "../../components/BidiText";
 import type { RuntimeLocale } from "../../i18n";
 import { formatDate, formatKibibytes } from "../../i18n/format";
 import {
@@ -70,7 +71,7 @@ export function MessagePage({ messageId }: { messageId: string }) {
           className="icon-button"
           to={`/inbox/${message.data.mailboxId}`}
         >
-          <ArrowLeft aria-hidden="true" />
+          <ArrowLeft aria-hidden="true" className="directional-icon" />
         </Link>
         <div className="message-actions">
           <button
@@ -128,37 +129,37 @@ export function MessagePage({ messageId }: { messageId: string }) {
               });
             }}
           >
-            <Reply aria-hidden="true" /> {t("message.reply")}
+            <Reply aria-hidden="true" className="directional-icon" /> {t("message.reply")}
           </button>
         </div>
       </header>
       <article className="message-sheet">
         <div className="section-kicker">
           <Trans
-            components={{ id: <bdi dir="ltr" /> }}
+            components={{ id: <BidiText kind="identifier" /> }}
             i18nKey="message.identifier"
             ns="mail"
             values={{ id: message.data.id.slice(0, 8) }}
           />
         </div>
-        <h1><bdi dir="auto">{message.data.subject || t("messages.noSubject")}</bdi></h1>
+        <h1><BidiText>{message.data.subject || t("messages.noSubject")}</BidiText></h1>
         <dl className="message-envelope">
           <div>
             <dt>{t("message.from")}</dt>
             <dd>
-              <bdi dir="auto">{message.data.from_name || message.data.from_address}</bdi>
-              <small><bdi dir="ltr">{message.data.from_address}</bdi></small>
+              <BidiText>{message.data.from_name || message.data.from_address}</BidiText>
+              <small><BidiText kind="identifier">{message.data.from_address}</BidiText></small>
             </dd>
           </div>
           <div>
             <dt>{t("message.to")}</dt>
             <dd>
-              <bdi dir="ltr">
+              <BidiText kind="identifier">
                 {message.data.recipients
                   .filter((item) => item.type === "to")
                   .map((item) => item.address)
                   .join(", ")}
-              </bdi>
+              </BidiText>
             </dd>
           </div>
           <div>
@@ -170,7 +171,7 @@ export function MessagePage({ messageId }: { messageId: string }) {
           <iframe
             className="message-frame"
             sandbox=""
-            srcDoc={`<!doctype html><html dir="ltr"><meta name="color-scheme" content="light"><style>body{font:15px/1.65 system-ui,sans-serif;color:#202521;margin:0;padding:8px}img{max-width:100%;height:auto}a{color:#155c4b}</style>${safeHtml}</html>`}
+            srcDoc={`<!doctype html><html dir="auto"><meta name="color-scheme" content="light"><style>body{font:15px/1.65 system-ui,sans-serif;color:#202521;margin:0;padding:8px}img{max-width:100%;height:auto}a{color:#155c4b}</style>${safeHtml}</html>`}
             title={t("message.contentTitle")}
           />
         ) : (
@@ -188,7 +189,7 @@ export function MessagePage({ messageId }: { messageId: string }) {
               >
                 <Download />
                 <span>
-                  <strong>{attachment.filename}</strong>
+                  <strong><BidiText kind="identifier">{attachment.filename}</BidiText></strong>
                   <small>
                     {t("message.attachmentMeta", {
                       mimeType: attachment.mime_type,

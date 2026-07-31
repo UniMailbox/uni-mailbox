@@ -1,6 +1,7 @@
 import { AlertTriangle, CheckCircle2, LoaderCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { apiErrorToken } from "../i18n/errors";
+import { BidiText } from "./BidiText";
 
 export function LoadingState({ label }: { label?: string }) {
   const { t } = useTranslation("common");
@@ -34,9 +35,7 @@ export function ErrorState({
             onClick={() => void navigator.clipboard?.writeText(token.requestId!)}
             type="button"
           >
-            <bdi dir="ltr">
-              <code>{token.requestId}</code>
-            </bdi>
+            <BidiText kind="identifier"><code>{token.requestId}</code></BidiText>
           </button>
         ) : null}
       </div>

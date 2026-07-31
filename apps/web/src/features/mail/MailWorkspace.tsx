@@ -28,8 +28,9 @@ import { endSession, useSession } from "../../lib/session";
 import { logoutMutationOptions } from "../auth/api";
 import { useUiStore } from "../../lib/ui-store";
 import { ErrorState, LoadingState } from "../../components/Status";
+import { BidiText } from "../../components/BidiText";
 import type { RuntimeLocale } from "../../i18n";
-import { formatNumber } from "../../i18n/format";
+import { formatNumber, formatRelativeDate } from "../../i18n/format";
 import {
   draftsQueryOptions,
   mailboxesQueryOptions,
@@ -58,24 +59,6 @@ function initials(value: string): string {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join("");
-}
-
-function relativeDate(value: string, locale: RuntimeLocale): string | null {
-  const date = new Date(
-    value.replace(" ", "T") + (value.includes("Z") ? "" : "Z"),
-  );
-  if (Number.isNaN(date.getTime())) return null;
-  const today = new Date();
-  if (date.toDateString() === today.toDateString()) {
-    return new Intl.DateTimeFormat(locale, {
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(date);
-  }
-  return new Intl.DateTimeFormat(locale, {
-    month: "short",
-    day: "numeric",
-  }).format(date);
 }
 
 export function MailWorkspace({
@@ -258,7 +241,7 @@ export function MailWorkspace({
           <header className="folder-header">
             <div>
               <p className="section-kicker">
-                <bdi dir="ltr">{activeMailbox?.address ?? t("messages.mailbox")}</bdi>
+                <BidiText kind="identifier">{activeMailbox?.address ?? t("messages.mailbox")}</BidiText>
               </p>
               <h1>{t(`folders.${activeFolder[0]}`)}</h1>
             </div>
@@ -349,12 +332,12 @@ export function MailWorkspace({
                   >
                     <div className="message-sender">
                       <strong>
-                        <bdi dir="auto">{message.from_name || message.from_address}</bdi>
+                        <BidiText>{message.from_name || message.from_address}</BidiText>
                       </strong>
-                      <small><bdi dir="ltr">{message.from_address}</bdi></small>
+                      <small><BidiText kind="identifier">{message.from_address}</BidiText></small>
                     </div>
                     <div className="message-preview">
-                      <strong><bdi dir="auto">{message.subject || t("messages.noSubject")}</bdi></strong>
+                      <strong><BidiText>{message.subject || t("messages.noSubject")}</BidiText></strong>
                       <span>
                         {message.status && ["draft", "queued", "sent", "received"].includes(message.status)
                           ? t(`messages.status.${message.status}`)
@@ -362,7 +345,7 @@ export function MailWorkspace({
                       </span>
                     </div>
                     <time>
-                      {relativeDate(
+                      {formatRelativeDate(
                         message.received_at ??
                           message.sent_at ??
                           message.created_at,

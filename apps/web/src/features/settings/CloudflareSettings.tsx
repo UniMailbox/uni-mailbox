@@ -8,7 +8,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import {
   CloudflareBrevoConnectSchema,
   CloudflareDomainCreateSchema,
@@ -16,6 +16,7 @@ import {
   CloudflareVerifySchema,
 } from "@unimailbox/contracts";
 import { ErrorState, LoadingState, SuccessNote } from "../../components/Status";
+import { BidiText } from "../../components/BidiText";
 import { useAppForm } from "../../lib/form/app-form";
 import {
   cloudflareDomainMutationOptions,
@@ -274,7 +275,12 @@ export function CloudflareSettings() {
           {domain.error ? <ErrorState error={domain.error} /> : null}
           {domain.isSuccess ? (
             <SuccessNote>
-              {t("cloudflare.domainReady", { name: domain.data.name })}
+              <Trans
+                components={{ name: <BidiText kind="identifier" /> }}
+                i18nKey="cloudflare.domainReady"
+                ns="settings"
+                values={{ name: domain.data.name }}
+              />
             </SuccessNote>
           ) : null}
         </section>
@@ -293,9 +299,9 @@ export function CloudflareSettings() {
           inbound.data.recipient ? (
             <div className="operator-instruction">
               <span>{t("cloudflare.sendTo")}</span>
-              <strong dir="ltr">{inbound.data.recipient}</strong>
+              <strong><BidiText kind="identifier">{inbound.data.recipient}</BidiText></strong>
               <span>{t("cloudflare.subject")}</span>
-              <code dir="ltr">{inbound.data.subject}</code>
+              <BidiText kind="identifier"><code>{inbound.data.subject}</code></BidiText>
             </div>
           ) : null}
           <button
@@ -374,7 +380,7 @@ export function CloudflareSettings() {
           {brevo.isSuccess ? (
             <SuccessNote>
               {t("cloudflare.connectionId")}:{" "}
-              <code dir="ltr">{brevo.data.connectionId}</code>
+              <BidiText kind="identifier"><code>{brevo.data.connectionId}</code></BidiText>
             </SuccessNote>
           ) : null}
         </section>
