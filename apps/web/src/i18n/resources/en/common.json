@@ -1,0 +1,17 @@
+{
+  "meta": {
+    "title": "UniMailbox",
+    "description": "Secure, private mail workspace"
+  },
+  "actions": {
+    "retry": "Retry",
+    "close": "Close",
+    "save": "Save",
+    "cancel": "Cancel"
+  },
+  "states": {
+    "loading": "Loading",
+    "requestFailed": "That request did not complete",
+    "tryAgain": "Please try again."
+  }
+}
