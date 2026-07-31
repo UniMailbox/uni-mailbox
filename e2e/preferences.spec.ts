@@ -1,0 +1,31 @@
+import { expect, test } from "./fixtures/locale";
+
+test("language preference applies immediately and persists after reload", async ({ page, uiLocale }) => {
+  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
+    contentType: "application/json",
+    body: JSON.stringify({ data: { userId: "operator-1", email: "operator@example.com", permissions: ["settings.manage"] } }),
+  }));
+  await page.goto("/settings/preferences");
+
+  await expect(page.locator("html")).toHaveAttribute("lang", uiLocale.code);
+  await expect(page.getByRole("heading", { name: uiLocale.copy.preferences })).toBeVisible();
+  await page.getByLabel(uiLocale.copy.language).selectOption(uiLocale.code === "en" ? "zh-CN" : "en");
+  const expected = uiLocale.code === "en" ? "zh-CN" : "en";
+  await expect(page.locator("html")).toHaveAttribute("lang", expected);
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("lang", expected);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("unimailbox.locale"))).toBe(expected);
+});
+
+test("authorized administration uses localized navigation", async ({ page, uiLocale }) => {
+  await page.route("**/api/v1/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/auth/session")) {
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: { userId: "operator-1", email: "operator@example.com", permissions: ["user.read"] } }) });
+    }
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: [] }) });
+  });
+  await page.goto("/admin/users");
+  await expect(page.getByRole("heading", { name: uiLocale.copy.users })).toBeVisible();
+  await expect(page.getByText(uiLocale.copy.administration)).toBeVisible();
+});

@@ -1,29 +1,29 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures/locale";
 
-test("legacy setup route sends the operator to login", async ({ page }) => {
+test("legacy setup route sends the operator to login", async ({ page, uiLocale }) => {
   await page.goto("/setup");
 
   await expect(
-    page.getByRole("heading", { name: "Sign in to your mail plane." }),
+    page.getByRole("heading", { name: uiLocale.copy.loginTitle }),
   ).toBeVisible();
   await expect(page).toHaveURL(/\/login$/u);
   await expect(page.getByText(/installation token/i)).toHaveCount(0);
 });
 
-test("login route exposes an accessible credential form", async ({ page }) => {
+test("login route exposes an accessible credential form", async ({ page, uiLocale }) => {
   await page.goto("/login");
   await expect(
-    page.getByRole("heading", { name: "Sign in to your mail plane." }),
+    page.getByRole("heading", { name: uiLocale.copy.loginTitle }),
   ).toBeVisible();
-  await expect(page.getByLabel("Email address")).toBeEditable();
-  await expect(page.getByLabel("Password")).toHaveAttribute(
+  await expect(page.getByLabel(uiLocale.copy.email)).toBeEditable();
+  await expect(page.getByLabel(uiLocale.copy.password)).toHaveAttribute(
     "autocomplete",
     "current-password",
   );
 });
 
 test("compose uploads an attachment, saves a server draft, and sends it", async ({
-  page,
+  page, uiLocale,
 }) => {
   const mailboxId = "11111111-1111-4111-8111-111111111111";
   const draftId = "22222222-2222-4222-8222-222222222222";
@@ -128,27 +128,27 @@ test("compose uploads an attachment, saves a server draft, and sends it", async 
   );
 
   await page.goto(`/inbox/${mailboxId}`);
-  await page.getByRole("button", { name: "Compose" }).click();
-  await page.getByLabel("To").fill("team@example.com");
-  await page.getByLabel("Subject").fill("Incident update");
+  await page.getByRole("button", { name: uiLocale.copy.composeButton }).click();
+  await page.getByLabel(uiLocale.copy.to).fill("team@example.com");
+  await page.getByLabel(uiLocale.copy.subject).fill("Incident update");
   await page.locator(".ProseMirror").fill("Systems nominal");
-  await page.getByLabel("Attach file").setInputFiles({
+  await page.getByLabel(uiLocale.copy.attach).setInputFiles({
     name: "runbook.txt",
     mimeType: "text/plain",
     buffer: Buffer.from("recovery steps"),
   });
-  await expect(page.getByText("1 attachment(s) ready")).toBeVisible();
-  await page.getByRole("button", { name: "Save draft" }).click();
-  await expect(page.getByText("Saved to server")).toBeVisible();
-  await page.getByRole("button", { name: "Send message" }).click();
+  await expect(page.getByText(uiLocale.copy.attachmentReady)).toBeVisible();
+  await page.getByRole("button", { name: uiLocale.copy.saveDraft }).click();
+  await expect(page.getByText(uiLocale.copy.saved)).toBeVisible();
+  await page.getByRole("button", { name: uiLocale.copy.send }).click();
   await expect.poll(() => sent).toBe(true);
   await expect(
-    page.getByRole("complementary", { name: "Compose message" }),
+    page.getByRole("complementary", { name: uiLocale.copy.compose }),
   ).toBeHidden();
 });
 
 test("reply opens a threaded composer with quoted content", async ({
-  page,
+  page, uiLocale,
 }) => {
   const mailboxId = "11111111-1111-4111-8111-111111111111";
   const messageId = "44444444-4444-4444-8444-444444444444";
@@ -186,17 +186,17 @@ test("reply opens a threaded composer with quoted content", async ({
   });
 
   await page.goto(`/messages/${messageId}`);
-  await page.getByRole("button", { name: "Reply" }).click();
-  await expect(page.getByLabel("To", { exact: true })).toHaveValue(
+  await page.getByRole("button", { name: uiLocale.copy.reply }).click();
+  await expect(page.getByLabel(uiLocale.copy.to, { exact: true })).toHaveValue(
     "sender@example.net",
   );
-  await expect(page.getByLabel("Subject")).toHaveValue("Re: Change window");
+  await expect(page.getByLabel(uiLocale.copy.subject)).toHaveValue("Re: Change window");
   await expect(page.locator(".ProseMirror blockquote")).toContainText(
     "Proceed at 02:00 UTC.",
   );
 });
 
-test("mailbox sharing assigns an object-level role", async ({ page }) => {
+test("mailbox sharing assigns an object-level role", async ({ page, uiLocale }) => {
   const mailboxId = "11111111-1111-4111-8111-111111111111";
   let sharedRole = "";
   await page.route("**/api/v1/**", async (route) => {
@@ -232,11 +232,11 @@ test("mailbox sharing assigns an object-level role", async ({ page }) => {
   });
 
   await page.goto("/settings/mailboxes");
-  await page.getByText("Manage sharing").click();
+  await page.getByText(uiLocale.copy.sharing).click();
   await page
-    .getByLabel("Member user ID")
+    .getByLabel(uiLocale.copy.memberId)
     .fill("55555555-5555-4555-8555-555555555555");
-  await page.getByLabel("Mailbox role").selectOption("sender");
-  await page.getByRole("button", { name: "Share mailbox" }).click();
+  await page.getByLabel(uiLocale.copy.mailboxRole).selectOption("sender");
+  await page.getByRole("button", { name: uiLocale.copy.share }).click();
   await expect.poll(() => sharedRole).toBe("sender");
 });

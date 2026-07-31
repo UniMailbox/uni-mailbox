@@ -1,9 +1,9 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures/locale";
 
 const mailboxId = "11111111-1111-4111-8111-111111111111";
 
 test("mailbox route loads messages and toggles the sidebar", async ({
-  page,
+  page, uiLocale,
 }) => {
   await page.route("**/api/v1/auth/session", async (route) => {
     await route.fulfill({
@@ -63,5 +63,5 @@ test("mailbox route loads messages and toggles the sidebar", async ({
   await page.goto(`/inbox/${mailboxId}`);
 
   await expect(page.getByText("Status update")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: uiLocale.copy.inbox })).toBeVisible();
 });

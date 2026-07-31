@@ -13,8 +13,24 @@ export default defineConfig({
   },
   projects: [
     {
-      name: "chromium",
+      name: "en",
       use: { ...devices["Desktop Chrome"] },
+      testIgnore: /rtl\.spec\.ts/u,
+    },
+    {
+      name: "zh-CN",
+      use: { ...devices["Desktop Chrome"], locale: "zh-CN" },
+      testIgnore: /rtl\.spec\.ts/u,
+    },
+    {
+      name: "rtl-desktop",
+      use: { ...devices["Desktop Chrome"] },
+      testMatch: /rtl\.spec\.ts/u,
+    },
+    {
+      name: "rtl-mobile",
+      use: { ...devices["Pixel 7"] },
+      testMatch: /rtl\.spec\.ts/u,
     },
   ],
   webServer: process.env.E2E_BASE_URL
