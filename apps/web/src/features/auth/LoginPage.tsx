@@ -1,34 +1,25 @@
 import { ArrowRight, LockKeyhole, Radio } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { apiRequest, jsonBody, setAccessToken } from "../../lib/api";
-import { navigate, postLoginTarget, useLocation } from "../../lib/navigation";
-import { SESSION_QUERY_KEY } from "../../lib/session";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { LoginSchema } from "@unimailbox/contracts";
+import { useTranslation } from "react-i18next";
+import { useAppForm } from "../../lib/form/app-form";
+import { loginMutationOptions } from "./api";
+import { safeLoginTarget } from "../../app/router";
 import { ErrorState } from "../../components/Status";
 
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(12),
-});
-
 export function LoginPage() {
-  const form = useForm<z.infer<typeof loginSchema>>();
   const queryClient = useQueryClient();
-  const { search } = useLocation();
-  const login = useMutation({
-    mutationFn: async (values: z.infer<typeof loginSchema>) =>
-      apiRequest<{ accessToken: string }>("/auth/login", {
-        method: "POST",
-        body: jsonBody(loginSchema.parse(values)),
-      }),
-    onSuccess: async (result) => {
-      setAccessToken(result.accessToken);
-      // The route guard reads the cached session. A stale "unauthenticated"
-      // entry from before the sign-in would bounce us straight back to /login,
-      // so refetch before navigating.
-      await queryClient.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
-      navigate(postLoginTarget(search));
+  const navigate = useNavigate();
+  const search = useSearch({ strict: false }) as { next?: string };
+  const { t } = useTranslation("auth");
+  const login = useMutation(loginMutationOptions(queryClient));
+  const form = useAppForm({
+    defaultValues: { email: "", password: "" },
+    validators: { onSubmit: LoginSchema },
+    onSubmit: async ({ value }) => {
+      await login.mutateAsync(value);
+      await navigate({ to: safeLoginTarget(search.next), replace: true });
     },
   });
 
@@ -38,59 +29,34 @@ export function LoginPage() {
         <div className="signal-grid" />
         <div className="signal-copy">
           <Radio />
-          <p>ROUTING STATUS</p>
-          <strong>Awaiting operator</strong>
+          <p>{t("login.status")}</p>
+          <strong>{t("login.awaitingOperator")}</strong>
         </div>
       </section>
       <section className="auth-panel">
-        <a className="wordmark" href="/login">
+        <Link className="wordmark" to="/login">
           <span>CM</span> UniMailbox
-        </a>
+        </Link>
         <div className="auth-form-wrap">
-          <div className="section-kicker">Secure operator access</div>
-          <h1>Sign in to your mail plane.</h1>
-          <p className="lede">
-            Credentials stay inside your Cloudflare deployment. Refresh sessions
-            use an HTTP-only, same-site cookie.
-          </p>
-          <form
-            className="form-stack"
-            onSubmit={form.handleSubmit((values) => login.mutate(values))}
-          >
-            <label className="field">
-              <span>Email address</span>
-              <input
-                {...form.register("email", { required: true })}
-                autoComplete="email"
-                inputMode="email"
-                placeholder="operator@example.com"
-                type="email"
-              />
-            </label>
-            <label className="field">
-              <span>Password</span>
-              <input
-                {...form.register("password", {
-                  required: true,
-                  minLength: 12,
-                })}
-                autoComplete="current-password"
-                type="password"
-              />
-            </label>
+          <div className="section-kicker">{t("login.kicker")}</div>
+          <h1>{t("login.title")}</h1>
+          <p className="lede">{t("login.description")}</p>
+          <form className="form-stack" onSubmit={(event) => { event.preventDefault(); void form.handleSubmit(); }}>
+            <form.AppField name="email">{(field) => <label className="field"><span>{t("login.email")}</span><input autoComplete="email" inputMode="email" onBlur={field.handleBlur} onChange={(event) => field.handleChange(event.target.value)} placeholder={t("login.emailPlaceholder")} type="email" value={field.state.value} /></label>}</form.AppField>
+            <form.AppField name="password">{(field) => <label className="field"><span>{t("login.password")}</span><input autoComplete="current-password" onBlur={field.handleBlur} onChange={(event) => field.handleChange(event.target.value)} type="password" value={field.state.value} /></label>}</form.AppField>
             {login.error ? <ErrorState error={login.error} /> : null}
-            <button
-              className="button primary auth-submit"
-              disabled={login.isPending}
-              type="submit"
-            >
-              <LockKeyhole aria-hidden="true" />
-              {login.isPending ? "Signing in…" : "Enter workspace"}
-              <ArrowRight aria-hidden="true" />
-            </button>
+            <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting] as const}>
+              {([canSubmit, isSubmitting]) => (
+                <button className="button primary auth-submit" disabled={!canSubmit || isSubmitting} type="submit">
+                  <LockKeyhole aria-hidden="true" />
+                  {isSubmitting ? t("login.submitting") : t("login.submit")}
+                  <ArrowRight aria-hidden="true" />
+                </button>
+              )}
+            </form.Subscribe>
           </form>
         </div>
-        <footer>UniMailbox · private infrastructure · no shared tenancy</footer>
+        <footer>{t("login.footer")}</footer>
       </section>
     </main>
   );

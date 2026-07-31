@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Cloud,
@@ -9,7 +10,6 @@ import {
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { apiRequest, jsonBody } from "../../lib/api";
-import { Link, navigate } from "../../lib/navigation";
 import { endSession } from "../../lib/session";
 import { ErrorState, LoadingState } from "../../components/Status";
 import { CloudflareSettings } from "./CloudflareSettings";
@@ -147,6 +147,7 @@ export function SettingsPage({
 }: {
   section: "account" | "mailboxes" | "cloudflare" | "storage";
 }) {
+  const navigate = useNavigate();
   const client = useQueryClient();
   const emailForm = useForm<{
     currentPassword: string;
@@ -170,7 +171,7 @@ export function SettingsPage({
     // The Worker revokes every refresh session on an email/password change, so
     // the cached session must go too or the guard would keep this tab "inside".
     endSession(client);
-    navigate("/login");
+    void navigate({ to: "/login", replace: true });
   };
   const email = useMutation({
     mutationFn: (values: { currentPassword: string; email: string }) =>

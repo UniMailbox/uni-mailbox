@@ -2,6 +2,14 @@ import { expect, test } from "@playwright/test";
 
 test("login route surfaces an accessible credential form", async ({ page }) => {
   await page.route("**/api/v1/**", async (route) => {
+    if (route.request().url().endsWith("/auth/session")) {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 401,
+        body: JSON.stringify({ error: { code: "AUTH_REQUIRED", message: "ignored" } }),
+      });
+      return;
+    }
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({ data: { accessToken: "stubbed-token" } }),
@@ -24,12 +32,14 @@ test("login form posts credentials and routes to the inbox", async ({
 }) => {
   let submittedEmail = "";
   let submittedPassword = "";
+  let signedIn = false;
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     if (request.url().endsWith("/auth/login")) {
       const body = request.postDataJSON() as Record<string, string>;
       submittedEmail = body.email ?? "";
       submittedPassword = body.password ?? "";
+      signedIn = true;
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
@@ -39,6 +49,18 @@ test("login form posts credentials and routes to the inbox", async ({
             refreshTokenExpiresAt: "2099-01-01T00:00:00.000Z",
           },
         }),
+      });
+      return;
+    }
+    if (request.url().endsWith("/auth/session")) {
+      await route.fulfill({
+        contentType: "application/json",
+        status: signedIn ? 200 : 401,
+        body: JSON.stringify(
+          signedIn
+            ? { data: { userId: "user-1", email: "initial-admin@example.com", permissions: ["message.read"] } }
+            : { error: { code: "AUTH_REQUIRED", message: "ignored" } },
+        ),
       });
       return;
     }
