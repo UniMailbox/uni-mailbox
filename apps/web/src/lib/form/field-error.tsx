@@ -13,7 +13,7 @@ function isZodIssue(error: unknown): error is Parameters<typeof zodIssueToken>[0
   );
 }
 
-export function FieldError({ labelKey }: { labelKey: string }) {
+export function FieldError({ labelKey, label }: { labelKey?: string; label?: string }) {
   const field = useAppFieldContext<unknown>();
   const { t } = useTranslation(["common", "errors"]);
   const { errors, isTouched } = field.state.meta;
@@ -27,7 +27,7 @@ export function FieldError({ labelKey }: { labelKey: string }) {
         const token = isZodIssue(error)
           ? zodIssueToken(error)
           : { key: "errors:validation.invalidType" as const, values: {} };
-        return <span key={index}>{t(token.key, { ...token.values, field: t(labelKey) })}</span>;
+        return <span key={index}>{t(token.key, { ...token.values, field: label ?? t(labelKey ?? "fields.value") })}</span>;
       })}
     </p>
   );

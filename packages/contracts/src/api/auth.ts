@@ -5,6 +5,16 @@ import { defineEndpoint } from "./common/endpoint";
 const EmailSchema = z.string().trim().email().transform((value) => value.toLowerCase());
 const PasswordSchema = z.string().min(12).max(1024);
 
+export const EmailChangeSchema = z.object({
+  currentPassword: PasswordSchema,
+  email: EmailSchema,
+});
+
+export const PasswordResetSchema = z.object({
+  currentPassword: PasswordSchema,
+  newPassword: PasswordSchema,
+});
+
 export const LoginSchema = z.object({
   email: EmailSchema,
   password: PasswordSchema,
@@ -64,7 +74,7 @@ export const authEndpoints = {
     // routing/form migration is in flight rather than changing server behavior.
     method: "POST",
     path: "/auth/email",
-    request: { body: z.object({ currentPassword: PasswordSchema, email: EmailSchema }) },
+    request: { body: EmailChangeSchema },
     responses: { 200: z.object({ email: EmailSchema, sessionsRevoked: z.literal(true) }) },
     errors: ["AUTH_CREDENTIALS_INVALID", "USER_EMAIL_CONFLICT", "AUTH_REQUIRED"],
     mediaType: "json",
@@ -72,7 +82,7 @@ export const authEndpoints = {
   passwordReset: defineEndpoint({
     method: "POST",
     path: "/auth/password/reset",
-    request: { body: z.object({ currentPassword: PasswordSchema, newPassword: PasswordSchema }) },
+    request: { body: PasswordResetSchema },
     responses: { 200: z.object({ reset: z.literal(true), sessionsRevoked: z.literal(true) }) },
     errors: ["AUTH_CREDENTIALS_INVALID", "AUTH_REQUIRED"],
     mediaType: "json",
