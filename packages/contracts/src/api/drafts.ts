@@ -63,6 +63,8 @@ const draftErrors = [
   "PROVIDER_CONNECTION_INACTIVE",
 ] as const;
 
+const draftReadErrors = [...draftErrors, "DRAFT_NOT_FOUND"] as const;
+
 export const draftEndpoints = {
   list: defineEndpoint({
     method: "GET",
@@ -76,7 +78,7 @@ export const draftEndpoints = {
     path: "/drafts/:draftId",
     request: { params: z.object({ draftId: UuidSchema }) },
     responses: { 200: DraftDetailSchema },
-    errors: draftErrors,
+    errors: draftReadErrors,
     mediaType: "json",
   }),
   create: defineEndpoint({
@@ -96,7 +98,7 @@ export const draftEndpoints = {
       body: DraftMessageSchema,
     },
     responses: { 200: DraftDetailSchema },
-    errors: draftErrors,
+    errors: draftReadErrors,
     mediaType: "json",
   }),
   send: defineEndpoint({
@@ -115,7 +117,7 @@ export const draftEndpoints = {
         status: z.enum(["queued", "sent"]),
       }),
     },
-    errors: draftErrors,
+    errors: draftReadErrors,
     mediaType: "json",
   }),
 } as const;

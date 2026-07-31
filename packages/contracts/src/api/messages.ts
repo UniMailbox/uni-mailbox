@@ -96,6 +96,11 @@ const messageErrors = [
   "PROVIDER_CONNECTION_INACTIVE",
 ] as const;
 
+const messageSendErrors = [
+  ...messageErrors,
+  "PARENT_MESSAGE_NOT_FOUND",
+] as const;
+
 export const messageEndpoints = {
   list: defineEndpoint({
     method: "GET",
@@ -171,7 +176,7 @@ export const messageEndpoints = {
         status: z.enum(["queued", "sent"]),
       }),
     },
-    errors: messageErrors,
+    errors: messageSendErrors,
     mediaType: "json",
   }),
   listAttachments: defineEndpoint({
