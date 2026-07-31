@@ -1,6 +1,9 @@
 import i18next, { type i18n, type Resource } from "i18next";
 import enCommon from "./resources/en/common.json";
+import enErrors from "./resources/en/errors.json";
 import zhCNCommon from "./resources/zh-CN/common.json";
+import zhCNErrors from "./resources/zh-CN/errors.json";
+import arXBErrors from "./resources/ar-XB/errors.json";
 import {
   LOCALE_STORAGE_KEY,
   localeMetadata,
@@ -9,8 +12,8 @@ import {
 } from "./locale";
 
 const productionResources = {
-  en: { common: enCommon },
-  "zh-CN": { common: zhCNCommon },
+  en: { common: enCommon, errors: enErrors },
+  "zh-CN": { common: zhCNCommon, errors: zhCNErrors },
 };
 
 function synchronizeDocument(instance: i18n, locale: RuntimeLocale): void {
@@ -32,7 +35,7 @@ export function createI18nInstance(
   testResources?: Resource,
 ): i18n {
   const resources = testResources
-    ? { ...productionResources, "ar-XB": { common: testResources } }
+    ? { ...productionResources, "ar-XB": { common: testResources, errors: arXBErrors } }
     : productionResources;
   const instance = i18next.createInstance();
 
@@ -46,7 +49,7 @@ export function createI18nInstance(
     lng: locale,
     fallbackLng: false,
     defaultNS: "common",
-    ns: ["common"],
+    ns: ["common", "errors"],
     initImmediate: false,
     showSupportNotice: false,
   });

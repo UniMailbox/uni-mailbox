@@ -7,7 +7,8 @@
     "retry": "重试",
     "close": "关闭",
     "save": "保存",
-    "cancel": "取消"
+    "cancel": "取消",
+    "copyRequestId": "复制请求 ID"
   },
   "states": {
     "loading": "正在加载",
