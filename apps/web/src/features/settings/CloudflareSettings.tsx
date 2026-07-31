@@ -192,6 +192,7 @@ export function CloudflareSettings() {
                 <label className="field">
                   <span>{t("cloudflare.accountId")}</span>
                   <input
+                    dir="ltr"
                     onBlur={field.handleBlur}
                     onChange={(event) => field.handleChange(event.target.value)}
                     value={field.state.value}
@@ -204,6 +205,7 @@ export function CloudflareSettings() {
                 <label className="field">
                   <span>{t("cloudflare.zoneId")}</span>
                   <input
+                    dir="ltr"
                     onBlur={field.handleBlur}
                     onChange={(event) => field.handleChange(event.target.value)}
                     value={field.state.value}
@@ -260,6 +262,7 @@ export function CloudflareSettings() {
                 <label className="field">
                   <span>{t("cloudflare.domain")}</span>
                   <input
+                    dir="ltr"
                     onBlur={field.handleBlur}
                     onChange={(event) => field.handleChange(event.target.value)}
                     placeholder="mail.example.com"
@@ -356,6 +359,7 @@ export function CloudflareSettings() {
                         )}
                       </span>
                       <input
+                        dir={name === "label" ? undefined : "ltr"}
                         onBlur={field.handleBlur}
                         onChange={(event) =>
                           field.handleChange(event.target.value)
@@ -410,6 +414,7 @@ export function CloudflareSettings() {
                   <label className="field">
                     <span>{t(`cloudflare.${name}`)}</span>
                     <input
+                      dir="ltr"
                       onBlur={field.handleBlur}
                       onChange={(event) =>
                         field.handleChange(event.target.value)
