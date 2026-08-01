@@ -25,18 +25,18 @@ Do not convert `Blocked` or a narrower passing check into `Passed`.
 
 | Gate | Status | Required evidence |
 | --- | --- | --- |
-| English UI complete | Passed | Fresh English Playwright project: 19/19. |
-| Simplified Chinese UI complete | Passed | Fresh Chinese Playwright project: 19/19. |
+| English UI complete | Passed | Fresh English Playwright project: 20/20. |
+| Simplified Chinese UI complete | Passed | Fresh Chinese Playwright project: 20/20. |
 | Language preference | Passed | Context initialization, reload, and actual logout/login E2E evidence. |
 | Error localization | Passed | Known/unknown/request-ID unit and fresh browser evidence. |
 | TanStack Router | Passed | Route tests, legacy routing scan, and fresh browser guards. |
 | TanStack Query service model | Passed | Feature API tests and enforcement passed. |
 | Endpoint contracts | Passed | Contract/client tests and enforcement passed. |
 | TanStack Form | Passed | Form tests and source/dependency enforcement passed. |
-| RTL foundations | Passed | Fresh desktop/mobile pseudo-RTL E2E: 4/4. |
+| RTL foundations | Passed | Fresh desktop/mobile pseudo-RTL E2E: 6/6. |
 | Compose preservation | Passed | Focused unit and fresh browser regression suite. |
-| Accessibility | Passed | Role/name assertions plus EN/RTL keyboard visual evidence. |
-| Full repository gates | Passed | Exact command log, including a fresh 42/42 browser matrix. |
+| Accessibility | Passed | Role/name assertions plus executable EN/zh/RTL keyboard E2E and visual evidence. |
+| Full repository gates | Passed | Exact command log, including a fresh 46/46 browser matrix. |
 | User-change preservation | Passed | Clean implementation-worktree baseline and final scope audit recorded. |
 
 ## 1. Locale Runtime
@@ -123,9 +123,9 @@ pnpm exec playwright test --project=zh-CN
 Each critical workflow includes at least one literal assertion in the target
 language so translation-resource drift cannot make both UI and test pass.
 
-Status: `Passed` — 2026-08-01 fresh isolated-server Playwright matrix: 19/19
-`en`, 19/19 `zh-CN`, 2/2 `rtl-desktop`, and 2/2 `rtl-mobile` workflows passed
-(42/42 total). Each matrix row above has direct E2E coverage.
+Status: `Passed` — 2026-08-01 fresh isolated-server Playwright matrix: 20/20
+`en`, 20/20 `zh-CN`, 3/3 `rtl-desktop`, and 3/3 `rtl-mobile` workflows passed
+(46/46 total). Each matrix row above has direct E2E coverage.
 
 ## 4. Router and Guard Semantics
 
@@ -344,9 +344,13 @@ Evidence:
 - Playwright keyboard smoke checks in production locales and RTL mobile.
 - Manual focus-order check recorded below.
 
-Status: `Passed` — role/name assertions passed; [EN](../evidence/frontend-platform/2026-08-01/en-login-focus-order.png)
+Status: `Passed` — role/name assertions passed; new `e2e/login.spec.ts`
+keyboard assertions cover EN and zh-CN, while `e2e/rtl.spec.ts` covers both
+RTL viewports and verifies the email field remains LTR. Each starts from
+`body`, presses `Tab` through wordmark, email, password, and submit, and
+asserts active plus `:focus-visible` state. [EN](../evidence/frontend-platform/2026-08-01/en-login-focus-order.png)
 and [RTL](../evidence/frontend-platform/2026-08-01/rtl-login-focus-order.png)
-keyboard visual checks confirm the complete Tab sequence and visible focus.
+screenshots independently show the same visible sequence.
 
 ## 12. Static Legacy-Pattern Gates
 
@@ -410,7 +414,7 @@ Record:
 | `pnpm typecheck` | 2026-08-01 | Passed | All six typed workspace packages passed. |
 | `pnpm test` | 2026-08-01 | Passed | 56 contracts, 5 config, 12 email-core, 138 web, 202 worker/script, 10 Worker HTTP, 43 integration tests. |
 | `pnpm build` | 2026-08-01 | Passed | All workspace builds passed; Vite emitted the existing large-chunk warning. |
-| `pnpm test:e2e` | 2026-08-01 | Passed | Fresh Vite port 5191 and new browser contexts; Playwright 42/42 passed with one worker in 17.6s. |
+| `pnpm test:e2e` | 2026-08-01 | Passed | Fresh Vite port 5192 and new browser contexts; Playwright 46/46 passed with one worker in 17.9s. |
 | `pnpm audit --prod` | 2026-08-01 | Passed | No known vulnerabilities. |
 | `git diff --check` | 2026-08-01 | Passed | Passed after the acceptance/documentation edits. |
 
