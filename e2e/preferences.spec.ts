@@ -32,7 +32,9 @@ test("authorized administration uses localized navigation", async ({ page, uiLoc
   });
   await page.goto("/admin/users");
   await expect(page.getByRole("heading", { name: uiLocale.copy.users })).toBeVisible();
-  await expect(page.getByText(uiLocale.copy.administration)).toBeVisible();
+  await expect(
+    page.getByText(uiLocale.copy.administration, { exact: true }),
+  ).toBeVisible();
   await page.locator(".create-panel summary").first().click();
   await page.getByLabel(uiLocale.copy.displayName).fill("Operator");
   await page.getByLabel(uiLocale.copy.emailField).fill("operator@example.com");
