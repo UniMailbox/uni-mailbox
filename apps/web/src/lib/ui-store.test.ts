@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useUiStore } from "./ui-store";
 import { TIME_ZONE_STORAGE_KEY } from "../i18n/timezone";
+import {
+  applyThemeColor,
+  DEFAULT_THEME_COLOR,
+  THEME_COLOR_STORAGE_KEY,
+} from "./theme";
 
 describe("ui-store", () => {
   beforeEach(() => {
@@ -10,8 +15,10 @@ describe("ui-store", () => {
       composeOpen: false,
       composeIntent: null,
       sidebarOpen: false,
+      themeColor: DEFAULT_THEME_COLOR,
       timeZone: "UTC",
     });
+    applyThemeColor(DEFAULT_THEME_COLOR);
   });
 
   it("updates the selected mailbox id and persists it", () => {
@@ -54,5 +61,17 @@ describe("ui-store", () => {
     expect(window.localStorage.getItem(TIME_ZONE_STORAGE_KEY)).toBe(
       "Asia/Singapore",
     );
+  });
+
+  it("updates, applies, and persists the selected theme color", () => {
+    useUiStore.getState().setThemeColor("#2563EB");
+
+    expect(useUiStore.getState().themeColor).toBe("#2563eb");
+    expect(window.localStorage.getItem(THEME_COLOR_STORAGE_KEY)).toBe(
+      "#2563eb",
+    );
+    expect(
+      document.documentElement.style.getPropertyValue("--theme-color"),
+    ).toBe("#2563eb");
   });
 });

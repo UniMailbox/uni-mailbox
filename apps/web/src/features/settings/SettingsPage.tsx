@@ -3,8 +3,8 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
   KeyRound,
-  Languages,
   MailPlus,
+  Palette,
   ShieldCheck,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -19,6 +19,7 @@ import { ErrorState, LoadingState } from "../../components/Status";
 import { BidiText } from "../../components/BidiText";
 import { FieldError, FormRoot, useAppForm } from "../../lib/form/app-form";
 import { endSession } from "../../lib/session";
+import { DEFAULT_THEME_COLOR } from "../../lib/theme";
 import { useUiStore } from "../../lib/ui-store";
 import { supportedTimeZones } from "../../i18n/timezone";
 import { mailboxesQueryOptions } from "../mail/api";
@@ -163,7 +164,9 @@ function MailboxMembers({ mailboxId }: { mailboxId: string }) {
 
 function Preferences() {
   const { t, i18n } = useTranslation("settings");
+  const themeColor = useUiStore((state) => state.themeColor);
   const timeZone = useUiStore((state) => state.timeZone);
+  const setThemeColor = useUiStore((state) => state.setThemeColor);
   const setTimeZone = useUiStore((state) => state.setTimeZone);
   return (
     <section className="settings-card vertical">
@@ -195,6 +198,31 @@ function Preferences() {
         </select>
         <small>{t("preferences.timeZoneDescription")}</small>
       </label>
+      <div className="field theme-color-field">
+        <label htmlFor="settings-theme-color">
+          {t("preferences.themeColor")}
+        </label>
+        <div className="theme-color-control">
+          <input
+            aria-label={t("preferences.themeColor")}
+            id="settings-theme-color"
+            onChange={(event) => setThemeColor(event.target.value)}
+            type="color"
+            value={themeColor}
+          />
+          <output htmlFor="settings-theme-color">
+            {themeColor.toUpperCase()}
+          </output>
+          <button
+            className="text-button"
+            onClick={() => setThemeColor(DEFAULT_THEME_COLOR)}
+            type="button"
+          >
+            {t("preferences.resetThemeColor")}
+          </button>
+        </div>
+        <small>{t("preferences.themeColorDescription")}</small>
+      </div>
     </section>
   );
 }
@@ -246,7 +274,7 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
     {
       section: "preferences",
       to: "/settings/preferences",
-      icon: <Languages />,
+      icon: <Palette />,
     },
   ];
   return (

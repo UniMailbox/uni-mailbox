@@ -37,6 +37,19 @@ test("project locale initializes per context and preserves user choice after rel
       page.evaluate(() => localStorage.getItem("unimailbox.time-zone")),
     )
     .toBe("Asia/Singapore");
+  await page.getByLabel(uiLocale.copy.themeColor).fill("#2563eb");
+  await expect
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem("unimailbox.theme-color")),
+    )
+    .toBe("#2563eb");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        document.documentElement.style.getPropertyValue("--theme-color"),
+      ),
+    )
+    .toBe("#2563eb");
   await page
     .getByLabel(uiLocale.copy.language)
     .selectOption(uiLocale.code === "en" ? "zh-CN" : "en");
@@ -52,6 +65,18 @@ test("project locale initializes per context and preserves user choice after rel
       page.evaluate(() => localStorage.getItem("unimailbox.time-zone")),
     )
     .toBe("Asia/Singapore");
+  await expect
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem("unimailbox.theme-color")),
+    )
+    .toBe("#2563eb");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        document.documentElement.style.getPropertyValue("--theme-color"),
+      ),
+    )
+    .toBe("#2563eb");
 });
 
 test("message timestamps use the selected time zone", async ({

@@ -6,8 +6,10 @@ import { I18nextProvider } from "react-i18next";
 import { createAppQueryClient } from "./app/query-client";
 import { createAppRouter } from "./app/router";
 import { initializeI18n } from "./i18n";
+import { initializeThemeColor } from "./lib/theme";
 import "./styles.css";
 
+initializeThemeColor();
 const queryClient = createAppQueryClient();
 const router = createAppRouter({ queryClient });
 
