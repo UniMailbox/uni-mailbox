@@ -21,7 +21,9 @@ repository** flow with the same root build and binding declarations.
   attachments larger than 25 MiB.
 - Durable outbound jobs and a Queue consumer with retry and lock recovery.
 - Provider-neutral adapters with Brevo as the first provider.
-- A responsive React mail workspace and authenticated administrator control plane.
+- A responsive React mail workspace and authenticated administrator control plane
+  with typed endpoint contracts, TanStack Router/Query/Form ownership, and
+  English/Simplified Chinese localization with RTL test coverage.
 - A migration/release CLI, CI dry-run gate, and production recovery runbooks.
 
 ## Repository layout
@@ -79,6 +81,8 @@ pnpm typecheck
 pnpm schema:check
 pnpm test
 pnpm test:coverage
+pnpm i18n:check
+pnpm frontend:contracts
 pnpm test:e2e
 pnpm build
 pnpm deploy:dry-run

@@ -14,6 +14,8 @@
     "build": "pnpm -r --if-present build",
     "format:check": "prettier --check .",
     "lint": "eslint .",
+    "i18n:check": "node scripts/i18n-check.mjs",
+    "frontend:contracts": "node scripts/frontend-contract-check.mjs",
     "typecheck": "pnpm -r --if-present typecheck",
     "schema:check": "pnpm --filter @unimailbox/worker exec drizzle-kit check --config ../../drizzle.config.ts",
     "test": "pnpm test:unit && pnpm test:worker && pnpm test:integration",

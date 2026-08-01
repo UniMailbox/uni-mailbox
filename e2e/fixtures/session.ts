@@ -1,36 +1,18 @@
-import {
-  ADMINISTRATOR_PERMISSIONS,
-  MEMBER_PERMISSIONS,
-  type SessionProfile,
-} from "../../packages/contracts/src";
-import { ADMIN_EMAIL, MEMBER_EMAIL } from "./ids";
+import type { SessionProfile } from "../../packages/contracts/src/api/auth";
+import type { PermissionKey } from "../../packages/contracts/src/domain";
 
-/**
- * Session factories that mirror the Worker contract.
- *
- * Permissions come from `@unimailbox/contracts` so the test cannot drift from
- * the real permission set: a new permission added to the package is reflected
- * here automatically; one removed from a member default causes a typed
- * failure.
- */
-export function memberSession(
-  overrides: Partial<SessionProfile> = {},
-): SessionProfile {
-  return {
-    userId: "user-member-1",
-    email: MEMBER_EMAIL,
-    permissions: [...MEMBER_PERMISSIONS],
-    ...overrides,
-  };
-}
+export const anonymousSessionError = {
+  error: {
+    code: "AUTH_REQUIRED",
+    message: "Authentication required",
+    requestId: "e2e-anonymous-session",
+  },
+};
 
-export function adminSession(
-  overrides: Partial<SessionProfile> = {},
-): SessionProfile {
+export function sessionProfile(permissions: PermissionKey[]): SessionProfile {
   return {
-    userId: "user-admin-1",
-    email: ADMIN_EMAIL,
-    permissions: [...ADMINISTRATOR_PERMISSIONS],
-    ...overrides,
+    userId: "operator-1",
+    email: "operator@example.com",
+    permissions,
   };
 }
