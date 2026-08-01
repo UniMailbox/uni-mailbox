@@ -254,12 +254,27 @@ svg {
   font-size: 13px;
 }
 .state-card .button {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 .error-state {
   border-color: #dfb4af;
   color: var(--danger);
   background: #fff5f3;
+}
+/* Full-page wrapper for a route the guard refused to render. Without a page
+   container these cards would sit flush against the viewport edge, because no
+   dashboard shell is mounted around them. */
+.state-page {
+  display: grid;
+  place-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+.state-page .state-card {
+  max-width: 520px;
+}
+.state-page code {
+  font: 12px/1.65 var(--mono);
 }
 .success-note {
   border-color: #a6d4b8;
@@ -322,9 +337,8 @@ svg {
 }
 .signal-copy {
   position: absolute;
-  right: 50px;
   bottom: 50px;
-  left: 50px;
+  inset-inline: 50px;
   padding-top: 20px;
   border-top: 1px solid #53756a;
 }
@@ -396,7 +410,7 @@ svg {
 }
 .sidebar-close {
   display: none;
-  margin-left: auto;
+  margin-inline-start: auto;
   color: white;
   background: transparent;
   font-size: 28px;
@@ -441,7 +455,7 @@ svg {
 }
 .mail-sidebar nav a.active::before {
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   width: 3px;
   height: 26px;
   content: "";
@@ -519,20 +533,21 @@ svg {
 .search-field svg {
   position: absolute;
   width: 17px;
-  margin-left: 14px;
+  margin-inline-start: 14px;
   color: #7b8780;
 }
 .search-field input {
-  padding: 0 55px 0 42px;
+  padding-block: 0;
+  padding-inline: 42px 55px;
   background: #f4f5f0;
 }
 .search-field kbd {
-  margin-left: -45px;
+  margin-inline-start: -45px;
   color: #7a847f;
   font: 10px var(--mono);
 }
 .mail-topbar > .icon-button {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 .operator-avatar {
   display: grid;
@@ -567,13 +582,13 @@ svg {
 }
 .mailbox-select > svg:first-child {
   position: absolute;
-  left: 13px;
+  inset-inline-start: 13px;
   z-index: 1;
   width: 17px;
 }
 .mailbox-select > svg:last-child {
   position: absolute;
-  right: 12px;
+  inset-inline-end: 12px;
   width: 15px;
   pointer-events: none;
 }
@@ -611,7 +626,7 @@ svg {
 }
 .message-list article.unread::before {
   position: absolute;
-  left: calc(246px + clamp(26px, 4vw, 52px));
+  inset-inline-start: calc(246px + clamp(26px, 4vw, 52px));
   width: 3px;
   height: 36px;
   content: "";
@@ -681,7 +696,7 @@ svg {
 .message-link time {
   color: #78827c;
   font: 10px var(--mono);
-  text-align: right;
+  text-align: end;
 }
 .empty-mail,
 .empty-admin {
@@ -713,7 +728,7 @@ svg {
 .compose-panel {
   position: fixed;
   z-index: 50;
-  right: 28px;
+  inset-inline-end: 28px;
   bottom: 0;
   width: min(620px, calc(100vw - 40px));
   border: 1px solid #325147;
@@ -769,7 +784,7 @@ svg {
 .recipient-details summary {
   padding: 11px 18px;
   cursor: pointer;
-  text-align: right;
+  text-align: end;
 }
 .editor-toolbar {
   display: flex;
@@ -817,7 +832,7 @@ svg {
   line-height: 1.7;
 }
 .message-editor .tiptap p.is-editor-empty:first-child::before {
-  float: left;
+  float: inline-start;
   height: 0;
   color: #a5ada8;
   content: attr(data-placeholder);
@@ -834,7 +849,7 @@ svg {
 .compose-actions {
   display: flex;
   gap: 8px;
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 .compose-meta {
   display: grid;
@@ -938,7 +953,7 @@ svg {
   padding: 13px;
   border: 1px solid var(--line);
   background: white;
-  text-align: left;
+  text-align: start;
 }
 .attachment-row svg {
   width: 18px;
@@ -1071,7 +1086,7 @@ svg {
   background: #f6f7f3;
   font: 9px var(--mono);
   letter-spacing: 0.07em;
-  text-align: left;
+  text-align: start;
   text-transform: uppercase;
 }
 .data-table th,
@@ -1314,7 +1329,7 @@ svg {
   gap: 7px;
   padding: 15px;
   margin-bottom: 16px;
-  border-left: 3px solid #5f987c;
+  border-inline-start: 3px solid #5f987c;
   background: #f1f6f1;
   color: #55645c;
   font-size: 12px;
@@ -1339,6 +1354,10 @@ svg {
 }
 .dashboard-link svg {
   width: 15px;
+}
+
+[dir="rtl"] .directional-icon {
+  transform: scaleX(-1);
 }
 .account-security-grid {
   display: grid;
@@ -1408,7 +1427,7 @@ svg {
   color: var(--danger);
 }
 .storage-card {
-  border-left: 4px solid #5f987c;
+  border-inline-start: 4px solid #5f987c;
 }
 .simple-list {
   display: grid;
@@ -1484,7 +1503,8 @@ svg {
   }
   .mail-sidebar {
     position: fixed;
-    inset: 0 auto 0 0;
+    inset-block: 0;
+    inset-inline-start: 0;
     width: 270px;
     transform: translateX(-100%);
     transition: transform 0.2s ease;
@@ -1493,12 +1513,19 @@ svg {
     transform: translateX(0);
     box-shadow: 20px 0 60px rgba(0, 0, 0, 0.25);
   }
+  [dir="rtl"] .mail-sidebar {
+    transform: translateX(100%);
+  }
+  [dir="rtl"] .mail-sidebar.open {
+    transform: translateX(0);
+    box-shadow: -20px 0 60px rgba(0, 0, 0, 0.25);
+  }
   .sidebar-close,
   .mobile-menu {
     display: grid;
   }
   .message-list article.unread::before {
-    left: clamp(26px, 4vw, 52px);
+    inset-inline-start: clamp(26px, 4vw, 52px);
   }
   .message-link {
     grid-template-columns: minmax(120px, 30%) 1fr 60px;
@@ -1557,7 +1584,7 @@ svg {
     padding: 11px 12px;
   }
   .message-list article.unread::before {
-    left: 14px;
+    inset-inline-start: 14px;
   }
   .sender-avatar {
     display: none;
@@ -1577,7 +1604,7 @@ svg {
     grid-row: 1;
   }
   .compose-panel {
-    right: 0;
+    inset-inline-end: 0;
     width: 100vw;
   }
   .message-sheet {

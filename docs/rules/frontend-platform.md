@@ -29,15 +29,15 @@ Enforcement:
 
 Each state value must have exactly one owner:
 
-| State | Owner |
-| --- | --- |
-| Path, params, search, navigation, route guard result | TanStack Router |
-| Remote records, loading, retries, cache, server errors | TanStack Query |
-| Field values, field errors, submit/reset lifecycle | TanStack Form |
-| Product copy, locale, plurals, formatting locale | i18next |
-| Composer visibility and transient UI intent | Zustand |
-| Offline working drafts | Dexie |
-| HTTP method/path/request/response/error shape | `@unimailbox/contracts` |
+| State                                                  | Owner                   |
+| ------------------------------------------------------ | ----------------------- |
+| Path, params, search, navigation, route guard result   | TanStack Router         |
+| Remote records, loading, retries, cache, server errors | TanStack Query          |
+| Field values, field errors, submit/reset lifecycle     | TanStack Form           |
+| Product copy, locale, plurals, formatting locale       | i18next                 |
+| Composer visibility and transient UI intent            | Zustand                 |
+| Offline working drafts                                 | Dexie                   |
+| HTTP method/path/request/response/error shape          | `@unimailbox/contracts` |
 
 Prohibited:
 
@@ -136,8 +136,10 @@ Additional rules:
   semantics explicitly.
 - Internal domain/event models with `Date`, `ArrayBuffer`, or provider adapters
   are not HTTP wire DTOs.
-- Temporary compatibility accepts legacy `details`; new behavior prefers typed
-  `params`.
+- The transport alone accepts the current `{ data }`, `{ error }`, and legacy
+  `details` envelopes while the Worker migration is pending. Feature code uses
+  only indexed endpoint contracts; deprecated generic request helpers are not
+  available.
 
 Prohibited:
 

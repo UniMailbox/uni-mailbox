@@ -1,0 +1,18 @@
+{
+  "meta": {
+    "title": "UniMailbox",
+    "description": "安全、私有的邮件工作区"
+  },
+  "actions": {
+    "retry": "重试",
+    "close": "关闭",
+    "save": "保存",
+    "cancel": "取消",
+    "copyRequestId": "复制请求 ID"
+  },
+  "states": {
+    "loading": "正在加载",
+    "requestFailed": "该请求未完成",
+    "tryAgain": "请再试一次。"
+  }
+}
