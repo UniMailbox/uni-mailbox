@@ -1,7 +1,33 @@
 import { expect, test } from "./fixtures/locale";
+import { expectKeyboardFocusSequence } from "./fixtures/keyboard";
 import { messageDetailFixture, messageId } from "./fixtures/message-detail";
+import { anonymousSessionError } from "./fixtures/session";
 
 const mailboxId = "11111111-1111-4111-8111-111111111111";
+
+test("pseudo RTL keyboard-only login focus sequence", async ({ page }) => {
+  await page.route("**/api/v1/**", async (route) => {
+    if (route.request().url().endsWith("/auth/session")) {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 401,
+        body: JSON.stringify(anonymousSessionError),
+      });
+      return;
+    }
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: [] }) });
+  });
+  await page.goto("/login");
+
+  const email = page.locator('input[type="email"]');
+  await expect(email).toHaveAttribute("dir", "ltr");
+  await expectKeyboardFocusSequence(page, [
+    page.getByRole("link", { name: /UniMailbox/u }),
+    email,
+    page.locator('input[type="password"]'),
+    page.locator('button[type="submit"]'),
+  ]);
+});
 
 test("pseudo RTL keeps layout, directional controls, and technical values readable", async ({ page }) => {
   await page.route("**/api/v1/**", (route) => {
