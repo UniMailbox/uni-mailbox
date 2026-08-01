@@ -291,7 +291,7 @@ pnpm exec playwright test --project=en e2e/inbox.spec.ts
 pnpm exec playwright test --project=zh-CN e2e/inbox.spec.ts
 ```
 
-Status: `Passed` — focused Compose suite passed (16 tests, including current
+Status: `Passed` — focused Compose suite passed (17 tests, including current
 `if-match`); the fresh browser Compose save/send workflow passed in both
 production locales.
 
@@ -413,7 +413,7 @@ Record:
 | `pnpm i18n:check` | 2026-08-01 | Passed | Resource parity passed. |
 | `pnpm frontend:contracts` | 2026-08-01 | Passed | Contract enforcement passed. |
 | `pnpm typecheck` | 2026-08-01 | Passed | All six typed workspace packages passed. |
-| `pnpm test` | 2026-08-01 | Passed | 56 contracts, 5 config, 12 email-core, 138 web, 202 worker/script, 10 Worker HTTP, 43 integration tests. |
+| `pnpm test` | 2026-08-01 | Passed | 56 contracts, 5 config, 12 email-core, 142 web, 203 worker/script, 10 Worker HTTP, 43 integration tests. |
 | `pnpm build` | 2026-08-01 | Passed | All workspace builds passed; Vite emitted the existing large-chunk warning. |
 | `pnpm test:e2e` | 2026-08-01 | Passed | Fresh Vite port 5194 and new browser contexts; Playwright 50/50 passed with one worker in 18.1s. |
 | `pnpm audit --prod` | 2026-08-01 | Passed | No known vulnerabilities. |
