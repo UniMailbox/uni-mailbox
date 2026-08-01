@@ -1049,6 +1049,16 @@ svg {
 .surface-heading small {
   color: var(--muted);
 }
+.surface-heading .surface-actions {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.surface-actions .button {
+  min-height: 38px;
+  padding-inline: 13px;
+  font-size: 12px;
+}
 .status-pill {
   padding: 4px 7px;
   border-radius: 50px;
@@ -1098,23 +1108,146 @@ svg {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.create-panel {
-  margin-top: 20px;
-  border: 1px solid var(--line);
+.data-table th.table-actions-heading,
+.data-table td.table-actions {
+  position: sticky;
+  inset-inline-end: 0;
+  width: 1%;
+  min-width: 132px;
   background: white;
 }
-.create-panel summary {
-  padding: 18px 20px;
-  cursor: pointer;
-  font-weight: 650;
+.data-table th.table-actions-heading {
+  z-index: 1;
+  background: #f6f7f3;
 }
-.create-panel form {
+.table-actions {
+  display: flex;
+  gap: 6px;
+}
+.table-action {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid #d1d8d2;
+  border-radius: 3px;
+  color: #355d4e;
+  background: #f8faf7;
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.table-action:hover {
+  border-color: #8ba498;
+  background: #eef5ef;
+  transform: translateY(-1px);
+}
+.table-action:active {
+  transform: translateY(1px);
+}
+.table-action.danger {
+  color: var(--danger);
+}
+.table-action svg {
+  width: 15px;
+  height: 15px;
+}
+.admin-dialog-backdrop {
+  position: fixed;
+  z-index: 30;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
-  gap: 14px;
-  align-items: end;
-  padding: 20px;
+  padding: 24px;
+  overflow-y: auto;
+  background: rgba(10, 29, 23, 0.58);
+  inset: 0;
+  place-items: center;
+  backdrop-filter: blur(4px);
+}
+.admin-dialog {
+  width: min(640px, 100%);
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  border: 1px solid #b9c5bd;
+  border-radius: 5px;
+  background: var(--paper);
+  box-shadow: 0 24px 70px rgba(13, 44, 36, 0.3);
+}
+.admin-dialog.danger {
+  border-top: 4px solid var(--danger);
+}
+.admin-dialog > header {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(248, 247, 241, 0.96);
+  backdrop-filter: blur(12px);
+}
+.admin-dialog > header h2 {
+  margin-top: 5px;
+  font-size: 25px;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+.admin-dialog-body {
+  padding: 24px;
+}
+.admin-action-form {
+  display: grid;
+  gap: 17px;
+}
+.admin-dialog-footer {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  padding-top: 6px;
+}
+.record-details {
+  display: grid;
+  gap: 0;
+  margin: 0 0 18px;
   border-top: 1px solid var(--line);
+}
+.record-details > div {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.38fr) minmax(0, 1fr);
+  gap: 18px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+}
+.record-details dt {
+  color: var(--muted);
+  font: 10px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.record-details dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.delete-confirmation {
+  display: grid;
+  gap: 17px;
+}
+.delete-confirmation > p {
+  max-width: 54ch;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.delete-confirmation > strong {
+  padding: 14px;
+  border-inline-start: 3px solid var(--danger);
+  color: #6f241f;
+  background: #faece9;
+  font: 13px var(--mono);
 }
 .admin-editor {
   padding: 24px 20px;
@@ -1563,9 +1696,6 @@ svg {
   .back-link {
     margin-top: 16px;
   }
-  .create-panel form {
-    grid-template-columns: 1fr 1fr;
-  }
 }
 
 @media (max-width: 620px) {
@@ -1654,12 +1784,36 @@ svg {
   .surface-heading small {
     display: none;
   }
-  .create-panel form,
   .settings-grid,
   .configuration-grid,
   .account-security-grid,
   .configuration-form.three-column {
     grid-template-columns: 1fr;
+  }
+  .surface-heading .surface-actions small {
+    display: none;
+  }
+  .surface-heading {
+    gap: 12px;
+  }
+  .surface-actions .button {
+    padding-inline: 10px;
+  }
+  .admin-dialog-backdrop {
+    padding: 10px;
+    place-items: end center;
+  }
+  .admin-dialog {
+    width: 100%;
+    max-height: calc(100dvh - 20px);
+  }
+  .admin-dialog > header,
+  .admin-dialog-body {
+    padding-inline: 18px;
+  }
+  .record-details > div {
+    grid-template-columns: 1fr;
+    gap: 6px;
   }
   .settings-page {
     padding: 25px 14px;

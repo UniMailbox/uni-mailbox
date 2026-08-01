@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { describe, expect, it, vi } from "vitest";
 import { createTestI18n } from "../../i18n/test-instance";
@@ -30,6 +30,8 @@ describe("AdminPage bidi inputs", () => {
       </I18nextProvider>,
     );
 
+    fireEvent.click(container.querySelector(".surface-actions button")!);
+
     expect(document.documentElement).toHaveAttribute("dir", "rtl");
     expect(container.querySelector("input#email")).toHaveAttribute(
       "dir",
@@ -59,6 +61,9 @@ describe("AdminPage bidi inputs", () => {
         </QueryClientProvider>
       </I18nextProvider>,
     );
+    fireEvent.click(
+      domains.container.querySelector(".surface-actions button")!,
+    );
     expect(domains.container.querySelector("input#name")).toHaveAttribute(
       "dir",
       "ltr",
@@ -78,8 +83,62 @@ describe("AdminPage bidi inputs", () => {
         </QueryClientProvider>
       </I18nextProvider>,
     );
+    fireEvent.click(roles.container.querySelector(".surface-actions button")!);
     expect(roles.container.querySelector("input#name")).not.toHaveAttribute(
       "dir",
     );
+  });
+
+  it("opens view, edit, and delete actions from the selected table row", () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    client.setQueryData(["auth", "session"], {
+      user: { id: "1", email: "admin@example.com" },
+      permissions: ["user.read", "user.manage"],
+    });
+    client.setQueryData(
+      ["admin", "users"],
+      [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          email: "lin@example.com",
+          display_name: "Lin Qiao",
+          status: "active",
+          created_at: "2026-08-01 09:30:00",
+          roles: "operator",
+        },
+      ],
+    );
+    const { container } = render(
+      <I18nextProvider i18n={createTestI18n("en")}>
+        <QueryClientProvider client={client}>
+          <AdminPage resource="users" />
+        </QueryClientProvider>
+      </I18nextProvider>,
+    );
+
+    expect(screen.getByRole("columnheader", { name: "Actions" })).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+    expect(
+      screen.getByRole("dialog", { name: "View Users record" }),
+    ).toHaveTextContent("lin@example.com");
+    fireEvent.click(screen.getAllByRole("button", { name: "Close" })[0]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.getByRole("textbox", { name: "Display name" })).toHaveValue(
+      "Lin Qiao",
+    );
+    expect(
+      screen.queryByRole("textbox", { name: "Record ID" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(
+      screen.getByRole("dialog", { name: "Delete Users record" }),
+    ).toHaveTextContent("lin@example.com");
+    expect(container.querySelectorAll(".create-panel")).toHaveLength(0);
   });
 });

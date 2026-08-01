@@ -106,7 +106,6 @@ describe("Administration", () => {
       </I18nextProvider>,
     );
 
-    fireEvent.click(screen.getByText("Add Domains"));
     fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
       target: { value: "mail.example.com" },
     });
