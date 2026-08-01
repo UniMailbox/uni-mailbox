@@ -1,6 +1,22 @@
 import { expect, test } from "@playwright/test";
+import { adminSession, memberSession } from "./fixtures/session";
+
+const anonymousSession = {
+  error: {
+    code: "AUTH_REQUIRED",
+    message: "Authentication is required",
+    requestId: "test",
+  },
+};
 
 test("legacy setup route sends the operator to login", async ({ page }) => {
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify(anonymousSession),
+    }),
+  );
   await page.goto("/setup");
 
   await expect(
@@ -11,6 +27,13 @@ test("legacy setup route sends the operator to login", async ({ page }) => {
 });
 
 test("login route exposes an accessible credential form", async ({ page }) => {
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify(anonymousSession),
+    }),
+  );
   await page.goto("/login");
   await expect(
     page.getByRole("heading", { name: "Sign in to your mail plane." }),
@@ -32,6 +55,12 @@ test("compose uploads an attachment, saves a server draft, and sends it", async 
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
+    if (path === "/api/v1/auth/session") {
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ data: memberSession() }),
+      });
+    }
     if (path === "/api/v1/mailboxes") {
       return route.fulfill({
         contentType: "application/json",
@@ -152,27 +181,29 @@ test("reply opens a threaded composer with quoted content", async ({
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     const data =
-      path === `/api/v1/messages/${messageId}`
-        ? {
-            id: messageId,
-            mailboxId,
-            from_address: "sender@example.net",
-            subject: "Change window",
-            html_body: "<p>Proceed at 02:00 UTC.</p>",
-            text_body: "Proceed at 02:00 UTC.",
-            recipients: [{ type: "to", address: "ops@example.com" }],
-          }
-        : path.endsWith("/attachments")
-          ? []
-          : path === "/api/v1/mailboxes"
-            ? [
-                {
-                  id: mailboxId,
-                  address: "ops@example.com",
-                  display_name: "Operations",
-                },
-              ]
-            : { items: [], nextCursor: null };
+      path === "/api/v1/auth/session"
+        ? memberSession()
+        : path === `/api/v1/messages/${messageId}`
+          ? {
+              id: messageId,
+              mailboxId,
+              from_address: "sender@example.net",
+              subject: "Change window",
+              html_body: "<p>Proceed at 02:00 UTC.</p>",
+              text_body: "Proceed at 02:00 UTC.",
+              recipients: [{ type: "to", address: "ops@example.com" }],
+            }
+          : path.endsWith("/attachments")
+            ? []
+            : path === "/api/v1/mailboxes"
+              ? [
+                  {
+                    id: mailboxId,
+                    address: "ops@example.com",
+                    display_name: "Operations",
+                  },
+                ]
+              : { items: [], nextCursor: null };
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({ data }),
@@ -196,6 +227,12 @@ test("mailbox sharing assigns an object-level role", async ({ page }) => {
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path === "/api/v1/auth/session") {
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ data: adminSession() }),
+      });
+    }
     if (path === "/api/v1/mailboxes") {
       return route.fulfill({
         contentType: "application/json",

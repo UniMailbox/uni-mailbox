@@ -8,8 +8,9 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { apiRequest, jsonBody, setAccessToken } from "../../lib/api";
+import { apiRequest, jsonBody } from "../../lib/api";
 import { Link, navigate } from "../../lib/navigation";
+import { endSession } from "../../lib/session";
 import { ErrorState, LoadingState } from "../../components/Status";
 import { CloudflareSettings } from "./CloudflareSettings";
 import { StorageSettings } from "./StorageSettings";
@@ -166,7 +167,9 @@ export function SettingsPage({
     enabled: section === "mailboxes",
   });
   const requireNewLogin = () => {
-    setAccessToken(null);
+    // The Worker revokes every refresh session on an email/password change, so
+    // the cached session must go too or the guard would keep this tab "inside".
+    endSession(client);
     navigate("/login");
   };
   const email = useMutation({

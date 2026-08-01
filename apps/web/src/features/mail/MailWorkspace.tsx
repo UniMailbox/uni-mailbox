@@ -21,8 +21,10 @@ import {
   Star,
   Trash2,
 } from "lucide-react";
-import { apiRequest, setAccessToken } from "../../lib/api";
+import { canOpenAdminConsole } from "@unimailbox/contracts";
+import { apiRequest } from "../../lib/api";
 import { Link, navigate } from "../../lib/navigation";
+import { endSession, useSession } from "../../lib/session";
 import { useUiStore } from "../../lib/ui-store";
 import { ErrorState, LoadingState } from "../../components/Status";
 
@@ -114,6 +116,12 @@ export function MailWorkspace({
     queryKey: ["mailboxes"],
     queryFn: () => apiRequest<Mailbox[]>("/mailboxes"),
   });
+  // `RequireSession` has already resolved this query before the workspace
+  // mounts, so this reads from cache rather than issuing a second request.
+  const session = useSession();
+  const adminConsoleAvailable = canOpenAdminConsole(
+    session.data?.permissions ?? [],
+  );
   const activeMailboxId =
     routeMailboxId ?? selectedMailboxId ?? mailboxes.data?.[0]?.id ?? null;
 
@@ -156,8 +164,10 @@ export function MailWorkspace({
   });
   const logout = useMutation({
     mutationFn: () => apiRequest("/auth/logout", { method: "POST" }),
+    // `onSettled`, not `onSuccess`: if the logout call itself fails we still
+    // want the local session gone rather than a half-signed-out tab.
     onSettled: () => {
-      setAccessToken(null);
+      endSession(queryClient);
       navigate("/login");
     },
   });
@@ -228,9 +238,13 @@ export function MailWorkspace({
           <Link to="/settings/mailboxes">
             <Settings /> <span>Settings</span>
           </Link>
-          <Link to="/admin/users">
-            <Shield /> <span>Administration</span>
-          </Link>
+          {/* Hidden rather than disabled: a member has no console permissions
+              at all, so the entry point would only ever lead to a denial. */}
+          {adminConsoleAvailable ? (
+            <Link to="/admin/users">
+              <Shield /> <span>Administration</span>
+            </Link>
+          ) : null}
         </nav>
         <footer>
           <span className="system-pulse" />

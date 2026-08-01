@@ -23,21 +23,21 @@ Do not convert `Blocked` or a narrower passing check into `Passed`.
 
 ## Completion Summary
 
-| Gate | Status | Required evidence |
-| --- | --- | --- |
-| English UI complete | Pending | English Playwright project and literal assertions |
-| Simplified Chinese UI complete | Pending | Chinese Playwright project and literal assertions |
-| Language preference | Pending | Unit and E2E persistence evidence |
-| Error localization | Pending | Known/unknown/request-ID unit and browser evidence |
-| TanStack Router | Pending | Route tests, legacy routing scan, browser history E2E |
-| TanStack Query service model | Pending | Key/invalidation tests and component source scan |
-| Endpoint contracts | Pending | Contract tests, client tests, enforcement script |
-| TanStack Form | Pending | Form tests and dependency/source scan |
-| RTL foundations | Pending | Desktop/mobile pseudo-RTL E2E |
-| Compose preservation | Pending | Focused unit and browser regression suite |
-| Accessibility | Pending | Role-based tests and locale-aware browser selectors |
-| Full repository gates | Pending | Exact command log |
-| User-change preservation | Pending | Baseline and final diff audit |
+| Gate                           | Status  | Required evidence                                     |
+| ------------------------------ | ------- | ----------------------------------------------------- |
+| English UI complete            | Pending | English Playwright project and literal assertions     |
+| Simplified Chinese UI complete | Pending | Chinese Playwright project and literal assertions     |
+| Language preference            | Pending | Unit and E2E persistence evidence                     |
+| Error localization             | Pending | Known/unknown/request-ID unit and browser evidence    |
+| TanStack Router                | Pending | Route tests, legacy routing scan, browser history E2E |
+| TanStack Query service model   | Pending | Key/invalidation tests and component source scan      |
+| Endpoint contracts             | Pending | Contract tests, client tests, enforcement script      |
+| TanStack Form                  | Pending | Form tests and dependency/source scan                 |
+| RTL foundations                | Pending | Desktop/mobile pseudo-RTL E2E                         |
+| Compose preservation           | Pending | Focused unit and browser regression suite             |
+| Accessibility                  | Pending | Role-based tests and locale-aware browser selectors   |
+| Full repository gates          | Pending | Exact command log                                     |
+| User-change preservation       | Pending | Baseline and final diff audit                         |
 
 ## 1. Locale Runtime
 
@@ -90,27 +90,27 @@ Status: `Pending`
 
 Both production locales must complete:
 
-| Workflow | en | zh-CN |
-| --- | --- | --- |
-| Login screen and validation | Pending | Pending |
-| Safe post-login deep link | Pending | Pending |
-| Inbox list and pagination | Pending | Pending |
-| Folder navigation | Pending | Pending |
-| Star and move message | Pending | Pending |
-| Message detail and attachments | Pending | Pending |
-| New Compose and send | Pending | Pending |
-| Draft restore, save, and send | Pending | Pending |
-| Reply composition | Pending | Pending |
-| Language preference switch | Pending | Pending |
-| Preference after reload | Pending | Pending |
-| Preference across logout/login | Pending | Pending |
-| Account settings | Pending | Pending |
-| Mailbox/member settings | Pending | Pending |
-| Cloudflare settings | Pending | Pending |
-| Storage settings | Pending | Pending |
-| Administration authorized route | Pending | Pending |
-| Administration forbidden route | Pending | Pending |
-| Localized not-found boundary | Pending | Pending |
+| Workflow                               | en      | zh-CN   |
+| -------------------------------------- | ------- | ------- |
+| Login screen and validation            | Pending | Pending |
+| Safe post-login deep link              | Pending | Pending |
+| Inbox list and pagination              | Pending | Pending |
+| Folder navigation                      | Pending | Pending |
+| Star and move message                  | Pending | Pending |
+| Message detail and attachments         | Pending | Pending |
+| New Compose and send                   | Pending | Pending |
+| Draft restore, save, and send          | Pending | Pending |
+| Reply composition                      | Pending | Pending |
+| Language preference switch             | Pending | Pending |
+| Preference after reload                | Pending | Pending |
+| Preference across logout/login         | Pending | Pending |
+| Account settings                       | Pending | Pending |
+| Mailbox/member settings                | Pending | Pending |
+| Cloudflare settings                    | Pending | Pending |
+| Storage settings                       | Pending | Pending |
+| Administration authorized route        | Pending | Pending |
+| Administration forbidden route         | Pending | Pending |
+| Localized not-found boundary           | Pending | Pending |
 | Localized request error and request ID | Pending | Pending |
 
 Evidence:
@@ -359,18 +359,18 @@ Status: `Pending`
 
 Record evidence for:
 
-| Check | Viewport | Locale | Status | Evidence |
-| --- | --- | --- | --- | --- |
-| Login long copy and validation | Desktop | zh-CN | Pending | |
-| Inbox dense list | Desktop | zh-CN | Pending | |
-| Compose recipients/editor/actions | Desktop | zh-CN | Pending | |
-| Settings tabs and preference | Mobile | zh-CN | Pending | |
-| Admin navigation/table/forms | Desktop | zh-CN | Pending | |
-| Sidebar/composer | Desktop | ar-XB | Pending | |
-| Sidebar/composer | Mobile | ar-XB | Pending | |
-| Mixed email/UUID/error text | Mobile | ar-XB | Pending | |
-| Keyboard focus order | Desktop | en | Pending | |
-| Keyboard focus order | Desktop | ar-XB | Pending | |
+| Check                             | Viewport | Locale | Status  | Evidence |
+| --------------------------------- | -------- | ------ | ------- | -------- |
+| Login long copy and validation    | Desktop  | zh-CN  | Pending |          |
+| Inbox dense list                  | Desktop  | zh-CN  | Pending |          |
+| Compose recipients/editor/actions | Desktop  | zh-CN  | Pending |          |
+| Settings tabs and preference      | Mobile   | zh-CN  | Pending |          |
+| Admin navigation/table/forms      | Desktop  | zh-CN  | Pending |          |
+| Sidebar/composer                  | Desktop  | ar-XB  | Pending |          |
+| Sidebar/composer                  | Mobile   | ar-XB  | Pending |          |
+| Mixed email/UUID/error text       | Mobile   | ar-XB  | Pending |          |
+| Keyboard focus order              | Desktop  | en     | Pending |          |
+| Keyboard focus order              | Desktop  | ar-XB  | Pending |          |
 
 Screenshots must represent the current tested build. Static code inspection is
 not sufficient evidence for this section.
@@ -393,17 +393,17 @@ git diff --check
 
 Record:
 
-| Command | Date/time | Status | Output summary or blocker |
-| --- | --- | --- | --- |
-| `pnpm install --frozen-lockfile` | | Pending | |
-| `pnpm i18n:check` | | Pending | |
-| `pnpm frontend:contracts` | | Pending | |
-| `pnpm typecheck` | | Pending | |
-| `pnpm test` | | Pending | |
-| `pnpm build` | | Pending | |
-| `pnpm test:e2e` | | Pending | |
-| `pnpm audit --prod` | | Pending | |
-| `git diff --check` | | Pending | |
+| Command                          | Date/time | Status  | Output summary or blocker |
+| -------------------------------- | --------- | ------- | ------------------------- |
+| `pnpm install --frozen-lockfile` |           | Pending |                           |
+| `pnpm i18n:check`                |           | Pending |                           |
+| `pnpm frontend:contracts`        |           | Pending |                           |
+| `pnpm typecheck`                 |           | Pending |                           |
+| `pnpm test`                      |           | Pending |                           |
+| `pnpm build`                     |           | Pending |                           |
+| `pnpm test:e2e`                  |           | Pending |                           |
+| `pnpm audit --prod`              |           | Pending |                           |
+| `git diff --check`               |           | Pending |                           |
 
 ## 15. Preservation Audit
 

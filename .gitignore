@@ -11,3 +11,4 @@ playwright-report
 test-results
 *.local
 .worktrees/
+.pnpm-store/

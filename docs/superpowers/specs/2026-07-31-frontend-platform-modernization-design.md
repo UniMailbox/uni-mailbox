@@ -106,17 +106,17 @@ Route or page
 
 Responsibilities are separated as follows:
 
-| Layer | Responsibility |
-| --- | --- |
-| `packages/contracts` | HTTP wire schemas, endpoint metadata, error codes, and safe error parameter schemas |
-| Router | URL state, route parameters, search parameters, authentication and authorization entry guards, pending/error/not-found boundaries |
-| TanStack Query | Remote state, caching, retries, prefetching, invalidation, and server-state errors |
-| TanStack Form | Form values, field state, validation lifecycle, reset, and submission state |
-| Feature service | Endpoint selection, DTO-to-view-model mapping, query/mutation options, and affected cache keys |
-| API transport | Authentication headers, refresh, credentials, decoding, and request ID collection |
-| Zustand | Transient UI-only state such as composer visibility and intent |
-| Dexie | Offline and browser-persistent working draft state |
-| i18next | Product copy, validation text, error text, plurals, and locale selection |
+| Layer                | Responsibility                                                                                                                    |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/contracts` | HTTP wire schemas, endpoint metadata, error codes, and safe error parameter schemas                                               |
+| Router               | URL state, route parameters, search parameters, authentication and authorization entry guards, pending/error/not-found boundaries |
+| TanStack Query       | Remote state, caching, retries, prefetching, invalidation, and server-state errors                                                |
+| TanStack Form        | Form values, field state, validation lifecycle, reset, and submission state                                                       |
+| Feature service      | Endpoint selection, DTO-to-view-model mapping, query/mutation options, and affected cache keys                                    |
+| API transport        | Authentication headers, refresh, credentials, decoding, and request ID collection                                                 |
+| Zustand              | Transient UI-only state such as composer visibility and intent                                                                    |
+| Dexie                | Offline and browser-persistent working draft state                                                                                |
+| i18next              | Product copy, validation text, error text, plurals, and locale selection                                                          |
 
 The design deliberately avoids a generic `BaseService` or repository hierarchy
 in the browser. Each feature exposes small, typed functions and option
