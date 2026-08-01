@@ -17,6 +17,7 @@ import {
 } from "@unimailbox/contracts";
 import { ErrorState, LoadingState, SuccessNote } from "../../components/Status";
 import { BidiText } from "../../components/BidiText";
+import { DomainRoutingGuide } from "../../components/DomainRoutingGuide";
 import { FieldError, FormRoot, useAppForm } from "../../lib/form/app-form";
 import {
   cloudflareDomainMutationOptions,
@@ -278,7 +279,7 @@ export function CloudflareSettings() {
             </Submit>
           </FormRoot>
           {domain.error ? <ErrorState error={domain.error} /> : null}
-          {domain.isSuccess ? (
+          {domain.data?.routingConfiguration.status === "configured" ? (
             <SuccessNote>
               <Trans
                 components={{ name: <BidiText kind="identifier" /> }}
@@ -287,6 +288,13 @@ export function CloudflareSettings() {
                 values={{ name: domain.data.name }}
               />
             </SuccessNote>
+          ) : null}
+          {domain.data?.routingConfiguration.status ===
+          "manual_setup_required" ? (
+            <DomainRoutingGuide
+              dashboardUrl={domain.data.routingConfiguration.dashboardUrl}
+              domainName={domain.data.name}
+            />
           ) : null}
         </section>
         <section className="settings-card vertical">

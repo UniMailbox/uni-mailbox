@@ -22,6 +22,7 @@ import type {
   administrationEndpoints,
 } from "@unimailbox/contracts";
 import { ErrorState, LoadingState, SuccessNote } from "../../components/Status";
+import { DomainRoutingGuide } from "../../components/DomainRoutingGuide";
 import { BidiText } from "../../components/BidiText";
 import {
   FieldError,
@@ -457,7 +458,7 @@ function CreateRolePanel() {
   );
 }
 
-function CreateDomainPanel() {
+export function CreateDomainPanel() {
   const { t } = useTranslation("admin");
   const client = useQueryClient();
   const mutation = useMutation(adminMutationOptions(client).create);
@@ -472,6 +473,10 @@ function CreateDomainPanel() {
       form.reset();
     },
   });
+  const routingConfiguration =
+    mutation.data && "routingConfiguration" in mutation.data
+      ? mutation.data.routingConfiguration
+      : undefined;
   return (
     <details className="create-panel">
       <summary>
@@ -500,6 +505,14 @@ function CreateDomainPanel() {
           )}
         </form.Subscribe>
       </form>
+      {routingConfiguration?.status === "manual_setup_required" &&
+      mutation.data &&
+      "name" in mutation.data ? (
+        <DomainRoutingGuide
+          dashboardUrl={routingConfiguration.dashboardUrl}
+          domainName={mutation.data.name}
+        />
+      ) : null}
     </details>
   );
 }

@@ -1337,6 +1337,23 @@ svg {
 .operator-instruction strong {
   color: var(--ink);
 }
+.domain-routing-guide {
+  margin-top: 16px;
+}
+.domain-routing-guide h3,
+.domain-routing-guide p {
+  margin: 0;
+}
+.domain-routing-guide ol {
+  display: grid;
+  gap: 6px;
+  padding-inline-start: 22px;
+  margin: 5px 0 8px;
+}
+.domain-routing-guide .button {
+  width: fit-content;
+  margin: 4px 0;
+}
 .operator-instruction code,
 .success-note code {
   overflow-wrap: anywhere;

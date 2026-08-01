@@ -296,9 +296,17 @@ const CloudflareDomainResponseSchema = z.object({
   id: UuidSchema,
   name: z.string(),
   expectedRoute: z.string(),
-  cloudflareRouting: z
-    .object({ dns: z.string(), catchAll: z.string() })
-    .optional(),
+  routingConfiguration: z.discriminatedUnion("status", [
+    z.object({
+      status: z.literal("configured"),
+      dns: z.literal("ready"),
+      catchAll: z.literal("unimailbox"),
+    }),
+    z.object({
+      status: z.literal("manual_setup_required"),
+      dashboardUrl: z.string().url(),
+    }),
+  ]),
 });
 const InboundSmokeResponseSchema = z.discriminatedUnion("status", [
   z.object({
@@ -565,8 +573,8 @@ export const administrationEndpoints = {
       headers: IdempotencyHeadersSchema,
       body: AdminCreateSchema.options[1].omit({ resource: true }),
     },
-    responses: { 201: z.object({ id: UuidSchema, name: z.string() }) },
-    errors: [...adminMutationErrors, "DOMAIN_CONFLICT"],
+    responses: { 201: CloudflareDomainResponseSchema },
+    errors: cloudflareDomainErrors,
     mediaType: "json",
   }),
   updateDomain: defineEndpoint({
