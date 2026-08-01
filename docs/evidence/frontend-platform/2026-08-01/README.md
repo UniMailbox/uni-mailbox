@@ -8,8 +8,8 @@ used `agent-browser` to exercise the stated workflow and visually inspected
 each screenshot. They are manual/browser evidence, not static-code claims.
 
 The automated complement is the clean-server Playwright matrix recorded in the
-acceptance plan: 42/42 tests passed with one worker (19 `en`, 19 `zh-CN`, 2
-`rtl-desktop`, and 2 `rtl-mobile`). This includes EN and Chinese browser cases
+acceptance plan: 46/46 tests passed with one worker (20 `en`, 20 `zh-CN`, 3
+`rtl-desktop`, and 3 `rtl-mobile`). This includes EN and Chinese browser cases
 for preference persistence through actual logout/login, account-email
 submission, localized not-found, and localized forbidden boundaries.
 
@@ -33,4 +33,8 @@ submission, localized not-found, and localized forbidden boundaries.
 Both login screenshots were captured after keyboard-only navigation. From the
 initial document focus, press `Tab` four times and observe: wordmark link,
 email input, password input, then submit button. No pointer action is needed
-to reach those controls.
+to reach those controls. The executable counterpart is
+`e2e/login.spec.ts` for EN/zh-CN and `e2e/rtl.spec.ts` for both RTL projects;
+each presses `Tab` from `body`, verifies the active element and
+`:focus-visible` state at every step, and verifies the RTL email input remains
+`dir=ltr`.
