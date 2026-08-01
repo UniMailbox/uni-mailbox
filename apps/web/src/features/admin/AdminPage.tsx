@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
@@ -29,6 +29,9 @@ import type {
 import { ErrorState, LoadingState, SuccessNote } from "../../components/Status";
 import { DomainRoutingGuide } from "../../components/DomainRoutingGuide";
 import { BidiText } from "../../components/BidiText";
+import type { RuntimeLocale } from "../../i18n";
+import { formatTimestamp } from "../../i18n/format";
+import { useUiStore } from "../../lib/ui-store";
 import {
   FieldError,
   useAppFieldContext,
@@ -59,6 +62,16 @@ const navigation: Array<
   ["audit-events", KeyRound],
   ["analytics", Activity],
 ];
+const CloudflareSettings = lazy(() =>
+  import("../settings/CloudflareSettings").then((module) => ({
+    default: module.CloudflareSettings,
+  })),
+);
+const StorageSettings = lazy(() =>
+  import("../settings/StorageSettings").then((module) => ({
+    default: module.StorageSettings,
+  })),
+);
 const columnKeys = [
   "id",
   "email",
@@ -412,7 +425,8 @@ function DataTable({
   onAction: (action: SelectedAdminAction) => void;
   resource: AdminResourceKey;
 }) {
-  const { t } = useTranslation("admin");
+  const { t, i18n } = useTranslation("admin");
+  const timeZone = useUiStore((state) => state.timeZone);
   const rows = Array.isArray(data) ? data : data ? [data] : [];
   const columns = [
     ...new Set(
@@ -440,6 +454,14 @@ function DataTable({
       return t("values.empty");
     if (typeof raw === "boolean")
       return t(raw ? "values.true" : "values.false");
+    if (key === "created_at" && typeof raw === "string")
+      return (
+        formatTimestamp(
+          raw,
+          i18n.resolvedLanguage as RuntimeLocale,
+          timeZone,
+        ) ?? <BidiText kind="identifier">{raw}</BidiText>
+      );
     if (typeof raw === "string" && localizedValues.has(raw))
       return t(`values.${raw}`);
     return <BidiText kind="identifier">{String(raw)}</BidiText>;
@@ -1548,6 +1570,8 @@ export function AdminPage({ resource }: { resource: AdminResourceKey }) {
     setCreateOpen(false);
     setSelectedAction(null);
   }, [resource]);
+  const canManageSettings =
+    resource === "settings" && canAdminWrite("settings", permissions);
   return (
     <div className="admin-app">
       <aside className="admin-sidebar">
@@ -1655,9 +1679,21 @@ export function AdminPage({ resource }: { resource: AdminResourceKey }) {
               ) : null}
               {settings ? (
                 <SettingsEditor
-                  canSave={canAdminWrite("settings", permissions)}
+                  canSave={canManageSettings}
                   settings={settings}
                 />
+              ) : null}
+              {settings && canManageSettings ? (
+                <section className="admin-runtime-settings">
+                  <header>
+                    <h2>{t("runtime.heading")}</h2>
+                    <p>{t("runtime.description")}</p>
+                  </header>
+                  <Suspense fallback={<LoadingState />}>
+                    <CloudflareSettings />
+                    <StorageSettings />
+                  </Suspense>
+                </section>
               ) : null}
             </>
           )}

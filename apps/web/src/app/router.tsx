@@ -189,6 +189,9 @@ const settingsRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: "settings/$section",
   beforeLoad: ({ params }) => {
+    if (params.section === "cloudflare" || params.section === "storage") {
+      throw redirect({ to: "/admin/settings", replace: true });
+    }
     if (!isSettingsSection(params.section)) throw notFound();
   },
   component: SettingsRoute,

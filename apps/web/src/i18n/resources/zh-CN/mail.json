@@ -16,6 +16,12 @@
     "settings": "设置",
     "administration": "管理",
     "signOut": "退出登录",
+    "userMenu": "打开用户菜单",
+    "signedInAs": "当前登录账户",
+    "operator": "用户",
+    "language": "语言",
+    "english": "English",
+    "chinese": "简体中文",
     "activeMailbox": "当前邮箱",
     "search": "搜索邮件",
     "searchPlaceholder": "搜索已加载的邮件"

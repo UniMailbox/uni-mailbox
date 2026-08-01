@@ -16,10 +16,15 @@
   },
   "preferences": {
     "heading": "语言与地区",
-    "description": "选择 UniMailbox 中使用的语言。",
+    "description": "选择 UniMailbox 中使用的语言、时区和主题颜色。",
     "language": "语言",
     "english": "English",
-    "chinese": "简体中文"
+    "chinese": "简体中文",
+    "timeZone": "时区",
+    "timeZoneDescription": "邮件与管理页面中的时间会按此时区显示。",
+    "themeColor": "主题颜色",
+    "themeColorDescription": "界面的强调色和高亮色会基于此颜色生成，并保持文字清晰可读。",
+    "resetThemeColor": "恢复默认"
   },
   "account": {
     "heading": "登录身份",

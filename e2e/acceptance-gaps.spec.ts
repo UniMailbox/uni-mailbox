@@ -66,11 +66,18 @@ test("language preference survives actual logout and login in one context", asyn
     });
   });
 
-  await page.goto("/settings/preferences");
-  await page.getByLabel(uiLocale.copy.language).selectOption(changedLocale);
-  await expect(page.locator("html")).toHaveAttribute("lang", changedLocale);
   await page.goto(`/inbox/${mailboxId}`);
-  await page.locator(".mail-topbar").getByRole("button").last().click();
+  await page.getByLabel(uiLocale.copy.userMenu).click();
+  await page
+    .getByRole("button", {
+      name:
+        changedLocale === "zh-CN"
+          ? uiLocale.copy.chinese
+          : uiLocale.copy.english,
+    })
+    .click();
+  await expect(page.locator("html")).toHaveAttribute("lang", changedLocale);
+  await page.getByRole("button", { name: changedCopy.signOut }).click();
   await expect(page).toHaveURL(/\/login$/u);
 
   await page.getByLabel(changedCopy.email).fill("operator@example.com");

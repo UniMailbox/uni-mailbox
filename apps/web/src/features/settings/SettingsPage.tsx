@@ -2,11 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
-  Cloud,
-  Database,
   KeyRound,
-  Languages,
   MailPlus,
+  Palette,
   ShieldCheck,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -21,9 +19,10 @@ import { ErrorState, LoadingState } from "../../components/Status";
 import { BidiText } from "../../components/BidiText";
 import { FieldError, FormRoot, useAppForm } from "../../lib/form/app-form";
 import { endSession } from "../../lib/session";
+import { DEFAULT_THEME_COLOR } from "../../lib/theme";
+import { useUiStore } from "../../lib/ui-store";
+import { supportedTimeZones } from "../../i18n/timezone";
 import { mailboxesQueryOptions } from "../mail/api";
-import { CloudflareSettings } from "./CloudflareSettings";
-import { StorageSettings } from "./StorageSettings";
 import { type SettingsSection } from "./sections";
 import {
   identityEmailMutationOptions,
@@ -35,6 +34,7 @@ import {
 
 export type { SettingsSection } from "./sections";
 type Member = EndpointResponse<typeof mailboxEndpoints.listMembers>[number];
+const timeZones = supportedTimeZones();
 
 function Submit({
   disabled,
@@ -164,6 +164,10 @@ function MailboxMembers({ mailboxId }: { mailboxId: string }) {
 
 function Preferences() {
   const { t, i18n } = useTranslation("settings");
+  const themeColor = useUiStore((state) => state.themeColor);
+  const timeZone = useUiStore((state) => state.timeZone);
+  const setThemeColor = useUiStore((state) => state.setThemeColor);
+  const setTimeZone = useUiStore((state) => state.setTimeZone);
   return (
     <section className="settings-card vertical">
       <p>{t("preferences.description")}</p>
@@ -178,6 +182,47 @@ function Preferences() {
           <option value="zh-CN">{t("preferences.chinese")}</option>
         </select>
       </label>
+      <label className="field" htmlFor="settings-time-zone">
+        <span>{t("preferences.timeZone")}</span>
+        <select
+          aria-label={t("preferences.timeZone")}
+          id="settings-time-zone"
+          onChange={(event) => setTimeZone(event.target.value)}
+          value={timeZone}
+        >
+          {timeZones.map((value) => (
+            <option key={value} value={value}>
+              {value.replaceAll("_", " ")}
+            </option>
+          ))}
+        </select>
+        <small>{t("preferences.timeZoneDescription")}</small>
+      </label>
+      <div className="field theme-color-field">
+        <label htmlFor="settings-theme-color">
+          {t("preferences.themeColor")}
+        </label>
+        <div className="theme-color-control">
+          <input
+            aria-label={t("preferences.themeColor")}
+            id="settings-theme-color"
+            onChange={(event) => setThemeColor(event.target.value)}
+            type="color"
+            value={themeColor}
+          />
+          <output htmlFor="settings-theme-color">
+            {themeColor.toUpperCase()}
+          </output>
+          <button
+            className="text-button"
+            onClick={() => setThemeColor(DEFAULT_THEME_COLOR)}
+            type="button"
+          >
+            {t("preferences.resetThemeColor")}
+          </button>
+        </div>
+        <small>{t("preferences.themeColorDescription")}</small>
+      </div>
     </section>
   );
 }
@@ -226,12 +271,10 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
   }> = [
     { section: "account", to: "/settings/account", icon: <KeyRound /> },
     { section: "mailboxes", to: "/settings/mailboxes", icon: <MailPlus /> },
-    { section: "cloudflare", to: "/settings/cloudflare", icon: <Cloud /> },
-    { section: "storage", to: "/settings/storage", icon: <Database /> },
     {
       section: "preferences",
       to: "/settings/preferences",
-      icon: <Languages />,
+      icon: <Palette />,
     },
   ];
   return (
@@ -444,10 +487,8 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
             </FormRoot>
           </section>
         </div>
-      ) : section === "cloudflare" ? (
-        <CloudflareSettings />
       ) : (
-        <StorageSettings />
+        <Preferences />
       )}
     </main>
   );

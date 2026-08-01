@@ -160,7 +160,27 @@ test("pseudo RTL keeps request UUIDs LTR-isolated", async ({ page }) => {
           data: {
             userId: "operator-1",
             email: "operator@example.com",
-            permissions: ["settings.manage"],
+            permissions: ["settings.read", "settings.manage"],
+          },
+        }),
+      });
+    if (path.endsWith("/admin/settings"))
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            site_title: "UniMailbox",
+            registration_enabled: 0,
+            invite_required: 1,
+            inbound_enabled: 1,
+            outbound_enabled: 1,
+            unknown_recipient_policy: "reject",
+            max_mailboxes_per_user: 10,
+            max_attachments_per_message: 20,
+            max_attachment_bytes: 25_000_000,
+            sender_blocklist_json: "[]",
+            subject_blocklist_json: "[]",
+            content_blocklist_json: "[]",
           },
         }),
       });
@@ -181,6 +201,6 @@ test("pseudo RTL keeps request UUIDs LTR-isolated", async ({ page }) => {
       body: JSON.stringify({ data: [] }),
     });
   });
-  await page.goto("/settings/storage");
+  await page.goto("/admin/settings");
   await expect(page.locator(".request-id bdi[dir=ltr]")).toHaveText(requestId);
 });
