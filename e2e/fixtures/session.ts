@@ -1,3 +1,6 @@
+import type { SessionProfile } from "../../packages/contracts/src/api/auth";
+import type { PermissionKey } from "../../packages/contracts/src/domain";
+
 export const anonymousSessionError = {
   error: {
     code: "AUTH_REQUIRED",
@@ -6,7 +9,7 @@ export const anonymousSessionError = {
   },
 };
 
-export function sessionProfile(permissions: string[]) {
+export function sessionProfile(permissions: PermissionKey[]): SessionProfile {
   return {
     userId: "operator-1",
     email: "operator@example.com",

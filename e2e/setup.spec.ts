@@ -1,6 +1,7 @@
 import { expect, test } from "./fixtures/locale";
 import {
   composeAttachmentId,
+  composeCreateUploadFixture,
   composeDraftFixture,
   replyMessageFixture,
 } from "./fixtures/mail";
@@ -78,18 +79,11 @@ test("compose uploads an attachment, saves a server draft, and sends it", async 
       });
     }
     if (path === "/api/v1/attachments/uploads") {
+      const upload = composeCreateUploadFixture(route.request().url());
       return route.fulfill({
+        status: upload.status,
         contentType: "application/json",
-        body: JSON.stringify({
-          data: {
-            attachmentId: composeAttachmentId,
-            objectKey: "attachments/runbook.txt",
-            uploadUrl: new URL("/test-upload", route.request().url()).toString(),
-            uploadHeaders: {},
-            expiresAt: "2026-07-27T02:00:00.000Z",
-            transport: "worker-kv-binding",
-          },
-        }),
+        body: JSON.stringify({ data: upload.body }),
       });
     }
     if (path.endsWith("/complete")) {

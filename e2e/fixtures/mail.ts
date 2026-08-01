@@ -9,6 +9,20 @@ export const composeAttachmentFixture = {
   content_id: null,
 };
 
+export function composeCreateUploadFixture(requestUrl: string) {
+  return {
+    status: 201,
+    body: {
+      attachmentId: composeAttachmentId,
+      objectKey: "attachments/runbook.txt",
+      uploadUrl: new URL("/test-upload", requestUrl).toString(),
+      uploadHeaders: {},
+      expiresAt: "2026-07-27T02:00:00.000Z",
+      transport: "worker-kv-binding" as const,
+    },
+  };
+}
+
 export function composeDraftFixture({
   id,
   mailboxId,

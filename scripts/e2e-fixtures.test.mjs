@@ -1,5 +1,7 @@
 import { expect, it } from "vitest";
 import { ApiErrorEnvelopeSchema } from "../packages/contracts/src/api/common/envelope.ts";
+import { attachmentEndpoints } from "../packages/contracts/src/api/attachments.ts";
+import { authEndpoints } from "../packages/contracts/src/api/auth.ts";
 import { draftEndpoints } from "../packages/contracts/src/api/drafts.ts";
 import {
   MessageAttachmentSchema,
@@ -7,11 +9,15 @@ import {
 } from "../packages/contracts/src/api/messages.ts";
 import {
   composeAttachmentFixture,
+  composeCreateUploadFixture,
   composeDraftFixture,
   replyMessageFixture,
 } from "../e2e/fixtures/mail.ts";
 import { seedLocalePreference } from "../e2e/fixtures/locale.ts";
-import { anonymousSessionError } from "../e2e/fixtures/session.ts";
+import {
+  anonymousSessionError,
+  sessionProfile,
+} from "../e2e/fixtures/session.ts";
 
 it("keeps the Compose attachment and draft mocks contract-valid", () => {
   expect(MessageAttachmentSchema.parse(composeAttachmentFixture)).toEqual(
@@ -23,6 +29,14 @@ it("keeps the Compose attachment and draft mocks contract-valid", () => {
     updatedAt: "2026-07-27T01:00:00.000Z",
   });
   expect(draftEndpoints.create.responses[201].parse(draft)).toEqual(draft);
+
+  const upload = composeCreateUploadFixture(
+    "http://127.0.0.1:5186/api/v1/attachments/uploads",
+  );
+  expect(upload.status).toBe(201);
+  expect(attachmentEndpoints.createUpload.responses[201].parse(upload.body)).toEqual(
+    upload.body,
+  );
 });
 
 it("keeps the reply mock contract-valid", () => {
@@ -35,6 +49,8 @@ it("uses a contract-valid anonymous session envelope", () => {
   expect(ApiErrorEnvelopeSchema.parse(anonymousSessionError)).toEqual(
     anonymousSessionError,
   );
+  const profile = sessionProfile(["settings.manage"]);
+  expect(authEndpoints.session.responses[200].parse(profile)).toEqual(profile);
 });
 
 it("seeds a project locale only when a preference does not already exist", () => {
