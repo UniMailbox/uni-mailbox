@@ -116,4 +116,70 @@ describe("CloudflareSettings", () => {
     );
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("directs the operator to configure Email Routing when only the local domain was created", async () => {
+    vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/admin/cloudflare/status")) {
+        return Response.json({ data: [] });
+      }
+      if (
+        url.endsWith("/admin/cloudflare/domains") &&
+        init?.method === "POST"
+      ) {
+        return Response.json(
+          {
+            data: {
+              id: "11111111-1111-4111-8111-111111111111",
+              name: "mail.example.com",
+              expectedRoute: "*@mail.example.com -> unimailbox Worker",
+              routingConfiguration: {
+                status: "manual_setup_required",
+                dashboardUrl:
+                  "https://dash.cloudflare.com/?to=%2Faccount-1%2Femail-service%2Frouting",
+              },
+            },
+          },
+          { status: 201 },
+        );
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    render(
+      <I18nextProvider i18n={createI18nInstance("en")}>
+        <QueryClientProvider
+          client={
+            new QueryClient({
+              defaultOptions: {
+                queries: { retry: false },
+                mutations: { retry: false },
+              },
+            })
+          }
+        >
+          <CloudflareSettings />
+        </QueryClientProvider>
+      </I18nextProvider>,
+    );
+    await screen.findByText("Email Routing domain");
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Managed domain" }), {
+      target: { value: "mail.example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add domain" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Finish setup in Cloudflare",
+      }),
+    ).toBeVisible();
+    expect(screen.getAllByText("mail.example.com")).not.toHaveLength(0);
+    expect(
+      screen.getByRole("link", { name: "Open Email Routing" }),
+    ).toHaveAttribute(
+      "href",
+      "https://dash.cloudflare.com/?to=%2Faccount-1%2Femail-service%2Frouting",
+    );
+    expect(screen.queryByText(/is ready\.$/u)).not.toBeInTheDocument();
+  });
 });

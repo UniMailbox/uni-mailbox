@@ -858,7 +858,7 @@ export function createHttpApp(createContext: HttpContextFactory) {
     return success(
       await context
         .get("appContext")
-        .admin.createDomain(context.get("principal"), input.name),
+        .settings.createDomain(context.get("principal"), input),
       { status: 201 },
     );
   });

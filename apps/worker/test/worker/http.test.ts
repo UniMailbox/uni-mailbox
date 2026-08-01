@@ -176,10 +176,18 @@ describe("Worker HTTP boundary", () => {
   });
 
   it("replays administrator mutations by idempotency key", async () => {
-    const createDomain = vi.fn(async (_principal: unknown, name: string) => ({
-      id: "domain-1",
-      name,
-    }));
+    const createDomain = vi.fn(
+      async (_principal: unknown, input: { name: string }) => ({
+        id: "11111111-1111-4111-8111-111111111111",
+        name: input.name,
+        expectedRoute: `*@${input.name} -> unimailbox Worker`,
+        routingConfiguration: {
+          status: "manual_setup_required" as const,
+          dashboardUrl:
+            "https://dash.cloudflare.com/?to=%2F%3Aaccount%2Femail-service%2Frouting",
+        },
+      }),
+    );
     const completeContext = context({
       installation: {
         getStatus: async () => ({
@@ -196,7 +204,7 @@ describe("Worker HTTP boundary", () => {
           permissions: new Set(["domain.manage"]),
         }),
       },
-      admin: { createDomain } as unknown as HttpAppContext["admin"],
+      settings: { createDomain } as unknown as HttpAppContext["settings"],
     });
     const app = createHttpApp(async () => completeContext);
     const testEnv = {
@@ -225,7 +233,16 @@ describe("Worker HTTP boundary", () => {
     expect(replay.headers.get("x-idempotent-replay")).toBe("1");
     expect(createDomain).toHaveBeenCalledTimes(1);
     await expect(replay.json()).resolves.toEqual({
-      data: { id: "domain-1", name: "mail.example.com" },
+      data: {
+        id: "11111111-1111-4111-8111-111111111111",
+        name: "mail.example.com",
+        expectedRoute: "*@mail.example.com -> unimailbox Worker",
+        routingConfiguration: {
+          status: "manual_setup_required",
+          dashboardUrl:
+            "https://dash.cloudflare.com/?to=%2F%3Aaccount%2Femail-service%2Frouting",
+        },
+      },
     });
   });
 

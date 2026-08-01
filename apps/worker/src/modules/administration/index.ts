@@ -276,17 +276,6 @@ export class AdminApplicationService {
     return result.results;
   }
 
-  async createDomain(principal: Principal, name: string) {
-    assertPermission(principal, "domain.manage");
-    const domain = { id: crypto.randomUUID(), name: name.trim().toLowerCase() };
-    await this.context.env.DB.prepare(
-      "INSERT INTO domains (id, name, status) VALUES (?, ?, 'active')",
-    )
-      .bind(domain.id, domain.name)
-      .run();
-    return domain;
-  }
-
   async updateDomain(
     principal: Principal,
     domainId: string,

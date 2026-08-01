@@ -95,3 +95,116 @@ test("Cloudflare mail configuration is available after login", async ({
     page.getByRole("heading", { name: uiLocale.copy.brevo }),
   ).toBeVisible();
 });
+
+test("a locally added domain leads the operator to Cloudflare Email Routing", async ({
+  page,
+  uiLocale,
+}) => {
+  await page.route("**/api/v1/auth/session", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          userId: "user-admin-1",
+          email: "admin@example.com",
+          permissions: ["settings.manage"],
+        },
+      }),
+    });
+  });
+  await page.route("**/api/v1/admin/cloudflare/status", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: [] }),
+    });
+  });
+  await page.route("**/api/v1/admin/cloudflare/domains", async (route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          id: "11111111-1111-4111-8111-111111111111",
+          name: "mail.example.com",
+          expectedRoute: "*@mail.example.com -> unimailbox Worker",
+          routingConfiguration: {
+            status: "manual_setup_required",
+            dashboardUrl:
+              "https://dash.cloudflare.com/?to=%2Faccount-1%2Femail-service%2Frouting",
+          },
+        },
+      }),
+    });
+  });
+  await page.goto("/settings/cloudflare");
+
+  await page
+    .getByRole("textbox", { name: /Managed domain|受管域名/u })
+    .fill("mail.example.com");
+  await page.getByRole("button", { name: /Add domain|添加域名/u }).click();
+
+  await expect(
+    page.getByRole("heading", { name: uiLocale.copy.finishCloudflare }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: uiLocale.copy.openEmailRouting }),
+  ).toHaveAttribute(
+    "href",
+    "https://dash.cloudflare.com/?to=%2Faccount-1%2Femail-service%2Frouting",
+  );
+});
+
+test("administration domain creation uses the same Email Routing guide", async ({
+  page,
+  uiLocale,
+}) => {
+  await page.route("**/api/v1/auth/session", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          userId: "user-admin-1",
+          email: "admin@example.com",
+          permissions: ["domain.read", "domain.manage"],
+        },
+      }),
+    });
+  });
+  await page.route("**/api/v1/admin/domains", async (route) => {
+    const data =
+      route.request().method() === "POST"
+        ? {
+            id: "11111111-1111-4111-8111-111111111111",
+            name: "mail.example.com",
+            expectedRoute: "*@mail.example.com -> unimailbox Worker",
+            routingConfiguration: {
+              status: "manual_setup_required",
+              dashboardUrl:
+                "https://dash.cloudflare.com/?to=%2Faccount-1%2Femail-service%2Frouting",
+            },
+          }
+        : [];
+    await route.fulfill({
+      status: route.request().method() === "POST" ? 201 : 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data }),
+    });
+  });
+  await page.goto("/admin/domains");
+
+  await page.getByText(/Add Domains|添加域名/u).click();
+  await page
+    .getByRole("textbox", { name: /Name|名称/u })
+    .fill("mail.example.com");
+  await page.getByRole("button", { name: /Create|创建/u }).click();
+
+  await expect(
+    page.getByRole("heading", { name: uiLocale.copy.finishCloudflare }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: uiLocale.copy.openEmailRouting }),
+  ).toHaveAttribute(
+    "href",
+    "https://dash.cloudflare.com/?to=%2Faccount-1%2Femail-service%2Frouting",
+  );
+});
