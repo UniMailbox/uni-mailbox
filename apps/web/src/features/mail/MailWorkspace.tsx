@@ -9,6 +9,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
   Archive,
+  Check,
   ChevronDown,
   FilePenLine,
   Inbox,
@@ -81,6 +82,7 @@ export function MailWorkspace({
   const setComposeOpen = useUiStore((state) => state.setComposeOpen);
   const sidebarOpen = useUiStore((state) => state.sidebarOpen);
   const setSidebarOpen = useUiStore((state) => state.setSidebarOpen);
+  const timeZone = useUiStore((state) => state.timeZone);
   const mailboxes = useQuery(mailboxesQueryOptions());
   // The authenticated Router parent has already resolved this query before the workspace
   // mounts, so this reads from cache rather than issuing a second request.
@@ -232,14 +234,52 @@ export function MailWorkspace({
             />
             <kbd>⌘ K</kbd>
           </label>
-          <button
-            aria-label={t("navigation.signOut")}
-            className="icon-button"
-            onClick={() => logout.mutate()}
-          >
-            <LogOut />
-          </button>
-          <div className="operator-avatar">OP</div>
+          <details className="user-menu">
+            <summary
+              aria-label={t("navigation.userMenu")}
+              className="operator-avatar"
+              title={session.data?.email}
+            >
+              {initials(session.data?.email ?? "Operator")}
+            </summary>
+            <div className="user-menu-popover">
+              <div className="user-menu-identity">
+                <span>{t("navigation.signedInAs")}</span>
+                <strong>
+                  <BidiText kind="identifier">
+                    {session.data?.email ?? t("navigation.operator")}
+                  </BidiText>
+                </strong>
+              </div>
+              <div className="user-menu-section">
+                <span>{t("navigation.language")}</span>
+                {(["en", "zh-CN"] as const).map((language) => (
+                  <button
+                    aria-pressed={i18n.resolvedLanguage === language}
+                    key={language}
+                    onClick={() => void i18n.changeLanguage(language)}
+                    type="button"
+                  >
+                    {language === "en"
+                      ? t("navigation.english")
+                      : t("navigation.chinese")}
+                    {i18n.resolvedLanguage === language ? (
+                      <Check aria-hidden="true" />
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+              <button
+                className="user-menu-logout"
+                disabled={logout.isPending}
+                onClick={() => logout.mutate()}
+                type="button"
+              >
+                <LogOut aria-hidden="true" />
+                {t("navigation.signOut")}
+              </button>
+            </div>
+          </details>
         </header>
         <section className="mail-content">
           <header className="folder-header">
@@ -369,6 +409,7 @@ export function MailWorkspace({
                           message.sent_at ??
                           message.created_at,
                         locale,
+                        timeZone,
                       ) ?? t("message.unavailableDate")}
                     </time>
                   </Link>

@@ -16,6 +16,12 @@
     "settings": "Settings",
     "administration": "Administration",
     "signOut": "Sign out",
+    "userMenu": "Open user menu",
+    "signedInAs": "Signed in as",
+    "operator": "Operator",
+    "language": "Language",
+    "english": "English",
+    "chinese": "简体中文",
     "activeMailbox": "Active mailbox",
     "search": "Search mail",
     "searchPlaceholder": "Search loaded mail"
