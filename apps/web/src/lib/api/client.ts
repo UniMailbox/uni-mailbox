@@ -74,9 +74,14 @@ export function createApiClient(
       const init: RequestInit = {
         method: endpoint.method,
         headers: parsed.headers as HeadersInit | undefined,
-        ...(parsed.body === undefined || endpoint.mediaType !== "json"
+        ...(parsed.body === undefined
           ? {}
-          : { body: JSON.stringify(parsed.body) }),
+          : {
+              body:
+                endpoint.requestBodyMediaType === "binary"
+                  ? parsed.body as BodyInit
+                  : JSON.stringify(parsed.body),
+            }),
       };
       const result = transport.requestWithResponse
         ? await transport.requestWithResponse(
