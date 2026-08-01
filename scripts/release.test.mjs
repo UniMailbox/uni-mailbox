@@ -265,11 +265,24 @@ if (has("migrations") && has("apply")) process.exit(0);
 if (has("d1") && has("execute")) {
   const sql = has("--command") ? args[args.indexOf("--command") + 1] : "";
   const file = has("--file") ? args[args.indexOf("--file") + 1] : "";
+  const verificationAliases = [
+    "required_tables_present",
+    "permission_seed_complete",
+    "recovery_codes_table_present",
+    "zero_touch_bootstrap_valid",
+  ];
   if (sql.includes("migration_table_present")) {
     process.stdout.write(JSON.stringify([{
       success: true,
       results: [{ migration_table_present: 0, application_schema_present: 0 }]
     }]));
+    process.exit(0);
+  }
+  if (verificationAliases.some((alias) => sql.includes(alias))) {
+    process.stdout.write(JSON.stringify([
+      { success: true, results: [{ migration_verified: 1 }] },
+      { success: true, results: [] }
+    ]));
     process.exit(0);
   }
   if (sql.includes("administrator_count")) {

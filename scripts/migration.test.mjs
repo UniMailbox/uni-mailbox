@@ -12,6 +12,7 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 function runMigrationScenario({
+  command = "migrate",
   target = "production",
   migrationTablePresent = 1,
   applicationSchemaPresent = 0,
@@ -32,7 +33,7 @@ fs.appendFileSync(process.env.FAKE_COMMAND_LOG, JSON.stringify(args) + "\\n");
 const has = (value) => args.includes(value);
 if (has("execute") && has("--command")) {
   const sql = args[args.indexOf("--command") + 1];
-  if (sql.includes("sqlite_schema")) {
+  if (sql.includes("migration_table_present")) {
     if (process.env.FAKE_INVALID_STATE_JSON === "1") {
       process.stdout.write("not-json");
     } else {
@@ -55,6 +56,11 @@ if (has("execute") && has("--command")) {
     }]));
     process.exit(0);
   }
+  process.stdout.write(JSON.stringify([
+    { success: true, results: [{ migration_verified: 1 }] },
+    { success: true, results: [] }
+  ]));
+  process.exit(0);
 }
 if (has("execute") && has("--file")) {
   const file = args[args.indexOf("--file") + 1];
@@ -75,11 +81,11 @@ process.exit(35);
   );
   chmodSync(fakePnpm, 0o700);
 
-  const command = ["scripts/migration.mjs", "migrate", "--target", target];
-  if (target === "production") {
-    command.push("--confirm", "deployment-123");
+  const commandArgs = ["scripts/migration.mjs", command, "--target", target];
+  if (command === "migrate" && target === "production") {
+    commandArgs.push("--confirm", "deployment-123");
   }
-  const result = spawnSync("node", command, {
+  const result = spawnSync("node", commandArgs, {
     cwd: resolve(import.meta.dirname, ".."),
     encoding: "utf8",
     env: {
@@ -114,6 +120,24 @@ function cleanupScenario(scenario) {
 }
 
 describe("remote migration bootstrap", () => {
+  it("executes verification SQL as remote queries so Wrangler returns assertion rows", () => {
+    const scenario = runMigrationScenario({ command: "verify" });
+    try {
+      expect(
+        scenario.result.status,
+        scenario.result.stderr || scenario.result.stdout,
+      ).toBe(0);
+      expect(scenario.commands).toHaveLength(4);
+      for (const args of scenario.commands) {
+        expect(args).toContain("--command");
+        expect(args).not.toContain("--file");
+        expect(args).toContain("--remote");
+      }
+    } finally {
+      cleanupScenario(scenario);
+    }
+  });
+
   it("imports an untracked initial schema atomically before applying later migrations", () => {
     const scenario = runMigrationScenario({ requireImport: true });
     try {

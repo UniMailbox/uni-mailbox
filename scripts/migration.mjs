@@ -218,11 +218,11 @@ function verify() {
   for (const file of files) {
     const basename = file.replace(/\.sql$/u, "");
     const verifyPath = `migrations/meta/${basename}.verify.sql`;
-    if (
-      !readFileSync(resolve(process.cwd(), verifyPath), "utf8").includes(
-        "SELECT",
-      )
-    ) {
+    const verificationSql = readFileSync(
+      resolve(process.cwd(), verifyPath),
+      "utf8",
+    );
+    if (!verificationSql.includes("SELECT")) {
       fail(
         "migration.verify_invalid",
         `${verifyPath} has no verification query`,
@@ -236,11 +236,16 @@ function verify() {
       "execute",
       "DB",
       ...wranglerTargetArgs(target),
-      "--file",
-      verifyPath,
+      // Remote --file uses D1's import API and returns only an ingestion
+      // summary. --command uses the query API, which preserves SELECT rows.
+      "--command",
+      verificationSql,
       "--json",
     ];
-    output("command.started", { command: "pnpm", args: command });
+    const loggedCommand = command.map((value) =>
+      value === verificationSql ? `<contents of ${verifyPath}>` : value,
+    );
+    output("command.started", { command: "pnpm", args: loggedCommand });
     const result = capture("pnpm", command);
     if (!result.ok) {
       fail("migration.verify_command_failed", result.stderr, 5, {
@@ -256,6 +261,10 @@ function verify() {
         "migration.verify_output_invalid",
         `${verifyPath} did not return valid JSON`,
         5,
+        {
+          stdoutBytes: Buffer.byteLength(result.stdout),
+          stderrBytes: Buffer.byteLength(result.stderr),
+        },
       );
     }
 
@@ -288,7 +297,7 @@ function verify() {
         { statements },
       );
     }
-    output("command.completed", { command: "pnpm", args: command });
+    output("command.completed", { command: "pnpm", args: loggedCommand });
   }
   output("migration.verify.completed", { status: "ok", target, files });
 }
