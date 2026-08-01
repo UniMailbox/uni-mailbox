@@ -5,6 +5,8 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import {
   Archive,
   ChevronDown,
@@ -22,11 +24,19 @@ import {
   Trash2,
 } from "lucide-react";
 import { canOpenAdminConsole } from "@unimailbox/contracts";
-import { apiRequest } from "../../lib/api";
-import { Link, navigate } from "../../lib/navigation";
 import { endSession, useSession } from "../../lib/session";
+import { logoutMutationOptions } from "../auth/api";
 import { useUiStore } from "../../lib/ui-store";
 import { ErrorState, LoadingState } from "../../components/Status";
+import { BidiText } from "../../components/BidiText";
+import type { RuntimeLocale } from "../../i18n";
+import { formatNumber, formatRelativeDate } from "../../i18n/format";
+import {
+  draftsQueryOptions,
+  mailboxesQueryOptions,
+  messageStarMutationOptions,
+  messagesInfiniteQueryOptions,
+} from "./api";
 
 const ComposePanel = lazy(() =>
   import("./ComposePanel").then((module) => ({
@@ -34,38 +44,13 @@ const ComposePanel = lazy(() =>
   })),
 );
 
-interface Mailbox {
-  id: string;
-  address: string;
-  display_name: string;
-  unread_count?: number;
-}
-
-interface MessageSummary {
-  id: string;
-  from_address: string;
-  from_name?: string;
-  subject: string;
-  status: string;
-  created_at: string;
-  received_at?: string;
-  sent_at?: string;
-  is_read: number;
-  is_starred: number;
-}
-
-interface MessagePage {
-  items: MessageSummary[];
-  nextCursor: string | null;
-}
-
 const folders = [
-  ["inbox", "Inbox", Inbox],
-  ["sent", "Sent", Send],
-  ["drafts", "Drafts", FilePenLine],
-  ["starred", "Starred", Star],
-  ["archive", "Archive", Archive],
-  ["trash", "Trash", Trash2],
+  ["inbox", Inbox],
+  ["sent", Send],
+  ["drafts", FilePenLine],
+  ["starred", Star],
+  ["archive", Archive],
+  ["trash", Trash2],
 ] as const;
 
 function initials(value: string): string {
@@ -76,24 +61,6 @@ function initials(value: string): string {
     .join("");
 }
 
-function relativeDate(value: string): string {
-  const date = new Date(
-    value.replace(" ", "T") + (value.includes("Z") ? "" : "Z"),
-  );
-  if (Number.isNaN(date.getTime())) return value;
-  const today = new Date();
-  if (date.toDateString() === today.toDateString()) {
-    return new Intl.DateTimeFormat(undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(date);
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-  }).format(date);
-}
-
 export function MailWorkspace({
   folder,
   routeMailboxId,
@@ -101,6 +68,8 @@ export function MailWorkspace({
   folder: string;
   routeMailboxId?: string;
 }) {
+  const { t, i18n } = useTranslation("mail");
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const selectedMailboxId = useUiStore((state) => state.selectedMailboxId);
@@ -112,11 +81,8 @@ export function MailWorkspace({
   const setComposeOpen = useUiStore((state) => state.setComposeOpen);
   const sidebarOpen = useUiStore((state) => state.sidebarOpen);
   const setSidebarOpen = useUiStore((state) => state.setSidebarOpen);
-  const mailboxes = useQuery({
-    queryKey: ["mailboxes"],
-    queryFn: () => apiRequest<Mailbox[]>("/mailboxes"),
-  });
-  // `RequireSession` has already resolved this query before the workspace
+  const mailboxes = useQuery(mailboxesQueryOptions());
+  // The authenticated Router parent has already resolved this query before the workspace
   // mounts, so this reads from cache rather than issuing a second request.
   const session = useSession();
   const adminConsoleAvailable = canOpenAdminConsole(
@@ -132,43 +98,31 @@ export function MailWorkspace({
   }, [activeMailboxId, selectedMailboxId, setSelectedMailboxId]);
 
   const drafts = useQuery({
-    queryKey: ["drafts"],
-    queryFn: () => apiRequest<MessageSummary[]>("/drafts"),
+    ...draftsQueryOptions(),
     enabled: folder === "drafts",
   });
   const messages = useInfiniteQuery({
-    queryKey: ["messages", activeMailboxId, folder],
-    initialPageParam: null as string | null,
-    queryFn: ({ pageParam }) => {
-      const actualFolder = folder === "starred" ? "inbox" : folder;
-      const params = new URLSearchParams({
-        folder: actualFolder,
-        limit: "50",
-      });
-      if (folder === "starred") params.set("starred", "true");
-      if (pageParam) params.set("cursor", pageParam);
-      return apiRequest<MessagePage>(
-        `/mailboxes/${activeMailboxId}/messages?${params}`,
-      );
-    },
-    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    ...messagesInfiniteQueryOptions({
+      mailboxId: activeMailboxId ?? "00000000-0000-4000-8000-000000000000",
+      folder: folder as
+        | "inbox"
+        | "sent"
+        | "drafts"
+        | "starred"
+        | "archive"
+        | "trash",
+      search,
+    }),
     enabled: Boolean(activeMailboxId) && folder !== "drafts",
   });
-  const star = useMutation({
-    mutationFn: (input: { id: string; value: boolean }) =>
-      apiRequest(`/messages/${input.id}/star`, {
-        method: "PATCH",
-        body: JSON.stringify({ isStarred: input.value }),
-      }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["messages"] }),
-  });
+  const star = useMutation(messageStarMutationOptions(queryClient));
   const logout = useMutation({
-    mutationFn: () => apiRequest("/auth/logout", { method: "POST" }),
+    ...logoutMutationOptions(queryClient),
     // `onSettled`, not `onSuccess`: if the logout call itself fails we still
     // want the local session gone rather than a half-signed-out tab.
     onSettled: () => {
       endSession(queryClient);
-      navigate("/login");
+      void navigate({ to: "/login", replace: true });
     },
   });
 
@@ -188,7 +142,8 @@ export function MailWorkspace({
     (mailbox) => mailbox.id === activeMailboxId,
   );
   const activeFolder = folders.find(([id]) => id === folder) ?? folders[0];
-  const EmptyIcon = activeFolder[2];
+  const EmptyIcon = activeFolder[1];
+  const locale = i18n.resolvedLanguage as RuntimeLocale;
 
   return (
     <div className="mail-app">
@@ -198,7 +153,7 @@ export function MailWorkspace({
             <span>CM</span> UniMailbox
           </Link>
           <button
-            aria-label="Close navigation"
+            aria-label={t("navigation.close")}
             className="sidebar-close"
             onClick={() => setSidebarOpen(false)}
           >
@@ -210,11 +165,11 @@ export function MailWorkspace({
           disabled={!activeMailboxId}
           onClick={() => setComposeOpen(true)}
         >
-          <PenLine /> Compose
+          <PenLine /> {t("compose.panelLabel")}
         </button>
-        <nav aria-label="Mail folders">
-          <div className="nav-label">Workspace</div>
-          {folders.map(([id, label, Icon]) => {
+        <nav aria-label={t("navigation.folders")}>
+          <div className="nav-label">{t("navigation.workspace")}</div>
+          {folders.map(([id, Icon]) => {
             const path =
               id === "drafts" || id === "starred"
                 ? `/${id}`
@@ -227,37 +182,41 @@ export function MailWorkspace({
                 to={path}
               >
                 <Icon />
-                <span>{label}</span>
+                <span>{t(`folders.${id}`)}</span>
                 {id === "inbox" && activeMailbox?.unread_count ? (
-                  <strong>{activeMailbox.unread_count}</strong>
+                  <strong>
+                    {formatNumber(activeMailbox.unread_count, locale)}
+                  </strong>
                 ) : null}
               </Link>
             );
           })}
-          <div className="nav-label admin-label">Control plane</div>
+          <div className="nav-label admin-label">
+            {t("navigation.controlPlane")}
+          </div>
           <Link to="/settings/mailboxes">
-            <Settings /> <span>Settings</span>
+            <Settings /> <span>{t("navigation.settings")}</span>
           </Link>
           {/* Hidden rather than disabled: a member has no console permissions
               at all, so the entry point would only ever lead to a denial. */}
           {adminConsoleAvailable ? (
             <Link to="/admin/users">
-              <Shield /> <span>Administration</span>
+              <Shield /> <span>{t("navigation.administration")}</span>
             </Link>
           ) : null}
         </nav>
         <footer>
           <span className="system-pulse" />
           <div>
-            <strong>Systems nominal</strong>
-            <small>D1 · Storage · Queue online</small>
+            <strong>{t("system.nominal")}</strong>
+            <small>{t("system.online")}</small>
           </div>
         </footer>
       </aside>
       <main className="mail-main">
         <header className="mail-topbar">
           <button
-            aria-label="Open navigation"
+            aria-label={t("navigation.open")}
             className="icon-button mobile-menu"
             onClick={() => setSidebarOpen(true)}
           >
@@ -265,16 +224,16 @@ export function MailWorkspace({
           </button>
           <label className="search-field">
             <Search />
-            <span className="sr-only">Search mail</span>
+            <span className="sr-only">{t("navigation.search")}</span>
             <input
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search loaded mail"
+              placeholder={t("navigation.searchPlaceholder")}
               value={search}
             />
             <kbd>⌘ K</kbd>
           </label>
           <button
-            aria-label="Sign out"
+            aria-label={t("navigation.signOut")}
             className="icon-button"
             onClick={() => logout.mutate()}
           >
@@ -286,24 +245,28 @@ export function MailWorkspace({
           <header className="folder-header">
             <div>
               <p className="section-kicker">
-                {activeMailbox?.address ?? "Mailbox"}
+                <BidiText kind="identifier">
+                  {activeMailbox?.address ?? t("messages.mailbox")}
+                </BidiText>
               </p>
-              <h1>{activeFolder[1]}</h1>
+              <h1>{t(`folders.${activeFolder[0]}`)}</h1>
             </div>
             <label className="mailbox-select">
               <Mail />
               <select
-                aria-label="Active mailbox"
+                aria-label={t("navigation.activeMailbox")}
                 onChange={(event) => {
                   setSelectedMailboxId(event.target.value);
                   if (!["drafts", "starred"].includes(folder)) {
-                    navigate(`/${folder}/${event.target.value}`);
+                    void navigate({
+                      to: `/${folder}/${event.target.value}` as "/inbox",
+                    });
                   }
                 }}
                 value={activeMailboxId ?? ""}
               >
                 {(mailboxes.data ?? []).map((mailbox) => (
-                  <option key={mailbox.id} value={mailbox.id}>
+                  <option dir="ltr" key={mailbox.id} value={mailbox.id}>
                     {mailbox.address}
                   </option>
                 ))}
@@ -312,7 +275,7 @@ export function MailWorkspace({
             </label>
           </header>
           {mailboxes.isLoading || messages.isLoading || drafts.isLoading ? (
-            <LoadingState label="Loading messages" />
+            <LoadingState label={t("messages.loading")} />
           ) : mailboxes.error || messages.error || drafts.error ? (
             <ErrorState
               error={mailboxes.error ?? messages.error ?? drafts.error}
@@ -327,10 +290,8 @@ export function MailWorkspace({
               <span>
                 <EmptyIcon />
               </span>
-              <h2>No messages here</h2>
-              <p>
-                This folder is clear. New activity will appear automatically.
-              </p>
+              <h2>{t("messages.emptyTitle")}</h2>
+              <p>{t("messages.emptyBody")}</p>
             </div>
           ) : (
             <div className="message-list" role="list">
@@ -342,13 +303,15 @@ export function MailWorkspace({
                 >
                   <button
                     aria-label={
-                      message.is_starred ? "Remove star" : "Star message"
+                      message.is_starred
+                        ? t("messages.unstar")
+                        : t("messages.star")
                     }
                     className={`star-button ${message.is_starred ? "active" : ""}`}
                     onClick={() =>
                       star.mutate({
-                        id: message.id,
-                        value: !message.is_starred,
+                        messageId: message.id,
+                        isStarred: !message.is_starred,
                       })
                     }
                   >
@@ -363,10 +326,7 @@ export function MailWorkspace({
                       if (folder !== "drafts") return;
                       event.preventDefault();
                       setSelectedMailboxId(
-                        (message as MessageSummary & { mailbox_id?: string })
-                          .mailbox_id ??
-                          activeMailboxId ??
-                          "",
+                        message.mailbox_id ?? activeMailboxId ?? "",
                       );
                       setComposeOpen(true, { draftId: message.id });
                     }}
@@ -378,20 +338,38 @@ export function MailWorkspace({
                   >
                     <div className="message-sender">
                       <strong>
-                        {message.from_name || message.from_address}
+                        <BidiText>
+                          {message.from_name || message.from_address}
+                        </BidiText>
                       </strong>
-                      <small>{message.from_address}</small>
+                      <small>
+                        <BidiText kind="identifier">
+                          {message.from_address}
+                        </BidiText>
+                      </small>
                     </div>
                     <div className="message-preview">
-                      <strong>{message.subject || "(No subject)"}</strong>
-                      <span>{message.status}</span>
+                      <strong>
+                        <BidiText>
+                          {message.subject || t("messages.noSubject")}
+                        </BidiText>
+                      </strong>
+                      <span>
+                        {message.status &&
+                        ["draft", "queued", "sent", "received"].includes(
+                          message.status,
+                        )
+                          ? t(`messages.status.${message.status}`)
+                          : t("messages.unknownStatus")}
+                      </span>
                     </div>
                     <time>
-                      {relativeDate(
+                      {formatRelativeDate(
                         message.received_at ??
                           message.sent_at ??
                           message.created_at,
-                      )}
+                        locale,
+                      ) ?? t("message.unavailableDate")}
                     </time>
                   </Link>
                 </article>
@@ -404,8 +382,8 @@ export function MailWorkspace({
                   type="button"
                 >
                   {messages.isFetchingNextPage
-                    ? "Loading…"
-                    : "Load older messages"}
+                    ? t("messages.loadingMore")
+                    : t("messages.loadMore")}
                 </button>
               ) : null}
             </div>

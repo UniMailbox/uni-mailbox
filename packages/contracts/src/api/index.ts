@@ -5,6 +5,18 @@ import {
   type PermissionKey,
 } from "../domain";
 
+export * from "./common/endpoint";
+export * from "./common/envelope";
+export * from "./common/errors";
+export * from "./common/pagination";
+export * from "./auth";
+export * from "./attachments";
+export * from "./administration";
+export * from "./drafts";
+export * from "./endpoints";
+export * from "./mailboxes";
+export * from "./messages";
+
 export interface ApiSuccess<T> {
   data: T;
 }
@@ -14,7 +26,8 @@ export interface ApiErrorBody {
     code: string;
     message: string;
     details?: unknown;
-    requestId: string;
+    params?: unknown;
+    requestId?: string;
   };
 }
 
@@ -69,20 +82,6 @@ export interface AttachmentUpload {
   expiresAt: string;
 }
 
-export const LoginSchema = z.object({
-  email: z
-    .string()
-    .trim()
-    .email()
-    .transform((value) => value.toLowerCase()),
-  password: z.string().min(12).max(1024),
-});
-
-export const RegisterSchema = LoginSchema.extend({
-  displayName: z.string().trim().min(1).max(120),
-  registrationKey: z.string().trim().min(8).max(255).optional(),
-});
-
 export const MailboxCreateSchema = z.object({
   localPart: z
     .string()
@@ -92,11 +91,6 @@ export const MailboxCreateSchema = z.object({
     .regex(/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/i),
   domainId: z.string().uuid(),
   displayName: z.string().trim().max(120).default(""),
-});
-
-export const MailboxMemberSchema = z.object({
-  userId: z.string().uuid(),
-  role: z.enum(["viewer", "sender", "admin"]),
 });
 
 export const ProviderConnectionSchema = z.object({
@@ -116,12 +110,6 @@ export interface CursorPage<T> {
  * client is allowed to base access decisions on — it is derived from a verified
  * access token, so a tampered client cannot widen it.
  */
-export interface SessionProfile {
-  userId: string;
-  email: string;
-  permissions: PermissionKey[];
-}
-
 /**
  * The permission the Worker asserts for the primary listing behind each
  * `/admin/<resource>` screen. The web client uses this to avoid rendering a

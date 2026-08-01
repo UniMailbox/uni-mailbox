@@ -1,18 +1,15 @@
-import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures/locale";
+import { expectKeyboardFocusSequence } from "./fixtures/keyboard";
+import { anonymousSessionError } from "./fixtures/session";
 
-test("login route surfaces an accessible credential form", async ({ page }) => {
+async function stubAnonymousSession(page: Page) {
   await page.route("**/api/v1/**", async (route) => {
     if (route.request().url().endsWith("/auth/session")) {
       await route.fulfill({
-        status: 401,
         contentType: "application/json",
-        body: JSON.stringify({
-          error: {
-            code: "AUTH_REQUIRED",
-            message: "Authentication is required",
-            requestId: "test",
-          },
-        }),
+        status: 401,
+        body: JSON.stringify(anonymousSessionError),
       });
       return;
     }
@@ -21,20 +18,75 @@ test("login route surfaces an accessible credential form", async ({ page }) => {
       body: JSON.stringify({ data: [] }),
     });
   });
+}
+
+test("login route surfaces an accessible credential form", async ({
+  page,
+  uiLocale,
+}) => {
+  await stubAnonymousSession(page);
   await page.goto("/login");
 
   await expect(
-    page.getByRole("heading", { name: "Sign in to your mail plane." }),
+    page.getByRole("heading", { name: uiLocale.copy.loginTitle }),
   ).toBeVisible();
-  await expect(page.getByLabel("Email address")).toBeEditable();
-  await expect(page.getByLabel("Password")).toHaveAttribute(
+  await expect(page.getByLabel(uiLocale.copy.email)).toBeEditable();
+  await expect(page.getByLabel(uiLocale.copy.password)).toHaveAttribute(
     "autocomplete",
     "current-password",
   );
 });
 
+test("keyboard-only login focus sequence", async ({ page, uiLocale }) => {
+  await stubAnonymousSession(page);
+  await page.goto("/login");
+
+  await expectKeyboardFocusSequence(page, [
+    page.getByRole("link", { name: "UniMailbox" }),
+    page.getByLabel(uiLocale.copy.email),
+    page.getByLabel(uiLocale.copy.password),
+    page.getByRole("button", { name: uiLocale.copy.submit }),
+  ]);
+});
+
+test("register redirects a signed-in operator but keeps an anonymous visitor on register", async ({
+  page,
+  uiLocale,
+}) => {
+  let signedIn = true;
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill(
+      signedIn
+        ? {
+            contentType: "application/json",
+            body: JSON.stringify({
+              data: {
+                userId: "operator-1",
+                email: "operator@example.com",
+                permissions: ["message.read"],
+              },
+            }),
+          }
+        : {
+            status: 401,
+            contentType: "application/json",
+            body: JSON.stringify(anonymousSessionError),
+          },
+    ),
+  );
+  await page.goto("/register");
+  await expect(page).toHaveURL(/\/inbox$/u);
+  signedIn = false;
+  await page.goto("/register");
+  await expect(page).toHaveURL(/\/register$/u);
+  await expect(
+    page.getByRole("heading", { name: uiLocale.copy.loginTitle }),
+  ).toBeVisible();
+});
+
 test("login form posts credentials and routes to the inbox", async ({
   page,
+  uiLocale,
 }) => {
   let submittedEmail = "";
   let submittedPassword = "";
@@ -60,8 +112,8 @@ test("login form posts credentials and routes to the inbox", async ({
     }
     if (request.url().endsWith("/auth/session")) {
       await route.fulfill({
-        status: signedIn ? 200 : 401,
         contentType: "application/json",
+        status: signedIn ? 200 : 401,
         body: JSON.stringify(
           signedIn
             ? {
@@ -71,13 +123,7 @@ test("login form posts credentials and routes to the inbox", async ({
                   permissions: ["message.read"],
                 },
               }
-            : {
-                error: {
-                  code: "AUTH_REQUIRED",
-                  message: "Authentication is required",
-                  requestId: "test",
-                },
-              },
+            : { error: { code: "AUTH_REQUIRED", message: "ignored" } },
         ),
       });
       return;
@@ -89,9 +135,11 @@ test("login form posts credentials and routes to the inbox", async ({
   });
   await page.goto("/login");
 
-  await page.getByLabel("Email address").fill("initial-admin@example.com");
-  await page.getByLabel("Password").fill("correct horse battery staple");
-  await page.getByRole("button", { name: /Enter workspace/ }).click();
+  await page.getByLabel(uiLocale.copy.email).fill("initial-admin@example.com");
+  await page
+    .getByLabel(uiLocale.copy.password)
+    .fill("correct horse battery staple");
+  await page.getByRole("button", { name: uiLocale.copy.submit }).click();
 
   await expect.poll(() => submittedEmail).toBe("initial-admin@example.com");
   expect(submittedPassword.length).toBeGreaterThan(0);
