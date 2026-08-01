@@ -31,13 +31,20 @@ function projectLocale(name: string): LocaleFixture["code"] {
   return "en";
 }
 
+export function seedLocalePreference(
+  locale: LocaleFixture["code"],
+  storage: Pick<Storage, "getItem" | "setItem"> = window.localStorage,
+) {
+  if (storage.getItem("unimailbox.locale") === null) {
+    storage.setItem("unimailbox.locale", locale);
+  }
+}
+
 export const test = base.extend<{ uiLocale: LocaleFixture }>({
   uiLocale: [
     async ({ page }, use, testInfo) => {
       const code = projectLocale(testInfo.project.name);
-      await page.addInitScript((locale) => {
-        window.localStorage.setItem("unimailbox.locale", locale);
-      }, code);
+      await page.addInitScript(seedLocalePreference, code);
       await use({ code, copy: code === "zh-CN" ? copy["zh-CN"] : copy.en });
     },
     { auto: true },

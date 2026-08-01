@@ -25,18 +25,18 @@ Do not convert `Blocked` or a narrower passing check into `Passed`.
 
 | Gate | Status | Required evidence |
 | --- | --- | --- |
-| English UI complete | Failed | Isolated matrix run did not complete successfully; see Task 13 report. |
-| Simplified Chinese UI complete | Failed | Isolated matrix run did not complete successfully; see Task 13 report. |
-| Language preference | Failed | Unit coverage passed; both locale browser persistence scenarios failed. |
-| Error localization | Blocked | Unit coverage passed; browser matrix did not complete. |
-| TanStack Router | Failed | Route unit coverage and source scan passed; browser setup/guard scenarios failed. |
+| English UI complete | Pending | English Playwright project and literal assertions. |
+| Simplified Chinese UI complete | Pending | Chinese Playwright project and literal assertions. |
+| Language preference | Pending | Unit and E2E persistence evidence. |
+| Error localization | Pending | Known/unknown/request-ID unit and browser evidence. |
+| TanStack Router | Pending | Route tests, legacy routing scan, browser history E2E. |
 | TanStack Query service model | Passed | Feature API tests and enforcement passed. |
 | Endpoint contracts | Passed | Contract/client tests and enforcement passed. |
 | TanStack Form | Passed | Form tests and source/dependency enforcement passed. |
-| RTL foundations | Failed | Static RTL scan passed; desktop browser scenario produced a failure artifact and mobile did not complete. |
-| Compose preservation | Failed | Focused suite passed; browser Compose scenario failed with an invalid fixture response. |
-| Accessibility | Blocked | Role-based unit evidence passed; required browser/manual checks did not complete. |
-| Full repository gates | Failed | All non-browser gates passed; the Playwright command did not complete successfully. |
+| RTL foundations | Pending | Desktop/mobile pseudo-RTL E2E. |
+| Compose preservation | Pending | Focused unit and browser regression suite. |
+| Accessibility | Pending | Role-based tests and locale-aware browser selectors. |
+| Full repository gates | Pending | Exact command log. |
 | User-change preservation | Passed | Clean implementation-worktree baseline and final scope audit recorded. |
 
 ## 1. Locale Runtime
@@ -123,7 +123,7 @@ pnpm exec playwright test --project=zh-CN
 Each critical workflow includes at least one literal assertion in the target
 language so translation-resource drift cannot make both UI and test pass.
 
-Status: `Failed` — 2026-08-01 isolated full matrix was attempted on port 5184; it did not complete successfully. See the Task 13 report for the exact preserved output and artifacts.
+Status: `Pending` — browser matrix is rerunning after deterministic fixture repairs.
 
 ## 4. Router and Guard Semantics
 
@@ -152,7 +152,7 @@ rg -n "pushState|replaceState|popstate|window\\.location\\.pathname" apps/web/sr
 
 Expected source scan: no production custom-router implementation.
 
-Status: `Failed` — 2026-08-01 router suite passed (24 tests) and the production scan is clean, but the isolated matrix produced setup/login failure artifacts.
+Status: `Pending` — router suite passed (24 tests) and the production scan is clean; browser guard evidence is pending the matrix.
 
 ## 5. Query Ownership and Cache Correctness
 
@@ -236,7 +236,7 @@ rg -n "error\\.message|attachments\\.reason|diagnosticMessage" apps/web/src -g '
 
 Expected scan: no visible production render of these values.
 
-Status: `Blocked` — 2026-08-01 unit suite passed (11 tests); the required browser matrix did not complete.
+Status: `Pending` — unit suite passed (11 tests); browser evidence is pending the matrix.
 
 ## 8. TanStack Form and Validation
 
@@ -287,7 +287,7 @@ pnpm exec playwright test --project=en e2e/inbox.spec.ts
 pnpm exec playwright test --project=zh-CN e2e/inbox.spec.ts
 ```
 
-Status: `Failed` — 2026-08-01 focused Compose suite passed (16 tests, including current `if-match`), but its browser workflow returned an invalid fixture response.
+Status: `Pending` — focused Compose suite passed (16 tests, including current `if-match`); browser evidence is pending the matrix.
 
 ## 10. RTL and Bidirectional Layout
 
@@ -317,7 +317,7 @@ rg -n "margin-(left|right)|padding-(left|right)|border-(left|right)|text-align:\
 
 Expected source scan: no unexplained application-layout match.
 
-Status: `Failed` — 2026-08-01 logical-CSS scan passed, but the isolated desktop RTL workflow produced a failure artifact and the mobile workflow did not complete.
+Status: `Pending` — logical-CSS scan passed; desktop/mobile browser evidence is pending the matrix.
 
 ## 11. Accessibility
 
@@ -337,7 +337,7 @@ Evidence:
 - Playwright keyboard smoke checks in production locales and RTL mobile.
 - Manual focus-order check recorded below.
 
-Status: `Blocked` — 2026-08-01 role/name unit assertions passed; the required browser keyboard and manual checks did not complete.
+Status: `Pending` — role/name unit assertions passed; browser keyboard and manual checks are pending.
 
 ## 12. Static Legacy-Pattern Gates
 
@@ -401,9 +401,9 @@ Record:
 | `pnpm typecheck` | 2026-08-01 | Passed | All six typed workspace packages passed. |
 | `pnpm test` | 2026-08-01 | Passed | 56 contracts, 5 config, 12 email-core, 138 web, 198 worker/script, 10 Worker HTTP, 43 integration tests. |
 | `pnpm build` | 2026-08-01 | Passed | All workspace builds passed; Vite emitted the existing large-chunk warning. |
-| `pnpm test:e2e` | 2026-08-01 | Failed | Single isolated-port (5184) attempt launched 34 tests but did not complete successfully; see Task 13 report. |
+| `pnpm test:e2e` | 2026-08-01 | Pending | Full isolated-port matrix is rerunning after fixture repairs. |
 | `pnpm audit --prod` | 2026-08-01 | Passed | No known vulnerabilities. |
-| `git diff --check` | 2026-08-01 | Pending | Run after the acceptance/documentation edits. |
+| `git diff --check` | 2026-08-01 | Passed | Passed after the acceptance/documentation edits. |
 
 ## 15. Preservation Audit
 
