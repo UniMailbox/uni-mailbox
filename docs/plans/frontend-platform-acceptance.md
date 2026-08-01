@@ -399,7 +399,7 @@ Record:
 | `pnpm i18n:check` | 2026-08-01 | Passed | Resource parity passed. |
 | `pnpm frontend:contracts` | 2026-08-01 | Passed | Contract enforcement passed. |
 | `pnpm typecheck` | 2026-08-01 | Passed | All six typed workspace packages passed. |
-| `pnpm test` | 2026-08-01 | Passed | 56 contracts, 5 config, 12 email-core, 138 web, 198 worker/script, 10 Worker HTTP, 43 integration tests. |
+| `pnpm test` | 2026-08-01 | Passed | 56 contracts, 5 config, 12 email-core, 138 web, 202 worker/script, 10 Worker HTTP, 43 integration tests. |
 | `pnpm build` | 2026-08-01 | Passed | All workspace builds passed; Vite emitted the existing large-chunk warning. |
 | `pnpm test:e2e` | 2026-08-01 | Pending | Full isolated-port matrix is rerunning after fixture repairs. |
 | `pnpm audit --prod` | 2026-08-01 | Passed | No known vulnerabilities. |

@@ -30,8 +30,9 @@ test("pseudo RTL keeps layout, directional controls, and technical values readab
   await expect(composer).toBeVisible();
   const composerBox = await composer.boundingBox();
   expect(composerBox?.x).toBeLessThanOrEqual(30);
-  await expect(page.locator("bdi[dir=ltr]").first()).toContainText("sender@example.net");
-  await expect(page.locator("bdi[dir=auto]").first()).toContainText("Sender");
+  const firstMessageSender = page.locator(".message-sender").first();
+  await expect(firstMessageSender.locator("bdi[dir=ltr]")).toContainText("sender@example.net");
+  await expect(firstMessageSender.locator("bdi[dir=auto]")).toContainText("Sender");
   await expect(page.locator(".directional-icon").first()).toHaveCSS("transform", "matrix(-1, 0, 0, 1, 0, 0)");
   await expect(page.locator(".compose-button svg").first()).toHaveCSS("transform", "none");
 });

@@ -21,7 +21,7 @@ const copy: Record<ProductionLocale, Record<string, string>> = {
     attachmentReady: "1 个附件已就绪", reply: "回复", mailboxes: "邮箱", share: "共享邮箱", memberId: "成员用户 ID", mailboxRole: "邮箱角色", sharing: "管理共享",
     storageTitle: "基础设施", kvActive: "KV 存储正在使用", kvHealthy: "KV 正常", verifyR2: "验证 R2 写入权限",
     cloudflareTitle: "Cloudflare 邮件", controlPlane: "连接控制平面", domainHeading: "Email Routing 域名", brevo: "连接 Brevo",
-    preferences: "语言与地区", language: "语言", english: "English", chinese: "简体中文", administration: "管理", users: "用户", create: "创建", emailField: "电子邮件地址", displayName: "显示名称", passwordField: "临时密码", roleIds: "角色 ID（以逗号分隔）",
+    preferences: "语言与地区", language: "语言", english: "English", chinese: "简体中文", administration: "管理", users: "用户", create: "创建", emailField: "邮箱地址", displayName: "显示名称", passwordField: "临时密码", roleIds: "角色 ID（以逗号分隔）",
   },
 };
 
