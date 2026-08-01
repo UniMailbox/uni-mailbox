@@ -5,7 +5,8 @@ const mailboxId = "11111111-1111-4111-8111-111111111111";
 test("mailbox route loads messages and toggles the sidebar", async ({
   page, uiLocale,
 }) => {
-  let pageRequests = 0;
+  let initialPageRequests = 0;
+  let paginationRequests = 0;
   let starred = false;
   await page.route("**/api/v1/auth/session", async (route) => {
     await route.fulfill({
@@ -39,7 +40,9 @@ test("mailbox route loads messages and toggles the sidebar", async ({
   await page.route(
     `**/api/v1/mailboxes/${mailboxId}/messages**`,
     async (route) => {
-      pageRequests += 1;
+      const cursor = new URL(route.request().url()).searchParams.get("cursor");
+      if (cursor === "next-page") paginationRequests += 1;
+      else initialPageRequests += 1;
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
@@ -56,7 +59,9 @@ test("mailbox route loads messages and toggles the sidebar", async ({
                 is_starred: 0,
               },
             ],
-            nextCursor: pageRequests === 1 ? "next-page" : null,
+            // Starring invalidates and refetches the initial query. The mock
+            // must keep that page paginatable; only a cursor request is page 2.
+            nextCursor: cursor === "next-page" ? null : "next-page",
           },
         }),
       });
@@ -71,10 +76,11 @@ test("mailbox route loads messages and toggles the sidebar", async ({
 
   await expect(page.getByText("Status update")).toBeVisible();
   await expect(page.getByRole("heading", { name: uiLocale.copy.inbox })).toBeVisible();
+  await expect.poll(() => initialPageRequests).toBe(1);
   await page.getByRole("button", { name: uiLocale.copy.star }).click();
   await expect.poll(() => starred).toBe(true);
   await page.getByRole("button", { name: uiLocale.copy.loadMore }).click();
-  await expect.poll(() => pageRequests).toBe(2);
+  await expect.poll(() => paginationRequests).toBe(1);
   await page.getByRole("link", { name: uiLocale.copy.sent }).click();
   await expect(page).toHaveURL(/\/sent/u);
   await page.setViewportSize({ width: 390, height: 844 });
