@@ -1,20 +1,24 @@
+import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/locale";
+import { expectKeyboardFocusSequence } from "./fixtures/keyboard";
+import { anonymousSessionError } from "./fixtures/session";
 
-test("login route surfaces an accessible credential form", async ({ page, uiLocale }) => {
+async function stubAnonymousSession(page: Page) {
   await page.route("**/api/v1/**", async (route) => {
     if (route.request().url().endsWith("/auth/session")) {
       await route.fulfill({
         contentType: "application/json",
         status: 401,
-        body: JSON.stringify({ error: { code: "AUTH_REQUIRED", message: "ignored" } }),
+        body: JSON.stringify(anonymousSessionError),
       });
       return;
     }
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({ data: { accessToken: "stubbed-token" } }),
-    });
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: [] }) });
   });
+}
+
+test("login route surfaces an accessible credential form", async ({ page, uiLocale }) => {
+  await stubAnonymousSession(page);
   await page.goto("/login");
 
   await expect(
@@ -25,6 +29,18 @@ test("login route surfaces an accessible credential form", async ({ page, uiLoca
     "autocomplete",
     "current-password",
   );
+});
+
+test("keyboard-only login focus sequence", async ({ page, uiLocale }) => {
+  await stubAnonymousSession(page);
+  await page.goto("/login");
+
+  await expectKeyboardFocusSequence(page, [
+    page.getByRole("link", { name: "UniMailbox" }),
+    page.getByLabel(uiLocale.copy.email),
+    page.getByLabel(uiLocale.copy.password),
+    page.getByRole("button", { name: uiLocale.copy.submit }),
+  ]);
 });
 
 test("login form posts credentials and routes to the inbox", async ({
