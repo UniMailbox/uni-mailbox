@@ -18,14 +18,27 @@
   },
   "actions": {
     "create": "[‮Çřëàţë‬]",
+    "view": "[‮Vïëŵ‬]",
+    "edit": "[‮Ëđïţ‬]",
     "update": "[‮Ûþđàţë‬]",
     "delete": "[‮Ðëľëţë‬]",
+    "confirmDelete": "[‮Ðëľëţë řëçøřđ‬]",
+    "cancel": "[‮Çàñçëľ‬]",
+    "close": "[‮Çľøšë‬]",
     "save": "[‮Šàṽë‬]",
     "saveSettings": "[‮Šàṽë šëţţïñĝš‬]",
     "saveSignature": "[‮Šàṽë šïĝñàţûřë‬]",
     "reconcile": "[‮Řëçøñçïľë‬]",
     "add": "[‮Àđđ {{resource}}‬]",
     "manage": "[‮Màñàĝë {{resource}}‬]"
+  },
+  "dialog": {
+    "action": "[‮Řëçøřđ àçţïøñ‬]",
+    "createTitle": "[‮Àđđ {{resource}}‬]",
+    "viewTitle": "[‮Vïëŵ {{resource}} řëçøřđ‬]",
+    "editTitle": "[‮Ëđïţ {{resource}} řëçøřđ‬]",
+    "deleteTitle": "[‮Ðëľëţë {{resource}} řëçøřđ‬]",
+    "deleteWarning": "[‮Ţħïš àçţïøñ çàññøţ ɓë ûñđøñë.‬]"
   },
   "states": {
     "emptyTitle": "[‮Ñø řëçøřđš‬]",
@@ -119,6 +132,7 @@
     "received_messages": "[‮Řëçëïṽëđ‬]",
     "sent_messages": "[‮Šëñţ‬]",
     "failed_jobs": "[‮Fàïľëđ ĵøɓš‬]",
-    "failed_webhooks": "[‮Fàïľëđ ŵëɓħøøķš‬]"
+    "failed_webhooks": "[‮Fàïľëđ ŵëɓħøøķš‬]",
+    "actions": "[‮Àçţïøñš‬]"
   }
 }

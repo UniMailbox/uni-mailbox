@@ -48,6 +48,9 @@ test("authorized administration uses localized navigation", async ({
   uiLocale,
 }) => {
   let created = false;
+  let updated = false;
+  let deleted = false;
+  const existingUserId = "22222222-2222-4222-8222-222222222222";
   await page.route("**/api/v1/**", (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/auth/session")) {
@@ -75,6 +78,42 @@ test("authorized administration uses localized navigation", async ({
         }),
       });
     }
+    if (
+      path.endsWith(`/admin/users/${existingUserId}`) &&
+      route.request().method() === "PATCH"
+    ) {
+      updated = true;
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: { id: existingUserId, displayName: "Operator Updated" },
+        }),
+      });
+    }
+    if (
+      path.endsWith(`/admin/users/${existingUserId}`) &&
+      route.request().method() === "DELETE"
+    ) {
+      deleted = true;
+      return route.fulfill({ status: 204 });
+    }
+    if (path.endsWith("/admin/users")) {
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [
+            {
+              id: existingUserId,
+              email: "lin@example.com",
+              display_name: "Lin Qiao",
+              status: "active",
+              created_at: "2026-08-01 09:30:00",
+              roles: "operator",
+            },
+          ],
+        }),
+      });
+    }
     return route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({ data: [] }),
@@ -87,18 +126,37 @@ test("authorized administration uses localized navigation", async ({
   await expect(
     page.getByText(uiLocale.copy.administration, { exact: true }),
   ).toBeVisible();
-  const createPanel = page.locator(".create-panel").first();
-  await createPanel.locator("summary").click();
-  await createPanel.getByLabel(uiLocale.copy.displayName).fill("Operator");
-  await createPanel
+  await page.getByRole("button", { name: uiLocale.copy.addUsers }).click();
+  const createDialog = page.getByRole("dialog");
+  await createDialog.getByLabel(uiLocale.copy.displayName).fill("Operator");
+  await createDialog
     .getByLabel(uiLocale.copy.emailField)
     .fill("operator@example.com");
-  await createPanel
+  await createDialog
     .getByLabel(uiLocale.copy.passwordField)
     .fill("correct horse battery staple");
-  await createPanel
+  await createDialog
     .getByLabel(uiLocale.copy.roleIds)
     .fill("11111111-1111-4111-8111-111111111111");
-  await createPanel.getByRole("button", { name: uiLocale.copy.create }).click();
+  await createDialog
+    .getByRole("button", { name: uiLocale.copy.create })
+    .click();
   await expect.poll(() => created).toBe(true);
+
+  await page.getByRole("button", { name: uiLocale.copy.view }).click();
+  await expect(page.getByRole("dialog")).toContainText("lin@example.com");
+  await page.getByRole("button", { name: uiLocale.copy.close }).first().click();
+
+  await page.getByRole("button", { name: uiLocale.copy.edit }).click();
+  await page
+    .getByRole("dialog")
+    .getByLabel(uiLocale.copy.displayName)
+    .fill("Operator Updated");
+  await page.getByRole("button", { name: uiLocale.copy.update }).click();
+  await expect.poll(() => updated).toBe(true);
+
+  await page.getByRole("button", { name: uiLocale.copy.delete }).click();
+  await expect(page.getByRole("dialog")).toContainText("lin@example.com");
+  await page.getByRole("button", { name: uiLocale.copy.deleteRecord }).click();
+  await expect.poll(() => deleted).toBe(true);
 });

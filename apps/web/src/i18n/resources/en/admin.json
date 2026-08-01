@@ -18,14 +18,27 @@
   },
   "actions": {
     "create": "Create",
+    "view": "View",
+    "edit": "Edit",
     "update": "Apply change",
     "delete": "Delete",
+    "confirmDelete": "Delete record",
+    "cancel": "Cancel",
+    "close": "Close",
     "save": "Save",
     "saveSettings": "Save settings",
     "saveSignature": "Save signature",
     "reconcile": "Reconcile now",
     "add": "Add {{resource}}",
     "manage": "Manage existing {{resource}}"
+  },
+  "dialog": {
+    "action": "Record action",
+    "createTitle": "Add {{resource}}",
+    "viewTitle": "View {{resource}} record",
+    "editTitle": "Edit {{resource}} record",
+    "deleteTitle": "Delete {{resource}} record",
+    "deleteWarning": "This action cannot be undone. Confirm the record below before deleting it."
   },
   "states": {
     "emptyTitle": "No records yet",
@@ -122,6 +135,7 @@
     "received_messages": "Received messages",
     "sent_messages": "Sent messages",
     "failed_jobs": "Failed jobs",
-    "failed_webhooks": "Failed webhooks"
+    "failed_webhooks": "Failed webhooks",
+    "actions": "Actions"
   }
 }
