@@ -7,9 +7,11 @@ import { MailWorkspace } from "./MailWorkspace";
 import { MessagePage } from "./MessagePage";
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, to: _to, ...props }: React.PropsWithChildren<{ to: string }>) => (
-    <a {...props}>{children}</a>
-  ),
+  Link: ({
+    children,
+    to: _to,
+    ...props
+  }: React.PropsWithChildren<{ to: string }>) => <a {...props}>{children}</a>,
   useNavigate: () => vi.fn(),
 }));
 
@@ -62,10 +64,9 @@ describe("pseudo-RTL mail identifiers", () => {
     );
     renderMail(<MailWorkspace folder="inbox" routeMailboxId={mailboxId} />);
 
-    expect(await screen.findByRole("option", { name: "ops@example.com" })).toHaveAttribute(
-      "dir",
-      "ltr",
-    );
+    expect(
+      await screen.findByRole("option", { name: "ops@example.com" }),
+    ).toHaveAttribute("dir", "ltr");
   });
 
   it("isolates the message ID inside the translated pseudo-RTL identifier", async () => {

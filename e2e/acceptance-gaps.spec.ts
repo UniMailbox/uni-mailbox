@@ -17,7 +17,9 @@ test("language preference survives actual logout and login in one context", asyn
         authenticated
           ? {
               contentType: "application/json",
-              body: JSON.stringify({ data: sessionProfile(["settings.manage"]) }),
+              body: JSON.stringify({
+                data: sessionProfile(["settings.manage"]),
+              }),
             }
           : {
               status: 401,
@@ -58,7 +60,10 @@ test("language preference survives actual logout and login in one context", asyn
         body: JSON.stringify({ data: { items: [], nextCursor: null } }),
       });
     }
-    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: [] }) });
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: [] }),
+    });
   });
 
   await page.goto("/settings/preferences");
@@ -69,7 +74,9 @@ test("language preference survives actual logout and login in one context", asyn
   await expect(page).toHaveURL(/\/login$/u);
 
   await page.getByLabel(changedCopy.email).fill("operator@example.com");
-  await page.getByLabel(changedCopy.password).fill("correct horse battery staple");
+  await page
+    .getByLabel(changedCopy.password)
+    .fill("correct horse battery staple");
   await page.getByRole("button", { name: changedCopy.submit }).click();
   await expect(page).toHaveURL(/\/inbox$/u);
   await expect(page.locator("html")).toHaveAttribute("lang", changedLocale);
@@ -78,7 +85,10 @@ test("language preference survives actual logout and login in one context", asyn
     .toBe(changedLocale);
 });
 
-test("account email change submits a schema-valid request", async ({ page, uiLocale }) => {
+test("account email change submits a schema-valid request", async ({
+  page,
+  uiLocale,
+}) => {
   let requestBody: unknown;
   let authenticated = true;
   await page.route("**/api/v1/**", async (route) => {
@@ -88,7 +98,9 @@ test("account email change submits a schema-valid request", async ({ page, uiLoc
         authenticated
           ? {
               contentType: "application/json",
-              body: JSON.stringify({ data: sessionProfile(["settings.manage"]) }),
+              body: JSON.stringify({
+                data: sessionProfile(["settings.manage"]),
+              }),
             }
           : {
               status: 401,
@@ -107,19 +119,30 @@ test("account email change submits a schema-valid request", async ({ page, uiLoc
         }),
       });
     }
-    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: [] }) });
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: [] }),
+    });
   });
 
   await page.goto("/settings/account");
   const emailForm = page.locator(".account-security-grid > div").first();
-  await emailForm.getByLabel(uiLocale.copy.accountEmail).fill("new.login@example.com");
-  await emailForm.getByLabel(uiLocale.copy.currentPassword).fill("current-password-1234");
-  await emailForm.getByRole("button", { name: uiLocale.copy.updateEmail }).click();
+  await emailForm
+    .getByLabel(uiLocale.copy.accountEmail)
+    .fill("new.login@example.com");
+  await emailForm
+    .getByLabel(uiLocale.copy.currentPassword)
+    .fill("current-password-1234");
+  await emailForm
+    .getByRole("button", { name: uiLocale.copy.updateEmail })
+    .click();
 
-  await expect.poll(() => requestBody).toEqual({
-    currentPassword: "current-password-1234",
-    email: "new.login@example.com",
-  });
+  await expect
+    .poll(() => requestBody)
+    .toEqual({
+      currentPassword: "current-password-1234",
+      email: "new.login@example.com",
+    });
   await expect(page).toHaveURL(/\/login$/u);
 });
 
@@ -133,9 +156,15 @@ test("unknown route renders a localized not-found boundary without replacing its
   await expect(page).toHaveURL(/\/not-a-real-route$/u);
 });
 
-test("unsupported settings section renders localized not-found without falling back to storage", async ({ page, uiLocale }) => {
+test("unsupported settings section renders localized not-found without falling back to storage", async ({
+  page,
+  uiLocale,
+}) => {
   await page.route("**/api/v1/auth/session", (route) =>
-    route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: sessionProfile(["settings.manage"]) }) }),
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: sessionProfile(["settings.manage"]) }),
+    }),
   );
   await page.goto("/settings/typo");
   await expect(page.getByRole("alert")).toContainText(uiLocale.copy.notFound);

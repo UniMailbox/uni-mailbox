@@ -38,25 +38,57 @@ function interpolationVariables(value: string): string[] {
 }
 
 const resources = {
-  en: { admin: enAdmin, auth: enAuth, common: enCommon, errors: enErrors, mail: enMail, settings: enSettings },
-  "zh-CN": { admin: zhAdmin, auth: zhAuth, common: zhCommon, errors: zhErrors, mail: zhMail, settings: zhSettings },
-  "ar-XB": { admin: arAdmin, auth: arAuth, common: arCommon, errors: arErrors, mail: arMail, settings: arSettings },
+  en: {
+    admin: enAdmin,
+    auth: enAuth,
+    common: enCommon,
+    errors: enErrors,
+    mail: enMail,
+    settings: enSettings,
+  },
+  "zh-CN": {
+    admin: zhAdmin,
+    auth: zhAuth,
+    common: zhCommon,
+    errors: zhErrors,
+    mail: zhMail,
+    settings: zhSettings,
+  },
+  "ar-XB": {
+    admin: arAdmin,
+    auth: arAuth,
+    common: arCommon,
+    errors: arErrors,
+    mail: arMail,
+    settings: arSettings,
+  },
 } as const;
 
 describe("translation resources", () => {
   it("keeps every locale namespace, leaf key, interpolation, plural suffix, and value complete", () => {
     const english = Object.fromEntries(
-      Object.entries(resources.en).map(([namespace, resource]) => [namespace, flatten(resource)]),
+      Object.entries(resources.en).map(([namespace, resource]) => [
+        namespace,
+        flatten(resource),
+      ]),
     ) as Record<string, FlatResource>;
 
     for (const locale of ["zh-CN", "ar-XB"] as const) {
-      expect(Object.keys(resources[locale]).sort()).toEqual(Object.keys(resources.en).sort());
+      expect(Object.keys(resources[locale]).sort()).toEqual(
+        Object.keys(resources.en).sort(),
+      );
       for (const namespace of Object.keys(english)) {
-        const localized = flatten(resources[locale][namespace as keyof typeof resources.en]);
-        expect(Object.keys(localized).sort()).toEqual(Object.keys(english[namespace]).sort());
+        const localized = flatten(
+          resources[locale][namespace as keyof typeof resources.en],
+        );
+        expect(Object.keys(localized).sort()).toEqual(
+          Object.keys(english[namespace]).sort(),
+        );
         for (const key of Object.keys(english[namespace])) {
           expect(localized[key]).not.toBe("");
-          expect(interpolationVariables(localized[key])).toEqual(interpolationVariables(english[namespace][key]));
+          expect(interpolationVariables(localized[key])).toEqual(
+            interpolationVariables(english[namespace][key]),
+          );
         }
       }
     }

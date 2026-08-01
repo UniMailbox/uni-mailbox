@@ -24,8 +24,22 @@ import {
 } from "./locale";
 
 const productionResources = {
-  en: { common: enCommon, errors: enErrors, auth: enAuth, mail: enMail, settings: enSettings, admin: enAdmin },
-  "zh-CN": { common: zhCNCommon, errors: zhCNErrors, auth: zhCNAuth, mail: zhCNMail, settings: zhCNSettings, admin: zhCNAdmin },
+  en: {
+    common: enCommon,
+    errors: enErrors,
+    auth: enAuth,
+    mail: enMail,
+    settings: enSettings,
+    admin: enAdmin,
+  },
+  "zh-CN": {
+    common: zhCNCommon,
+    errors: zhCNErrors,
+    auth: zhCNAuth,
+    mail: zhCNMail,
+    settings: zhCNSettings,
+    admin: zhCNAdmin,
+  },
 };
 
 function synchronizeDocument(instance: i18n, locale: RuntimeLocale): void {
@@ -47,7 +61,17 @@ export function createI18nInstance(
   testResources?: Resource,
 ): i18n {
   const resources = testResources
-    ? { ...productionResources, "ar-XB": { common: testResources, errors: arXBErrors, auth: arXBAuth, mail: arXBMail, settings: arXBSettings, admin: arXBAdmin } }
+    ? {
+        ...productionResources,
+        "ar-XB": {
+          common: testResources,
+          errors: arXBErrors,
+          auth: arXBAuth,
+          mail: arXBMail,
+          settings: arXBSettings,
+          admin: arXBAdmin,
+        },
+      }
     : productionResources;
   const instance = i18next.createInstance();
 
@@ -71,9 +95,14 @@ export function createI18nInstance(
 }
 
 export async function initializeI18n(): Promise<i18n> {
-  const allowTestLocale = import.meta.env.DEV || import.meta.env.MODE === "test";
+  const allowTestLocale =
+    import.meta.env.DEV || import.meta.env.MODE === "test";
   const stored = localStorage.getItem(LOCALE_STORAGE_KEY);
-  const locale = resolveInitialLocale(stored, navigator.languages, allowTestLocale);
+  const locale = resolveInitialLocale(
+    stored,
+    navigator.languages,
+    allowTestLocale,
+  );
   const testResources = allowTestLocale
     ? (await import("./resources/ar-XB/common.json")).default
     : undefined;
@@ -81,5 +110,9 @@ export async function initializeI18n(): Promise<i18n> {
   return createI18nInstance(locale, testResources);
 }
 
-export { LOCALE_STORAGE_KEY, localeMetadata, resolveInitialLocale } from "./locale";
+export {
+  LOCALE_STORAGE_KEY,
+  localeMetadata,
+  resolveInitialLocale,
+} from "./locale";
 export type { RuntimeLocale, SupportedLocale } from "./locale";

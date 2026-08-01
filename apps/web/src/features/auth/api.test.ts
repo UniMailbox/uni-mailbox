@@ -39,16 +39,25 @@ describe("auth query options", () => {
       refreshTokenExpiresAt: "2099-01-01T00:00:00.000Z",
     });
     const invalidate = vi.spyOn(client, "invalidateQueries");
-    const options = loginMutationOptions(client) as any;
+    const options = loginMutationOptions(client);
+    const context = { client, meta: undefined };
 
-    const result = await options.mutationFn!({
-      email: "operator@example.com",
-      password: "correct horse battery staple",
-    });
-    await options.onSuccess!(result, {
-      email: "operator@example.com",
-      password: "correct horse battery staple",
-    }, undefined, undefined);
+    const result = await options.mutationFn!(
+      {
+        email: "operator@example.com",
+        password: "correct horse battery staple",
+      },
+      context,
+    );
+    await options.onSuccess!(
+      result,
+      {
+        email: "operator@example.com",
+        password: "correct horse battery staple",
+      },
+      undefined,
+      context,
+    );
 
     expect(setAccessToken).toHaveBeenCalledWith("token-1");
     expect(invalidate).toHaveBeenCalledWith({ queryKey: authKeys.session() });
@@ -58,10 +67,11 @@ describe("auth query options", () => {
     const client = new QueryClient();
     client.setQueryData(["mailboxes"], [{ id: "mailbox-1" }]);
     request.mockResolvedValue({ revoked: true });
-    const options = logoutMutationOptions(client) as any;
+    const options = logoutMutationOptions(client);
+    const context = { client, meta: undefined };
 
-    const result = await options.mutationFn!();
-    await options.onSuccess!(result, undefined, undefined, undefined);
+    const result = await options.mutationFn!(undefined, context);
+    await options.onSuccess!(result, undefined, undefined, context);
 
     expect(setAccessToken).toHaveBeenCalledWith(null);
     expect(client.getQueryData(["mailboxes"])).toBeUndefined();

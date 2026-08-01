@@ -14,7 +14,9 @@ type TranslationTree = string | { [key: string]: TranslationTree };
 
 function leaves(value: TranslationTree, prefix = ""): string[] {
   if (!value || typeof value !== "object") return [prefix];
-  return Object.entries(value).flatMap(([key, child]) => leaves(child, prefix ? `${prefix}.${key}` : key));
+  return Object.entries(value).flatMap(([key, child]) =>
+    leaves(child, prefix ? `${prefix}.${key}` : key),
+  );
 }
 
 describe("Administration", () => {
@@ -24,10 +26,17 @@ describe("Administration", () => {
   });
 
   it("renders localized navigation and does not expose raw Worker values", async () => {
-    Object.defineProperty(window, "scrollTo", { value: vi.fn(), configurable: true });
+    Object.defineProperty(window, "scrollTo", {
+      value: vi.fn(),
+      configurable: true,
+    });
     const queryClient = createTestQueryClient();
     queryClient.setQueryData(["auth", "session"], {
-      user: { id: "11111111-1111-4111-8111-111111111111", email: "admin@example.com", displayName: "Admin" },
+      user: {
+        id: "11111111-1111-4111-8111-111111111111",
+        email: "admin@example.com",
+        displayName: "Admin",
+      },
       permissions: ["user.read"],
     });
     const router = createAppRouter({ queryClient });
@@ -42,11 +51,27 @@ describe("Administration", () => {
     );
     expect(await screen.findByRole("heading", { name: "用户" })).toBeVisible();
     expect(screen.getByRole("link", { name: "返回邮件" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "创建" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "创建" }),
+    ).not.toBeInTheDocument();
   });
 
   it("defines localized labels for every Worker user and webhook status", () => {
-    const statuses = ["active", "suspended", "deleted", "draft", "queued", "sending", "sent", "delayed", "delivered", "bounced", "failed", "complained", "received"] as const;
+    const statuses = [
+      "active",
+      "suspended",
+      "deleted",
+      "draft",
+      "queued",
+      "sending",
+      "sent",
+      "delayed",
+      "delivered",
+      "bounced",
+      "failed",
+      "complained",
+      "received",
+    ] as const;
     for (const status of statuses) {
       expect(en.values[status]).toBeTruthy();
       expect(zhCN.values[status]).toBeTruthy();

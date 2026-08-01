@@ -1,4 +1,8 @@
-import { useQuery, type QueryClient, type UseQueryResult } from "@tanstack/react-query";
+import {
+  useQuery,
+  type QueryClient,
+  type UseQueryResult,
+} from "@tanstack/react-query";
 import type { PermissionKey, SessionProfile } from "@unimailbox/contracts";
 import { ApiClientError, setAccessToken } from "./api/index";
 import { authKeys, sessionQueryOptions } from "../features/auth/api";

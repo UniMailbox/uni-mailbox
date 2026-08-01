@@ -37,9 +37,9 @@ it("keeps the Compose attachment and draft mocks contract-valid", () => {
     "http://127.0.0.1:5186/api/v1/attachments/uploads",
   );
   expect(upload.status).toBe(201);
-  expect(attachmentEndpoints.createUpload.responses[201].parse(upload.body)).toEqual(
-    upload.body,
-  );
+  expect(
+    attachmentEndpoints.createUpload.responses[201].parse(upload.body),
+  ).toEqual(upload.body);
 });
 
 it("keeps the reply mock contract-valid", () => {

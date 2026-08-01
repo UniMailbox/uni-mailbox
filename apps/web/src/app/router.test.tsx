@@ -16,21 +16,41 @@ const ADMIN_SESSION = {
   permissions: [...ADMINISTRATOR_PERMISSIONS],
 };
 
-function routerAt(path: string, session: typeof ADMIN_SESSION | { userId: string; email: string; permissions: string[] } | null = ADMIN_SESSION) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function routerAt(
+  path: string,
+  session:
+    | typeof ADMIN_SESSION
+    | { userId: string; email: string; permissions: string[] }
+    | null = ADMIN_SESSION,
+) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   if (session) queryClient.setQueryData(authKeys.session(), session);
   const history = createMemoryHistory({ initialEntries: [path] });
-  return { history, queryClient, router: createAppRouter({ queryClient, history }) };
+  return {
+    history,
+    queryClient,
+    router: createAppRouter({ queryClient, history }),
+  };
 }
 
 function apiError(code: string, status: number): Response {
-  return new Response(JSON.stringify({ error: { code, message: "never render this", requestId: "router-test" } }), {
-    status,
-    headers: { "content-type": "application/json" },
-  });
+  return new Response(
+    JSON.stringify({
+      error: { code, message: "never render this", requestId: "router-test" },
+    }),
+    {
+      status,
+      headers: { "content-type": "application/json" },
+    },
+  );
 }
 
-function renderRouter(router: ReturnType<typeof createAppRouter>, queryClient: QueryClient) {
+function renderRouter(
+  router: ReturnType<typeof createAppRouter>,
+  queryClient: QueryClient,
+) {
   return render(
     <I18nextProvider i18n={createI18nInstance("en")}>
       <QueryClientProvider client={queryClient}>
@@ -72,10 +92,17 @@ describe("router memory history", () => {
     await signedIn.router.load();
     expect(signedIn.router.state.location.pathname).toBe("/inbox");
 
-    vi.stubGlobal("fetch", vi.fn(async () => apiError("AUTH_REQUIRED", 401)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => apiError("AUTH_REQUIRED", 401)),
+    );
     const anonymous = routerAt("/register", null);
     renderRouter(anonymous.router, anonymous.queryClient);
-    expect(await screen.findByRole("heading", { name: "Sign in to your mail plane." })).toBeVisible();
+    expect(
+      await screen.findByRole("heading", {
+        name: "Sign in to your mail plane.",
+      }),
+    ).toBeVisible();
     expect(anonymous.router.state.location.pathname).toBe("/register");
   });
 
@@ -103,21 +130,37 @@ describe("router memory history", () => {
 
   it("replaces a 401 protected route with login and preserves its safe target", async () => {
     const calls: string[] = [];
-    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
-      const path = String(input).replace(/^.*\/api\/v1/u, "");
-      calls.push(path);
-      return path === "/auth/session"
-        ? apiError("AUTH_REQUIRED", 401)
-        : apiError("REFRESH_TOKEN_REQUIRED", 401);
-    }));
-    const { history, queryClient, router } = routerAt("/messages/message-1", null);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input).replace(/^.*\/api\/v1/u, "");
+        calls.push(path);
+        return path === "/auth/session"
+          ? apiError("AUTH_REQUIRED", 401)
+          : apiError("REFRESH_TOKEN_REQUIRED", 401);
+      }),
+    );
+    const { history, queryClient, router } = routerAt(
+      "/messages/message-1",
+      null,
+    );
     const length = history.length;
     renderRouter(router, queryClient);
-    expect(await screen.findByRole("heading", { name: "Sign in to your mail plane." })).toBeVisible();
-    expect(router.state.location.href).toBe("/login?next=%2Fmessages%2Fmessage-1");
+    expect(
+      await screen.findByRole("heading", {
+        name: "Sign in to your mail plane.",
+      }),
+    ).toBeVisible();
+    expect(router.state.location.href).toBe(
+      "/login?next=%2Fmessages%2Fmessage-1",
+    );
     expect(history.length).toBe(length);
     expect(calls).not.toEqual([]);
-    expect(calls.every((path) => path === "/auth/session" || path === "/auth/refresh")).toBe(true);
+    expect(
+      calls.every(
+        (path) => path === "/auth/session" || path === "/auth/refresh",
+      ),
+    ).toBe(true);
   });
 
   it("keeps a member on an admin route as a forbidden error instead of redirecting to login", async () => {
@@ -126,18 +169,34 @@ describe("router memory history", () => {
       permissions: ["message.read"],
     });
     renderRouter(router, queryClient);
-    expect(await screen.findByText("You do not have access to this area")).toBeVisible();
+    expect(
+      await screen.findByText("You do not have access to this area"),
+    ).toBeVisible();
     expect(router.state.location.pathname).toBe("/admin/users");
-    expect(screen.getByText("This page requires the user.read permission.")).toBeVisible();
+    expect(
+      screen.getByText("This page requires the user.read permission."),
+    ).toBeVisible();
   });
 
-  it.each([[503, "BOOTSTRAP_INCOMPLETE"], [500, "INTERNAL_ERROR"]])(
+  it.each([
+    [503, "BOOTSTRAP_INCOMPLETE"],
+    [500, "INTERNAL_ERROR"],
+  ])(
     "keeps a %i session failure on its protected URL",
     async (status, code) => {
-      vi.stubGlobal("fetch", vi.fn(async () => apiError(code, status)));
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => apiError(code, status)),
+      );
       const { queryClient, router } = routerAt("/inbox", null);
       renderRouter(router, queryClient);
-      expect(await screen.findByText(code === "BOOTSTRAP_INCOMPLETE" ? "Setup is not complete." : "Something went wrong.")).toBeVisible();
+      expect(
+        await screen.findByText(
+          code === "BOOTSTRAP_INCOMPLETE"
+            ? "Setup is not complete."
+            : "Something went wrong.",
+        ),
+      ).toBeVisible();
       expect(router.state.location.pathname).toBe("/inbox");
     },
   );

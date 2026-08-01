@@ -3,7 +3,8 @@ import { expect, test } from "./fixtures/locale";
 const mailboxId = "11111111-1111-4111-8111-111111111111";
 
 test("mailbox route loads messages and toggles the sidebar", async ({
-  page, uiLocale,
+  page,
+  uiLocale,
 }) => {
   let initialPageRequests = 0;
   let paginationRequests = 0;
@@ -69,13 +70,18 @@ test("mailbox route loads messages and toggles the sidebar", async ({
   );
   await page.route("**/api/v1/messages/*/star", async (route) => {
     starred = true;
-    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: { updated: true } }) });
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: { updated: true } }),
+    });
   });
 
   await page.goto(`/inbox/${mailboxId}`);
 
   await expect(page.getByText("Status update")).toBeVisible();
-  await expect(page.getByRole("heading", { name: uiLocale.copy.inbox })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: uiLocale.copy.inbox }),
+  ).toBeVisible();
   await expect.poll(() => initialPageRequests).toBe(1);
   await page.getByRole("button", { name: uiLocale.copy.star }).click();
   await expect.poll(() => starred).toBe(true);

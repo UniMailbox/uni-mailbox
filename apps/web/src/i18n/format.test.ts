@@ -32,10 +32,18 @@ describe("locale-aware formatters", () => {
     expect(formatByteSize(1_536, "en")).toContain("1.5");
     expect(formatByteSize(1_536, "zh-CN")).toContain("1.5");
     expect(
-      formatRelativeDate("2026-07-31 08:15:00", "en", new Date("2026-07-31T12:00:00Z")),
+      formatRelativeDate(
+        "2026-07-31 08:15:00",
+        "en",
+        new Date("2026-07-31T12:00:00Z"),
+      ),
     ).toBe("8:15 AM");
     expect(
-      formatRelativeDate("2026-07-30 08:15:00", "zh-CN", new Date("2026-07-31T12:00:00Z")),
+      formatRelativeDate(
+        "2026-07-30 08:15:00",
+        "zh-CN",
+        new Date("2026-07-31T12:00:00Z"),
+      ),
     ).toBe("7月30日");
   });
 });

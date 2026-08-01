@@ -31,29 +31,45 @@ describe("Status components", () => {
   it("uses a localized API error instead of a diagnostic server message", () => {
     renderLocalized(
       <ErrorState
-        error={new ApiClientError("AUTH_REQUIRED", 401, {
-          diagnosticMessage: "Bad request",
-          requestId: "request-1",
-        })}
+        error={
+          new ApiClientError("AUTH_REQUIRED", 401, {
+            diagnosticMessage: "Bad request",
+            requestId: "request-1",
+          })
+        }
       />,
     );
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Authentication is required.");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Authentication is required.",
+    );
     expect(screen.getByRole("alert")).not.toHaveTextContent("Bad request");
-    expect(screen.getByText("request-1").closest("bdi")).toHaveAttribute("dir", "ltr");
+    expect(screen.getByText("request-1").closest("bdi")).toHaveAttribute(
+      "dir",
+      "ltr",
+    );
   });
 
   it("isolates request IDs in the RTL pseudo-locale", () => {
     renderPseudoLocalized(
-      <ErrorState error={new ApiClientError("AUTH_REQUIRED", 401, { requestId: "request-rtl" })} />,
+      <ErrorState
+        error={
+          new ApiClientError("AUTH_REQUIRED", 401, { requestId: "request-rtl" })
+        }
+      />,
     );
 
-    expect(screen.getByText("request-rtl").closest("bdi")).toHaveAttribute("dir", "ltr");
+    expect(screen.getByText("request-rtl").closest("bdi")).toHaveAttribute(
+      "dir",
+      "ltr",
+    );
   });
 
   it("renders the error state without an Error instance", () => {
     renderLocalized(<ErrorState error="oops" />);
-    expect(screen.getByRole("alert")).toHaveTextContent("Something went wrong.");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Something went wrong.",
+    );
   });
 
   it("invokes retry handler when the retry button is clicked", () => {

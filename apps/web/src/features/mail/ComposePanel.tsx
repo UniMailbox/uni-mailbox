@@ -24,11 +24,7 @@ import {
 import { apiErrorToken } from "../../i18n/errors";
 import { localeMetadata, type RuntimeLocale } from "../../i18n";
 import { type ComposeIntent, useUiStore } from "../../lib/ui-store";
-import {
-  draftQueryOptions,
-  mailKeys,
-  messageQueryOptions,
-} from "./api";
+import { draftQueryOptions, mailKeys, messageQueryOptions } from "./api";
 
 interface ComposeFormValues {
   to: string;
@@ -38,7 +34,6 @@ interface ComposeFormValues {
 }
 
 type DraftDetail = EndpointResponse<typeof draftEndpoints.get>;
-type ParentMessage = EndpointResponse<typeof messageEndpoints.get>;
 type MessageInput = EndpointRequest<typeof messageEndpoints.send>["body"];
 
 function addresses(value: string): string[] {
@@ -95,7 +90,13 @@ function InlineMutationError({ error }: { error: unknown }) {
   );
 }
 
-function ComposeFieldError({ label, recipient }: { label: string; recipient?: boolean }) {
+function ComposeFieldError({
+  label,
+  recipient,
+}: {
+  label: string;
+  recipient?: boolean;
+}) {
   const field = useAppFieldContext<unknown>();
   const { t } = useTranslation("mail");
   const error = field.state.meta.errors.find(
@@ -134,8 +135,8 @@ export function ComposePanel({
   const [editorRevision, setEditorRevision] = useState(0);
   const [serverDraftId, setServerDraftId] = useState(intent?.draftId);
   const [draftVersion, setDraftVersion] = useState<string>();
-  const [localRecoveryComplete, setLocalRecoveryComplete] = useState(
-    () => Boolean(intent?.draftId || intent?.parentMessageId),
+  const [localRecoveryComplete, setLocalRecoveryComplete] = useState(() =>
+    Boolean(intent?.draftId || intent?.parentMessageId),
   );
   const hydratedSource = useRef<string>();
   const restoredLocal = useRef(false);
@@ -166,7 +167,9 @@ export function ComposePanel({
     onUpdate: () => setEditorRevision((current) => current + 1),
   });
   const draft = useQuery({
-    ...draftQueryOptions(intent?.draftId ?? "00000000-0000-4000-8000-000000000000"),
+    ...draftQueryOptions(
+      intent?.draftId ?? "00000000-0000-4000-8000-000000000000",
+    ),
     enabled: Boolean(intent?.draftId),
   });
   const parent = useQuery({
@@ -325,7 +328,9 @@ export function ComposePanel({
   }
 
   async function persistDraft(values: ComposeFormValues): Promise<DraftDetail> {
-    const input = draftEndpoints.create.request.body.parse(messageInput(values));
+    const input = draftEndpoints.create.request.body.parse(
+      messageInput(values),
+    );
     // The TanStack form store can publish hydrated fields before React commits
     // the paired draft-version state update. Keep the already-validated query
     // response as the source for that narrow interval so an immediate send
@@ -540,12 +545,18 @@ export function ComposePanel({
             <Link2 />
           </button>
         </div>
-        <EditorContent className="message-editor" dir={editorDirection} editor={editor} />
+        <EditorContent
+          className="message-editor"
+          dir={editorDirection}
+          editor={editor}
+        />
         <footer>
           <div className="compose-meta">
             <span>{t("compose.autosaved")}</span>
             {attachmentIds.length ? (
-              <strong>{t("compose.attachmentCount", { count: attachmentIds.length })}</strong>
+              <strong>
+                {t("compose.attachmentCount", { count: attachmentIds.length })}
+              </strong>
             ) : null}
             {uploading ? <strong>{t("compose.uploading")}</strong> : null}
             {send.error ? <InlineMutationError error={send.error} /> : null}
@@ -567,7 +578,9 @@ export function ComposePanel({
               className="button primary"
               disabled={send.isPending || save.isPending}
             >
-              <span>{send.isPending ? t("compose.sending") : t("compose.send")}</span>
+              <span>
+                {send.isPending ? t("compose.sending") : t("compose.send")}
+              </span>
               <Send />
             </button>
           </div>

@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestI18n } from "../../i18n/test-instance";
@@ -144,14 +150,17 @@ describe("ComposePanel", () => {
   });
 
   it("hydrates a reply recipient, subject, quote, and parent context", async () => {
-    const requests: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
+    const requests: Array<{ input: RequestInfo | URL; init?: RequestInit }> =
+      [];
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
         requests.push({ input, init });
         if (input === `/api/v1/messages/${parentId}`)
           return Promise.resolve(response(parentMessage));
-        return Promise.resolve(response({ messageId: draftId, status: "queued" }, 201));
+        return Promise.resolve(
+          response({ messageId: draftId, status: "queued" }, 201),
+        );
       }),
     );
     renderCompose("en", { parentMessageId: parentId });
@@ -227,7 +236,11 @@ describe("ComposePanel", () => {
     ]);
     vi.stubGlobal(
       "fetch",
-      vi.fn(() => Promise.resolve(response({ messageId: draftId, status: "queued" }, 201))),
+      vi.fn(() =>
+        Promise.resolve(
+          response({ messageId: draftId, status: "queued" }, 201),
+        ),
+      ),
     );
     renderCompose();
 
@@ -297,14 +310,17 @@ describe("ComposePanel", () => {
         if (input === "/upload") return Promise.resolve(new Response());
         if (input === "/api/v1/attachments/uploads")
           return Promise.resolve(
-            response({
-              attachmentId,
-              objectKey: "attachments/notes.txt",
-              uploadUrl: "https://example.test/upload",
-              uploadHeaders: {},
-              expiresAt: "2026-07-31T11:00:00.000Z",
-              transport: "worker-kv-binding",
-            }, 201),
+            response(
+              {
+                attachmentId,
+                objectKey: "attachments/notes.txt",
+                uploadUrl: "https://example.test/upload",
+                uploadHeaders: {},
+                expiresAt: "2026-07-31T11:00:00.000Z",
+                transport: "worker-kv-binding",
+              },
+              201,
+            ),
           );
         if (input === "https://example.test/upload")
           return Promise.resolve(new Response(null, { status: 204 }));
@@ -319,10 +335,14 @@ describe("ComposePanel", () => {
       target: { value: "Attachment state" },
     });
     fireEvent.change(screen.getByLabelText("Attach file"), {
-      target: { files: [new File(["notes"], "notes.txt", { type: "text/plain" })] },
+      target: {
+        files: [new File(["notes"], "notes.txt", { type: "text/plain" })],
+      },
     });
 
-    await waitFor(() => expect(screen.getByText("1 attachment ready")).toBeVisible());
+    await waitFor(() =>
+      expect(screen.getByText("1 attachment ready")).toBeVisible(),
+    );
     expect(screen.getByLabelText("To")).toHaveValue("team@example.com");
     expect(screen.getByLabelText("Subject")).toHaveValue("Attachment state");
   });
@@ -333,20 +353,23 @@ describe("ComposePanel", () => {
   });
 
   it("saves an existing draft with its current version before sending it", async () => {
-    const requests: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
+    const requests: Array<{ input: RequestInfo | URL; init?: RequestInit }> =
+      [];
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
         requests.push({ input, init });
-        if (
-          input === `/api/v1/drafts/${draftId}` &&
-          init?.method === "PUT"
-        )
+        if (input === `/api/v1/drafts/${draftId}` && init?.method === "PUT")
           return Promise.resolve(
-            response({ ...serverDraft, updated_at: "2026-07-31T10:01:00.000Z" }),
+            response({
+              ...serverDraft,
+              updated_at: "2026-07-31T10:01:00.000Z",
+            }),
           );
         if (input === `/api/v1/drafts/${draftId}/send`)
-          return Promise.resolve(response({ messageId: draftId, status: "queued" }));
+          return Promise.resolve(
+            response({ messageId: draftId, status: "queued" }),
+          );
         return Promise.resolve(response(serverDraft));
       }),
     );
@@ -416,9 +439,18 @@ describe("ComposePanel", () => {
   it("keeps recipient address inputs LTR in the pseudo-RTL locale", () => {
     renderCompose("ar-XB");
 
-    expect(screen.getByLabelText("[Ţø — ŘŢĻ Ţëšţ]")).toHaveAttribute("dir", "ltr");
-    expect(screen.getByLabelText("[ÇÇ — ŘŢĻ Ţëšţ]")).toHaveAttribute("dir", "ltr");
-    expect(screen.getByLabelText("[βÇÇ — ŘŢĻ Ţëšţ]")).toHaveAttribute("dir", "ltr");
+    expect(screen.getByLabelText("[Ţø — ŘŢĻ Ţëšţ]")).toHaveAttribute(
+      "dir",
+      "ltr",
+    );
+    expect(screen.getByLabelText("[ÇÇ — ŘŢĻ Ţëšţ]")).toHaveAttribute(
+      "dir",
+      "ltr",
+    );
+    expect(screen.getByLabelText("[βÇÇ — ŘŢĻ Ţëšţ]")).toHaveAttribute(
+      "dir",
+      "ltr",
+    );
   });
 
   it("reports an empty recipient with translated validation instead of sending", async () => {

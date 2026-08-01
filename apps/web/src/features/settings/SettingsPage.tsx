@@ -78,8 +78,12 @@ function MailboxMembers({ mailboxId }: { mailboxId: string }) {
           {members.data?.map((item: Member) => (
             <div key={item.user_id}>
               <span>
-                <strong><BidiText>{item.display_name || item.email}</BidiText></strong>
-                <small><BidiText kind="identifier">{item.email}</BidiText></small>
+                <strong>
+                  <BidiText>{item.display_name || item.email}</BidiText>
+                </strong>
+                <small>
+                  <BidiText kind="identifier">{item.email}</BidiText>
+                </small>
               </span>
               <select
                 aria-label={t("mailboxes.roleFor", { email: item.email })}
@@ -386,8 +390,12 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
               <div className="simple-list">
                 {mailboxes.data?.map((item) => (
                   <div key={item.id}>
-                    <strong><BidiText>{item.display_name || item.address}</BidiText></strong>
-                    <span><BidiText kind="identifier">{item.address}</BidiText></span>
+                    <strong>
+                      <BidiText>{item.display_name || item.address}</BidiText>
+                    </strong>
+                    <span>
+                      <BidiText kind="identifier">{item.address}</BidiText>
+                    </span>
                     <MailboxMembers mailboxId={item.id} />
                   </div>
                 ))}

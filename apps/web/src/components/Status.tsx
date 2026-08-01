@@ -32,10 +32,14 @@ export function ErrorState({
           <button
             aria-label={t("actions.copyRequestId")}
             className="request-id"
-            onClick={() => void navigator.clipboard?.writeText(token.requestId!)}
+            onClick={() =>
+              void navigator.clipboard?.writeText(token.requestId!)
+            }
             type="button"
           >
-            <BidiText kind="identifier"><code>{token.requestId}</code></BidiText>
+            <BidiText kind="identifier">
+              <code>{token.requestId}</code>
+            </BidiText>
           </button>
         ) : null}
       </div>

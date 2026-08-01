@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  createAppQueryClient,
-  createTestQueryClient,
-} from "./query-client";
+import { createAppQueryClient, createTestQueryClient } from "./query-client";
 
 describe("query client policy", () => {
   it("uses the production freshness and retry policy", () => {

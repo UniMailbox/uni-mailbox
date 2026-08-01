@@ -10,10 +10,22 @@ describe("authentication endpoint contracts", () => {
   it("declares the current login, logout, refresh, session, email, and password routes", () => {
     expect(authEndpoints.login.method).toBe("POST");
     expect(authEndpoints.login.path).toBe("/auth/login");
-    expect(authEndpoints.logout).toMatchObject({ method: "POST", path: "/auth/logout" });
-    expect(authEndpoints.refresh).toMatchObject({ method: "POST", path: "/auth/refresh" });
-    expect(authEndpoints.session).toMatchObject({ method: "GET", path: "/auth/session" });
-    expect(authEndpoints.email).toMatchObject({ method: "POST", path: "/auth/email" });
+    expect(authEndpoints.logout).toMatchObject({
+      method: "POST",
+      path: "/auth/logout",
+    });
+    expect(authEndpoints.refresh).toMatchObject({
+      method: "POST",
+      path: "/auth/refresh",
+    });
+    expect(authEndpoints.session).toMatchObject({
+      method: "GET",
+      path: "/auth/session",
+    });
+    expect(authEndpoints.email).toMatchObject({
+      method: "POST",
+      path: "/auth/email",
+    });
     expect(authEndpoints.passwordReset).toMatchObject({
       method: "POST",
       path: "/auth/password/reset",
@@ -40,7 +52,10 @@ describe("authentication endpoint contracts", () => {
 
   it("validates every authenticated request body", () => {
     const login: EndpointRequest<typeof authEndpoints.login> = {
-      body: { email: "OPERATOR@example.com", password: "correct horse battery staple" },
+      body: {
+        email: "OPERATOR@example.com",
+        password: "correct horse battery staple",
+      },
     };
     expect(authEndpoints.login.request?.body?.parse(login.body)).toMatchObject({
       email: "operator@example.com",

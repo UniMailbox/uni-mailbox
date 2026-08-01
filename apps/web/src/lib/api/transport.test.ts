@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { ApiClientError, createApiTransport } from "./transport";
+import type { ApiClientError } from "./transport";
+import { createApiTransport } from "./transport";
 
 function response(body: unknown, init: ResponseInit = {}): Response {
   return Response.json(body, init);
@@ -92,19 +93,17 @@ describe("API transport", () => {
 
   it("maps unknown codes to a safe generic error while retaining diagnostics", async () => {
     const transport = createApiTransport({
-      fetch: vi
-        .fn()
-        .mockResolvedValue(
-          response(
-            {
-              error: {
-                code: "PROVIDER_PRIVATE_FAILURE",
-                message: "do not show",
-              },
+      fetch: vi.fn().mockResolvedValue(
+        response(
+          {
+            error: {
+              code: "PROVIDER_PRIVATE_FAILURE",
+              message: "do not show",
             },
-            { status: 503 },
-          ),
+          },
+          { status: 503 },
         ),
+      ),
     });
 
     await expect(
@@ -227,19 +226,17 @@ describe("API transport", () => {
   });
 
   it("never refreshes the login endpoint", async () => {
-    const fetch = vi
-      .fn()
-      .mockResolvedValue(
-        response(
-          {
-            error: {
-              code: "AUTH_CREDENTIALS_INVALID",
-              message: "bad credentials",
-            },
+    const fetch = vi.fn().mockResolvedValue(
+      response(
+        {
+          error: {
+            code: "AUTH_CREDENTIALS_INVALID",
+            message: "bad credentials",
           },
-          { status: 401 },
-        ),
-      );
+        },
+        { status: 401 },
+      ),
+    );
     const transport = createApiTransport({ fetch });
 
     await expect(transport.request("/auth/login")).rejects.toMatchObject({

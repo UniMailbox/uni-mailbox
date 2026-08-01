@@ -11,7 +11,9 @@ export async function expectKeyboardFocusSequence(
     await expect(target).toBeVisible();
     await expect(target).toBeFocused();
     await expect
-      .poll(() => target.evaluate((element) => element.matches(":focus-visible")))
+      .poll(() =>
+        target.evaluate((element) => element.matches(":focus-visible")),
+      )
       .toBe(true);
   }
 }

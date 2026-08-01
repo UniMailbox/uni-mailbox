@@ -1,4 +1,8 @@
-import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
+import {
+  mutationOptions,
+  queryOptions,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { authEndpoints, type EndpointRequest } from "@unimailbox/contracts";
 import { apiClient, setAccessToken } from "../../lib/api/index";
 

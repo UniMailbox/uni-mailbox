@@ -2,7 +2,8 @@ import { createFormHook, createFormHookContexts } from "@tanstack/react-form";
 import { useTranslation } from "react-i18next";
 import { FieldError } from "./field-error";
 
-const { fieldContext, formContext, useFieldContext, useFormContext } = createFormHookContexts();
+const { fieldContext, formContext, useFieldContext, useFormContext } =
+  createFormHookContexts();
 
 export const useAppFieldContext = useFieldContext;
 
@@ -13,7 +14,12 @@ type InputProps = {
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
 };
 
-function TextField({ label, placeholder, autoComplete, inputMode }: InputProps) {
+function TextField({
+  label,
+  placeholder,
+  autoComplete,
+  inputMode,
+}: InputProps) {
   const field = useFieldContext<string>();
   const { t } = useTranslation("common");
   const id = field.name;
@@ -61,7 +67,9 @@ function PasswordField(props: InputProps) {
 function SubmitButton({ children }: { children: React.ReactNode }) {
   const form = useFormContext();
   return (
-    <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting] as const}>
+    <form.Subscribe
+      selector={(state) => [state.canSubmit, state.isSubmitting] as const}
+    >
       {([canSubmit, isSubmitting]) => (
         <button disabled={!canSubmit || isSubmitting} type="submit">
           {children}
