@@ -1,4 +1,8 @@
-import { expect, test } from "./fixtures/locale";
+import {
+  attachmentReadyPattern,
+  expect,
+  test,
+} from "./fixtures/locale";
 import {
   composeAttachmentId,
   composeCreateUploadFixture,
@@ -138,7 +142,7 @@ test("compose uploads an attachment, saves a server draft, and sends it", async 
     mimeType: "text/plain",
     buffer: Buffer.from("recovery steps"),
   });
-  await expect(page.getByText(uiLocale.copy.attachmentReady)).toBeVisible();
+  await expect(page.getByText(attachmentReadyPattern(uiLocale.code))).toBeVisible();
   await page.getByRole("button", { name: uiLocale.copy.saveDraft }).click();
   await expect(page.getByText(uiLocale.copy.saved)).toBeVisible();
   await page.getByRole("button", { name: uiLocale.copy.send }).click();

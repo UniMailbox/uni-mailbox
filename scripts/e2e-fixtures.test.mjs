@@ -13,7 +13,10 @@ import {
   composeDraftFixture,
   replyMessageFixture,
 } from "../e2e/fixtures/mail.ts";
-import { seedLocalePreference } from "../e2e/fixtures/locale.ts";
+import {
+  initializeProjectLocale,
+  seedLocalePreference,
+} from "../e2e/fixtures/locale.ts";
 import {
   anonymousSessionError,
   sessionProfile,
@@ -64,4 +67,16 @@ it("seeds a project locale only when a preference does not already exist", () =>
   seedLocalePreference("zh-CN", storage);
 
   expect(storage.getItem("unimailbox.locale")).toBe("en");
+});
+
+it("registers the project locale initializer on the browser context", async () => {
+  const calls = [];
+  const context = {
+    addInitScript: async (...args) => calls.push(args),
+  };
+
+  await initializeProjectLocale(context, "zh-CN");
+
+  expect(calls).toHaveLength(1);
+  expect(calls[0]?.[1]).toBe("zh-CN");
 });
