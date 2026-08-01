@@ -8,8 +8,8 @@ const { request, setAccessToken } = vi.hoisted(() => ({
 
 vi.mock("../../lib/api/index", () => ({
   apiClient: { request },
+  setAccessToken,
 }));
-vi.mock("../../lib/api.ts", () => ({ setAccessToken }));
 
 import {
   authKeys,

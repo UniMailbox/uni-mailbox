@@ -4,8 +4,6 @@ import { pathToFileURL } from "node:url";
 
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx"]);
 const TECHNICAL_VISIBLE_VALUES = new Set(["CM", "OP", "UniMailbox"]);
-// The deprecated helper is retained only for legacy unit tests until Task 13.
-const ALLOWED_LEGACY_API_FILE = "apps/web/src/lib/api.ts";
 // Presigned binary upload is intentionally not a normal JSON endpoint request.
 const ALLOWED_DIRECT_FETCH_FILE = "apps/web/src/features/mail/ComposePanel.tsx";
 // The transport is the one approved owner of fetch for endpoint contracts.
@@ -87,8 +85,8 @@ function rawFormFailures(content) {
 /**
  * Validates frontend-only invariants that TypeScript cannot express: no visible
  * untranslated copy, no physical directional CSS, no React Hook Form, and no
- * uncontracted API call. The two narrow compatibility exceptions above are
- * deliberately file-scoped and disappear with the final cleanup task.
+ * uncontracted API call. The direct-upload and transport exceptions are
+ * deliberately file-scoped because they own their distinct transport needs.
  */
 export async function checkFrontendContracts(root = process.cwd()) {
   const errors = [];
@@ -104,10 +102,8 @@ export async function checkFrontendContracts(root = process.cwd()) {
         errors.push(format(root, file, content, literal.index, `visible product copy must use i18n: ${JSON.stringify(literal.value)}`));
       }
     }
-    if (fileName !== ALLOWED_LEGACY_API_FILE) {
-      patternFailures(root, file, content, /\bapiRequest\s*</gu, "legacy apiRequest<T> is not an endpoint contract", errors);
-      patternFailures(root, file, content, /\bapiResponse\s*\(/gu, "raw apiResponse() is not an endpoint contract", errors);
-    }
+    patternFailures(root, file, content, /\bapiRequest\s*</gu, "legacy apiRequest<T> is not an endpoint contract", errors);
+    patternFailures(root, file, content, /\bapiResponse\s*\(/gu, "raw apiResponse() is not an endpoint contract", errors);
     patternFailures(root, file, content, /\berror\.message\b/gu, "error.message must not be rendered as product copy", errors);
     patternFailures(root, file, content, /(?:from\s+["']react-hook-form["']|require\(["']react-hook-form["']\))/gu, "react-hook-form is prohibited; use the application TanStack Form composition", errors);
     if (fileName.endsWith(".tsx")) {

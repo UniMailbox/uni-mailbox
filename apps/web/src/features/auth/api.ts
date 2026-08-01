@@ -1,7 +1,6 @@
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import { authEndpoints, type EndpointRequest } from "@unimailbox/contracts";
-import { apiClient } from "../../lib/api/index";
-import { setAccessToken } from "../../lib/api";
+import { apiClient, setAccessToken } from "../../lib/api/index";
 
 export const authKeys = {
   all: ["auth"] as const,

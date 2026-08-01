@@ -150,10 +150,19 @@ that gate; never use it outside of an active incident.
   from the Worker. If a screen needs a placeholder, it renders the
   `LoadingState` or `ErrorState` from `apps/web/src/components/Status.tsx`.
 - **Route protection is enforced on the server, mirrored on the client.**
-  `RequireSession` in `apps/web/src/features/auth/RequireSession.tsx` is the
-  guard; the real authority is the `requireAuth()` middleware in
-  `apps/worker/src/http/router.ts`. Never wrap a route in `RequireSession`
-  with a permission the matching endpoint does not actually check.
+  The typed TanStack Router authenticated parent and administration route
+  guards mirror the real authority in `requireAuth()` middleware in
+  `apps/worker/src/http/router.ts`. Never add a page-level redirect or client
+  permission check that differs from the matching endpoint.
+- **Frontend API and form boundaries are explicit.** Add a runtime-validated
+  operation to `packages/contracts/src/api/`, index it in `endpoints.ts`, and
+  call it through a feature-owned Query or mutation option. Production forms
+  use the shared TanStack Form composition; no generic request helper or React
+  Hook Form compatibility layer remains.
+- **Product copy is localized.** Use i18next keys for visible and accessible
+  text, map server failures by stable error code, and keep technical values
+  such as IDs and email addresses bidi-isolated. Run `pnpm i18n:check` and
+  `pnpm frontend:contracts` before frontend changes are submitted.
 - **Every HTTP error has a stable `code`.** The web client surfaces the
   `code` in `ErrorState`; do not strip it before returning a JSON error.
 - **Idempotency keys are mandatory on every admin write.** Use

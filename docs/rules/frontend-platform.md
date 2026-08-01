@@ -136,8 +136,10 @@ Additional rules:
   semantics explicitly.
 - Internal domain/event models with `Date`, `ArrayBuffer`, or provider adapters
   are not HTTP wire DTOs.
-- Temporary compatibility accepts legacy `details`; new behavior prefers typed
-  `params`.
+- The transport alone accepts the current `{ data }`, `{ error }`, and legacy
+  `details` envelopes while the Worker migration is pending. Feature code uses
+  only indexed endpoint contracts; deprecated generic request helpers are not
+  available.
 
 Prohibited:
 
