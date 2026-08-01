@@ -19,7 +19,7 @@ import {
 } from "@unimailbox/contracts";
 import { ErrorState, LoadingState } from "../../components/Status";
 import { BidiText } from "../../components/BidiText";
-import { FieldError, useAppForm } from "../../lib/form/app-form";
+import { FieldError, FormRoot, useAppForm } from "../../lib/form/app-form";
 import { endSession } from "../../lib/session";
 import { mailboxesQueryOptions } from "../mail/api";
 import { CloudflareSettings } from "./CloudflareSettings";
@@ -118,13 +118,7 @@ function MailboxMembers({ mailboxId }: { mailboxId: string }) {
           ))}
         </div>
       )}
-      <form
-        className="member-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void form.handleSubmit();
-        }}
-      >
+      <FormRoot className="member-form" form={form}>
         <form.AppField name="userId">
           {(field) => (
             <label>
@@ -141,23 +135,28 @@ function MailboxMembers({ mailboxId }: { mailboxId: string }) {
         </form.AppField>
         <form.AppField name="role">
           {(field) => (
-            <select
-              aria-label={t("mailboxes.memberRole")}
-              onChange={(event) =>
-                field.handleChange(
-                  event.target.value as "viewer" | "sender" | "admin",
-                )
-              }
-              value={field.state.value}
-            >
-              <option value="viewer">{t("mailboxes.roles.viewer")}</option>
-              <option value="sender">{t("mailboxes.roles.sender")}</option>
-              <option value="admin">{t("mailboxes.roles.admin")}</option>
-            </select>
+            <label>
+              <span className="sr-only">{t("mailboxes.memberRole")}</span>
+              <select
+                aria-label={t("mailboxes.memberRole")}
+                onBlur={field.handleBlur}
+                onChange={(event) =>
+                  field.handleChange(
+                    event.target.value as "viewer" | "sender" | "admin",
+                  )
+                }
+                value={field.state.value}
+              >
+                <option value="viewer">{t("mailboxes.roles.viewer")}</option>
+                <option value="sender">{t("mailboxes.roles.sender")}</option>
+                <option value="admin">{t("mailboxes.roles.admin")}</option>
+              </select>
+              <FieldError label={t("mailboxes.memberRole")} />
+            </label>
           )}
         </form.AppField>
         <Submit disabled={member.isPending}>{t("mailboxes.share")}</Submit>
-      </form>
+      </FormRoot>
       {member.error ? <ErrorState error={member.error} /> : null}
     </details>
   );
@@ -273,13 +272,7 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
             <div className="account-security-grid">
               <div>
                 <h3>{t("account.emailHeading")}</h3>
-                <form
-                  className="form-stack"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void emailForm.handleSubmit();
-                  }}
-                >
+                <FormRoot className="form-stack" form={emailForm}>
                   <emailForm.AppField name="email">
                     {(field) => (
                       <label className="field">
@@ -318,17 +311,11 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
                   <Submit disabled={email.isPending}>
                     {t("account.updateEmail")}
                   </Submit>
-                </form>
+                </FormRoot>
               </div>
               <div>
                 <h3>{t("account.passwordHeading")}</h3>
-                <form
-                  className="form-stack"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void passwordForm.handleSubmit();
-                  }}
-                >
+                <FormRoot className="form-stack" form={passwordForm}>
                   <passwordForm.AppField name="currentPassword">
                     {(field) => (
                       <label className="field">
@@ -369,7 +356,7 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
                   <Submit disabled={password.isPending}>
                     {t("account.updatePassword")}
                   </Submit>
-                </form>
+                </FormRoot>
               </div>
             </div>
             <div className="session-warning">
@@ -404,13 +391,7 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
           </section>
           <section className="settings-card vertical">
             <h2>{t("mailboxes.createHeading")}</h2>
-            <form
-              className="form-stack"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void mailboxForm.handleSubmit();
-              }}
-            >
+            <FormRoot className="form-stack" form={mailboxForm}>
               <mailboxForm.AppField name="localPart">
                 {(field) => (
                   <label className="field">
@@ -422,6 +403,7 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
                       }
                       value={field.state.value}
                     />
+                    <FieldError label={t("mailboxes.localPart")} />
                   </label>
                 )}
               </mailboxForm.AppField>
@@ -436,6 +418,7 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
                       }
                       value={field.state.value}
                     />
+                    <FieldError label={t("mailboxes.domainId")} />
                   </label>
                 )}
               </mailboxForm.AppField>
@@ -450,6 +433,7 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
                       }
                       value={field.state.value}
                     />
+                    <FieldError label={t("mailboxes.displayName")} />
                   </label>
                 )}
               </mailboxForm.AppField>
@@ -457,7 +441,7 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
               <Submit disabled={mailbox.isPending}>
                 {t("mailboxes.create")}
               </Submit>
-            </form>
+            </FormRoot>
           </section>
         </div>
       ) : section === "cloudflare" ? (

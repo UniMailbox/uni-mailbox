@@ -98,10 +98,30 @@ function rawFormFailures(content) {
   return forms;
 }
 
+function nativeValidationFailures(content) {
+  const forms = [];
+  for (const match of content.matchAll(/<form(?!\.)\b[^>]*>/gu)) {
+    const openingTag = match[0];
+    const end = content.indexOf("</form>", match.index);
+    const markup = content.slice(
+      match.index,
+      end === -1 ? content.length : end + "</form>".length,
+    );
+    const isTanStackManaged =
+      /\b[A-Za-z_$][\w$]*\.handleSubmit\b/u.test(markup) &&
+      /<[A-Za-z_$][\w$]*\.(?:AppField|AppForm|Subscribe)\b/u.test(markup);
+    if (isTanStackManaged && !/\bnoValidate\b/u.test(openingTag)) {
+      forms.push(match.index);
+    }
+  }
+  return forms;
+}
+
 /**
  * Validates frontend-only invariants that TypeScript cannot express: no visible
- * untranslated copy, no physical directional CSS, no React Hook Form, and no
- * uncontracted API call. The transport is the sole owner of fetch.
+ * untranslated copy, no physical directional CSS, no React Hook Form, no
+ * browser-owned validation on TanStack forms, and no uncontracted API call.
+ * The transport is the sole owner of fetch.
  */
 export async function checkFrontendContracts(root = process.cwd()) {
   const errors = [];
@@ -169,6 +189,25 @@ export async function checkFrontendContracts(root = process.cwd()) {
           ),
         );
       }
+      for (const index of nativeValidationFailures(content)) {
+        errors.push(
+          format(
+            root,
+            file,
+            content,
+            index,
+            "TanStack-managed forms must set noValidate so contract validation can render localized feedback",
+          ),
+        );
+      }
+      patternFailures(
+        root,
+        file,
+        content,
+        /\bstate\.canSubmit\b|!canSubmit\b/gu,
+        "submit controls must remain reachable after validation errors; disable only while submission is pending",
+        errors,
+      );
     }
 
     if (fileName !== API_TRANSPORT_FILE) {

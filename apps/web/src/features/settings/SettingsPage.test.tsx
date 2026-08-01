@@ -140,6 +140,26 @@ describe("authenticated settings", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("shows localized validation before creating an invalid mailbox", async () => {
+    const fetchMock = vi
+      .spyOn(window, "fetch")
+      .mockResolvedValue(Response.json({ data: [] }));
+    renderSettings("mailboxes");
+    await screen.findByRole("heading", { name: "Create mailbox" });
+    fetchMock.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: "Create mailbox" }));
+
+    const alerts = await screen.findAllByRole("alert");
+    expect(alerts.map((alert) => alert.textContent).join(" ")).toContain(
+      "Local part",
+    );
+    expect(alerts.map((alert) => alert.textContent).join(" ")).toContain(
+      "Domain ID",
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("submits a whitespace-padded member UUID normalized by the endpoint schema", async () => {
     setAccessToken("access-token");
     const mailboxId = "11111111-1111-4111-8111-111111111111";

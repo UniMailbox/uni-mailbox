@@ -67,6 +67,9 @@ export function createApiClient(
 ): ApiClient {
   return {
     async request(endpoint, input) {
+      // Re-validate at the network boundary even when a form already used the
+      // same schema. Callers other than forms must receive identical runtime
+      // guarantees, and transformed values must be serialized consistently.
       const parsed = parseRequest(endpoint, input);
       const path =
         endpoint.transport === "worker-signed-url"
