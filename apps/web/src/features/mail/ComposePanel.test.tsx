@@ -307,7 +307,7 @@ describe("ComposePanel", () => {
             }, 201),
           );
         if (input === "https://example.test/upload")
-          return Promise.resolve(new Response());
+          return Promise.resolve(new Response(null, { status: 204 }));
         return Promise.resolve(response({ attachmentId, status: "uploaded" }));
       }),
     );
@@ -325,6 +325,11 @@ describe("ComposePanel", () => {
     await waitFor(() => expect(screen.getByText("1 attachment ready")).toBeVisible());
     expect(screen.getByLabelText("To")).toHaveValue("team@example.com");
     expect(screen.getByLabelText("Subject")).toHaveValue("Attachment state");
+  });
+
+  it("uses the typed attachment content operation instead of a direct fetch", () => {
+    expect(composeSource).toContain("attachmentEndpoints.uploadContent");
+    expect(composeSource).not.toMatch(/\bfetch\s*\(/u);
   });
 
   it("saves an existing draft with its current version before sending it", async () => {

@@ -266,6 +266,13 @@ describe("current Worker mail endpoint contracts", () => {
       method: "POST",
       path: "/attachments/uploads/:attachmentId/complete",
     });
+    expect(attachmentEndpoints.uploadContent).toMatchObject({
+      method: "PUT",
+      path: "/attachments/uploads/:attachmentId/content",
+      mediaType: "empty",
+      transport: "worker-signed-url",
+    });
+    expect(attachmentEndpoints.uploadContent.responses[204]).toBeNull();
     expect(attachmentEndpoints.download).toMatchObject({
       method: "GET",
       path: "/attachments/:attachmentId/download",

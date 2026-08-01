@@ -8,6 +8,7 @@ export type EndpointDefinition = {
   method: HttpMethod;
   path: string;
   request?: {
+    url?: z.ZodTypeAny;
     params?: z.ZodTypeAny;
     query?: z.ZodTypeAny;
     headers?: z.ZodTypeAny;
@@ -16,6 +17,8 @@ export type EndpointDefinition = {
   responses: Record<number, z.ZodTypeAny | null>;
   errors: readonly ErrorCode[];
   mediaType: MediaType;
+  /** Worker-issued absolute URL with signed query credentials, not a generic third-party response. */
+  transport?: "worker-signed-url";
   /** A binary endpoint may expose only safe, contract-defined response metadata. */
   binaryResponse?: "blob-with-content-disposition";
 };
@@ -28,7 +31,7 @@ export function defineEndpoint<const TDefinition extends EndpointDefinition>(
 
 type RequestMember<
   TEndpoint extends EndpointDefinition,
-  TMember extends "params" | "query" | "headers" | "body",
+  TMember extends "url" | "params" | "query" | "headers" | "body",
 > =
   TEndpoint["request"] extends Record<TMember, infer TSchema>
     ? TSchema extends z.ZodTypeAny
@@ -37,7 +40,8 @@ type RequestMember<
     : {};
 
 export type EndpointRequest<TEndpoint extends EndpointDefinition> =
-  RequestMember<TEndpoint, "params"> &
+  RequestMember<TEndpoint, "url"> &
+    RequestMember<TEndpoint, "params"> &
     RequestMember<TEndpoint, "query"> &
     RequestMember<TEndpoint, "headers"> &
     RequestMember<TEndpoint, "body">;

@@ -30,6 +30,9 @@ const attachmentErrors = [
   "ATTACHMENT_RATE_LIMITED",
   "ATTACHMENT_OBJECT_MISMATCH",
   "ATTACHMENT_UPLOAD_EXPIRED",
+  "ATTACHMENT_UPLOAD_TOKEN_INVALID",
+  "ATTACHMENT_UPLOAD_HEADERS_INVALID",
+  "ATTACHMENT_UPLOAD_EMPTY",
 ] as const;
 
 export const attachmentEndpoints = {
@@ -62,6 +65,20 @@ export const attachmentEndpoints = {
     },
     errors: attachmentErrors,
     mediaType: "json",
+  }),
+  uploadContent: defineEndpoint({
+    method: "PUT",
+    path: "/attachments/uploads/:attachmentId/content",
+    request: {
+      url: z.string().url(),
+      params: z.object({ attachmentId: UuidSchema }),
+      headers: z.record(z.string()),
+      body: z.instanceof(Blob),
+    },
+    responses: { 204: null },
+    errors: attachmentErrors,
+    mediaType: "empty",
+    transport: "worker-signed-url",
   }),
   download: defineEndpoint({
     method: "GET",

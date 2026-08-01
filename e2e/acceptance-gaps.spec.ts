@@ -133,6 +133,16 @@ test("unknown route renders a localized not-found boundary without replacing its
   await expect(page).toHaveURL(/\/not-a-real-route$/u);
 });
 
+test("unsupported settings section renders localized not-found without falling back to storage", async ({ page, uiLocale }) => {
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: sessionProfile(["settings.manage"]) }) }),
+  );
+  await page.goto("/settings/typo");
+  await expect(page.getByRole("alert")).toContainText(uiLocale.copy.notFound);
+  await expect(page).toHaveURL(/\/settings\/typo$/u);
+  await expect(page.getByText(uiLocale.copy.storageTitle)).toHaveCount(0);
+});
+
 test("member is forbidden from an admin resource without losing the URL", async ({
   page,
   uiLocale,

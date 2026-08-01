@@ -8,6 +8,7 @@ import { MailWorkspace } from "../features/mail/MailWorkspace";
 import { MessagePage } from "../features/mail/MessagePage";
 import { AdminPage } from "../features/admin/AdminPage";
 import { SettingsPage } from "../features/settings/SettingsPage";
+import { isSettingsSection, type SettingsSection } from "../features/settings/sections";
 import { ForbiddenRouteError, RouteErrorBoundary, RouteNotFoundBoundary } from "../routes/boundaries";
 import { App } from "../App";
 
@@ -31,23 +32,25 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
   notFoundComponent: RouteNotFoundBoundary,
 });
 
+async function redirectIfSignedIn({ context, search }: { context: RouterContext; search: ReturnType<typeof loginSearch> }) {
+  try {
+    await context.queryClient.ensureQueryData(sessionQueryOptions());
+    throw redirect({ to: safeLoginTarget(search.next), replace: true });
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 401) return;
+    throw error;
+  }
+}
+
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "login",
   validateSearch: loginSearch,
-  beforeLoad: async ({ context, search }) => {
-    try {
-      await context.queryClient.ensureQueryData(sessionQueryOptions());
-      throw redirect({ to: safeLoginTarget(search.next), replace: true });
-    } catch (error) {
-      if (error instanceof ApiClientError && error.status === 401) return;
-      throw error;
-    }
-  },
+  beforeLoad: redirectIfSignedIn,
   component: LoginPage,
 });
 
-const registerRoute = createRoute({ getParentRoute: () => rootRoute, path: "register", validateSearch: loginSearch, component: LoginPage });
+const registerRoute = createRoute({ getParentRoute: () => rootRoute, path: "register", validateSearch: loginSearch, beforeLoad: redirectIfSignedIn, component: LoginPage });
 const setupRoute = createRoute({ getParentRoute: () => rootRoute, path: "setup", beforeLoad: () => { throw redirect({ to: "/login", replace: true }); } });
 const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: "/", beforeLoad: () => { throw redirect({ to: "/inbox", replace: true }); } });
 
@@ -81,7 +84,7 @@ function AdminRoute() {
   return <AdminPage resource={resource} />;
 }
 function SettingsRoute() {
-  const { section } = useParams({ strict: false }) as { section: "account" | "mailboxes" | "cloudflare" | "storage" | "preferences" };
+  const { section } = useParams({ strict: false }) as { section: SettingsSection };
   return <SettingsPage section={section} />;
 }
 const folderRoutes = folders.flatMap((folder) => [
@@ -100,7 +103,14 @@ const adminRoute = createRoute({
   },
   component: AdminRoute,
 });
-const settingsRoute = createRoute({ getParentRoute: () => authenticatedRoute, path: "settings/$section", component: SettingsRoute });
+const settingsRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: "settings/$section",
+  beforeLoad: ({ params }) => {
+    if (!isSettingsSection(params.section)) throw notFound();
+  },
+  component: SettingsRoute,
+});
 const settingsIndexRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: "settings",

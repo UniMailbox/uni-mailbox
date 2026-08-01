@@ -97,6 +97,18 @@ describe("typed API client", () => {
     });
   });
 
+  it("uploads signed Worker attachment content as a typed empty-response operation", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const client = createApiClient(createApiTransport({ fetch }));
+    await expect(client.request(attachmentEndpoints.uploadContent, {
+      url: "https://mail.example/api/v1/attachments/uploads/d9fbf784-e709-4ec4-a2ca-3385e5ff1aa6/content?token=signed",
+      params: { attachmentId: "d9fbf784-e709-4ec4-a2ca-3385e5ff1aa6" },
+      headers: { "Content-Type": "text/plain" },
+      body: new Blob(["contents"], { type: "text/plain" }),
+    })).resolves.toBeUndefined();
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining("?token=signed"), expect.objectContaining({ method: "PUT" }));
+  });
+
   it("returns a redirect endpoint location without JSON-envelope decoding", async () => {
     const fetch = vi.fn().mockResolvedValue(
       new Response(null, {

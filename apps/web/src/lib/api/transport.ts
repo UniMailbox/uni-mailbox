@@ -94,6 +94,7 @@ function responseError(
 }
 
 function joinPath(basePath: string, path: string): string {
+  if (/^https?:\/\//u.test(path)) return path;
   const base = basePath.endsWith("/") ? basePath.slice(0, -1) : basePath;
   return `${base}${path.startsWith("/") ? path : `/${path}`}`;
 }
@@ -113,7 +114,7 @@ export function createApiTransport(
     mediaType: MediaType = "json",
   ): Promise<Response> {
     const headers = new Headers(init.headers);
-    const token = readAccessToken();
+    const token = /^https?:\/\//u.test(path) ? null : readAccessToken();
     if (token) headers.set("authorization", `Bearer ${token}`);
     if (
       init.body &&
