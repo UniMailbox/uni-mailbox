@@ -12,3 +12,4 @@ test-results
 task-*-report.md
 *.local
 .worktrees/
+.pnpm-store/

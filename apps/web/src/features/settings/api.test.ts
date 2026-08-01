@@ -42,6 +42,11 @@ describe("settings query ownership", () => {
         id: "11111111-1111-4111-8111-111111111111",
         name: "mail.example.com",
         expectedRoute: "*@mail.example.com -> unimailbox Worker",
+        routingConfiguration: {
+          status: "manual_setup_required",
+          dashboardUrl:
+            "https://dash.cloudflare.com/?to=%2Faccount-1%2Femail-service%2Frouting",
+        },
       },
       { name: "mail.example.com" },
       undefined,

@@ -17,7 +17,8 @@ import {
 } from "@unimailbox/contracts";
 import { ErrorState, LoadingState, SuccessNote } from "../../components/Status";
 import { BidiText } from "../../components/BidiText";
-import { useAppForm } from "../../lib/form/app-form";
+import { DomainRoutingGuide } from "../../components/DomainRoutingGuide";
+import { FieldError, FormRoot, useAppForm } from "../../lib/form/app-form";
 import {
   cloudflareDomainMutationOptions,
   cloudflareInboundMutationOptions,
@@ -42,6 +43,13 @@ function Submit({
     </button>
   );
 }
+
+function brevoFieldLabelKey(
+  name: "label" | "domainId" | "apiKey" | "webhookSecret",
+) {
+  return `cloudflare.${name === "label" ? "connectionLabel" : name}`;
+}
+
 function CheckpointStatus({
   status,
 }: {
@@ -180,12 +188,9 @@ export function CloudflareSettings() {
                 : t("cloudflare.oauthAbsent")}
             </SuccessNote>
           ) : null}
-          <form
+          <FormRoot
             className="configuration-form three-column"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void verifyForm.handleSubmit();
-            }}
+            form={verifyForm}
           >
             <verifyForm.AppField name="accountId">
               {(field) => (
@@ -197,6 +202,7 @@ export function CloudflareSettings() {
                     onChange={(event) => field.handleChange(event.target.value)}
                     value={field.state.value}
                   />
+                  <FieldError label={t("cloudflare.accountId")} />
                 </label>
               )}
             </verifyForm.AppField>
@@ -210,6 +216,7 @@ export function CloudflareSettings() {
                     onChange={(event) => field.handleChange(event.target.value)}
                     value={field.state.value}
                   />
+                  <FieldError label={t("cloudflare.zoneId")} />
                 </label>
               )}
             </verifyForm.AppField>
@@ -230,13 +237,14 @@ export function CloudflareSettings() {
                     </option>
                     <option value="oauth">{t("cloudflare.oauth")}</option>
                   </select>
+                  <FieldError label={t("cloudflare.mode")} />
                 </label>
               )}
             </verifyForm.AppField>
             <Submit disabled={verify.isPending}>
               <ShieldCheck aria-hidden="true" /> {t("cloudflare.saveVerify")}
             </Submit>
-          </form>
+          </FormRoot>
           {verify.error ? <ErrorState error={verify.error} /> : null}
         </div>
       </section>
@@ -250,13 +258,7 @@ export function CloudflareSettings() {
             <RadioTower aria-hidden="true" />
           </div>
           <p>{t("cloudflare.domainDescription")}</p>
-          <form
-            className="form-stack"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void domainForm.handleSubmit();
-            }}
-          >
+          <FormRoot className="form-stack" form={domainForm}>
             <domainForm.AppField name="name">
               {(field) => (
                 <label className="field">
@@ -268,15 +270,16 @@ export function CloudflareSettings() {
                     placeholder="mail.example.com"
                     value={field.state.value}
                   />
+                  <FieldError label={t("cloudflare.domain")} />
                 </label>
               )}
             </domainForm.AppField>
             <Submit disabled={domain.isPending}>
               {t("cloudflare.addDomain")}
             </Submit>
-          </form>
+          </FormRoot>
           {domain.error ? <ErrorState error={domain.error} /> : null}
-          {domain.isSuccess ? (
+          {domain.data?.routingConfiguration.status === "configured" ? (
             <SuccessNote>
               <Trans
                 components={{ name: <BidiText kind="identifier" /> }}
@@ -285,6 +288,13 @@ export function CloudflareSettings() {
                 values={{ name: domain.data.name }}
               />
             </SuccessNote>
+          ) : null}
+          {domain.data?.routingConfiguration.status ===
+          "manual_setup_required" ? (
+            <DomainRoutingGuide
+              dashboardUrl={domain.data.routingConfiguration.dashboardUrl}
+              domainName={domain.data.name}
+            />
           ) : null}
         </section>
         <section className="settings-card vertical">
@@ -345,13 +355,7 @@ export function CloudflareSettings() {
             <CheckpointStatus status={checkpoint("brevo")?.status} />
           </div>
           <p>{t("cloudflare.providerDescription")}</p>
-          <form
-            className="form-stack"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void brevoForm.handleSubmit();
-            }}
-          >
+          <FormRoot className="form-stack" form={brevoForm}>
             {(["label", "domainId", "apiKey", "webhookSecret"] as const).map(
               (name) => (
                 <brevoForm.AppField key={name} name={name}>
@@ -375,6 +379,7 @@ export function CloudflareSettings() {
                         }
                         value={field.state.value}
                       />
+                      <FieldError label={t(brevoFieldLabelKey(name))} />
                     </label>
                   )}
                 </brevoForm.AppField>
@@ -383,7 +388,7 @@ export function CloudflareSettings() {
             <Submit disabled={brevo.isPending}>
               {t("cloudflare.connectBrevo")}
             </Submit>
-          </form>
+          </FormRoot>
           {brevo.error ? <ErrorState error={brevo.error} /> : null}
           {brevo.isSuccess ? (
             <SuccessNote>
@@ -407,13 +412,7 @@ export function CloudflareSettings() {
             />
           </div>
           <p>{t("cloudflare.deliveryDescription")}</p>
-          <form
-            className="form-stack"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void outboundForm.handleSubmit();
-            }}
-          >
+          <FormRoot className="form-stack" form={outboundForm}>
             {(["connectionId", "from", "to"] as const).map((name) => (
               <outboundForm.AppField key={name} name={name}>
                 {(field) => (
@@ -428,6 +427,7 @@ export function CloudflareSettings() {
                       type={name === "connectionId" ? "text" : "email"}
                       value={field.state.value}
                     />
+                    <FieldError label={t(`cloudflare.${name}`)} />
                   </label>
                 )}
               </outboundForm.AppField>
@@ -435,7 +435,7 @@ export function CloudflareSettings() {
             <Submit disabled={outbound.isPending}>
               <Send aria-hidden="true" /> {t("cloudflare.sendTest")}
             </Submit>
-          </form>
+          </FormRoot>
           {outbound.error ? <ErrorState error={outbound.error} /> : null}
           {outbound.isSuccess ? (
             <SuccessNote>{t("cloudflare.outboundAccepted")}</SuccessNote>

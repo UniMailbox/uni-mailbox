@@ -4,7 +4,7 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import { authEndpoints, type EndpointRequest } from "@unimailbox/contracts";
-import { apiClient, setAccessToken } from "../../lib/api/index";
+import { apiClient, setAccessToken } from "../../lib/api";
 
 export const authKeys = {
   all: ["auth"] as const,
@@ -21,6 +21,8 @@ export function sessionQueryOptions() {
 }
 
 export function loginMutationOptions(queryClient: QueryClient) {
+  // Authentication side effects live with the mutation rather than the form:
+  // every login caller updates the token and session cache in the same order.
   return mutationOptions({
     mutationFn: (body: EndpointRequest<typeof authEndpoints.login>["body"]) =>
       apiClient.request(authEndpoints.login, { body }),

@@ -25,6 +25,20 @@ export interface ConfigurationCheckpoint {
   verifiedAt: string | null;
 }
 
+interface CloudflareDomainResult {
+  id: string;
+  name: string;
+  expectedRoute: string;
+  routingConfiguration:
+    | { status: "configured"; dns: "ready"; catchAll: "unimailbox" }
+    | { status: "manual_setup_required"; dashboardUrl: string };
+}
+
+interface CheckpointOutcome {
+  status: ConfigurationCheckpoint["status"];
+  metadata: Record<string, unknown>;
+}
+
 function base64Url(bytes: ArrayBuffer | Uint8Array): string {
   const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   let binary = "";
@@ -44,6 +58,15 @@ function timingSafeEqual(left: string, right: string): boolean {
     difference |= (leftBytes[index] ?? 0) ^ (rightBytes[index] ?? 0);
   }
   return difference === 0;
+}
+
+function emailRoutingDashboardUrl(accountId?: string | null): string {
+  const url = new URL("https://dash.cloudflare.com/");
+  url.searchParams.set(
+    "to",
+    `/${accountId || ":account"}/email-service/routing`,
+  );
+  return url.toString();
 }
 
 export class CloudflareSettingsService {
@@ -324,8 +347,10 @@ export class CloudflareSettingsService {
     },
   ): URL {
     this.requireManageSettings(principal);
+    if (input.destination === "email-routing") {
+      return new URL(emailRoutingDashboardUrl(input.accountId));
+    }
     const segments = {
-      "email-routing": "email/routing/routes",
       dns: "dns/records",
       worker: "workers-and-pages",
     } as const;
@@ -334,7 +359,7 @@ export class CloudflareSettingsService {
     const target =
       input.destination === "worker"
         ? `/${account}/${segments.worker}`
-        : `/${account}/${zone}/${segments[input.destination]}`;
+        : `/${account}/${zone}/${segments.dns}`;
     return new URL(`https://dash.cloudflare.com${target}`);
   }
 
@@ -392,99 +417,132 @@ export class CloudflareSettingsService {
   createDomain(
     principal: Principal,
     input: { name: string },
-  ): Promise<unknown> {
-    return this.runCheckpoint(principal, "cloudflare_mail", async () => {
-      const domain = {
-        id: crypto.randomUUID(),
-        name: input.name.trim().toLowerCase(),
-      };
-      let cloudflareRouting: { dns: string; catchAll: string } | undefined;
-      const installation = await this.database
-        .prepare(
-          `SELECT cloudflare_zone_id FROM installation_state WHERE id = 1`,
-        )
-        .first<{ cloudflare_zone_id: string | null }>();
-      const token = await this.cloudflareAccessToken();
-      if (token && installation?.cloudflare_zone_id) {
-        const zoneId = encodeURIComponent(installation.cloudflare_zone_id);
-        const zone = await this.cloudflareApi<{ name: string }>(
-          token,
-          `/zones/${zoneId}`,
-        );
-        if (
-          domain.name !== zone.name.toLowerCase() &&
-          !domain.name.endsWith(`.${zone.name.toLowerCase()}`)
-        ) {
-          throw new DomainError(
-            "DOMAIN_ZONE_MISMATCH",
-            "The managed domain is outside the selected Cloudflare zone",
-            409,
-          );
-        }
-        const routing = await this.cloudflareApi<{ status?: string }>(
-          token,
-          `/zones/${zoneId}/email/routing`,
-        );
-        if (routing.status !== "ready") {
-          await this.cloudflareApi(
-            token,
-            `/zones/${zoneId}/email/routing/dns`,
-            { method: "POST" },
-          );
-        }
-        const catchAll = await this.cloudflareApi<{
-          enabled?: boolean;
-          actions?: Array<{ type: string; value?: string[] }>;
-        }>(token, `/zones/${zoneId}/email/routing/rules/catch_all`);
-        const alreadyTargetsWorker = catchAll.actions?.some(
-          (action) =>
-            action.type === "worker" && action.value?.includes("unimailbox"),
-        );
-        if (catchAll.enabled && !alreadyTargetsWorker) {
-          throw new DomainError(
-            "CLOUDFLARE_CATCH_ALL_CONFLICT",
-            "An enabled Email Routing catch-all already targets another destination",
-            409,
-          );
-        }
-        if (!alreadyTargetsWorker) {
-          await this.cloudflareApi(
-            token,
-            `/zones/${zoneId}/email/routing/rules/catch_all`,
-            {
-              method: "PUT",
-              body: JSON.stringify({
-                name: "UniMailbox Worker",
-                enabled: true,
-                matchers: [{ type: "all" }],
-                actions: [{ type: "worker", value: ["unimailbox"] }],
-              }),
-            },
-          );
-        }
-        cloudflareRouting = { dns: "ready", catchAll: "unimailbox" };
-      }
-      try {
-        await this.database
-          .prepare(
-            `INSERT INTO domains (id, name, status)
-             VALUES (?, ?, 'active')`,
-          )
-          .bind(domain.id, domain.name)
-          .run();
-      } catch {
-        throw new DomainError(
-          "DOMAIN_CONFLICT",
-          "This managed domain already exists",
-          409,
-        );
-      }
-      return {
-        ...domain,
-        expectedRoute: `*@${domain.name} -> unimailbox Worker`,
-        ...(cloudflareRouting ? { cloudflareRouting } : {}),
-      };
+  ): Promise<CloudflareDomainResult> {
+    const checkpointOutcome = (
+      result: CloudflareDomainResult,
+    ): CheckpointOutcome => ({
+      status:
+        result.routingConfiguration.status === "configured"
+          ? "verified"
+          : "pending",
+      metadata: {
+        domainName: result.name,
+        routingStatus: result.routingConfiguration.status,
+      },
     });
+    return this.runCheckpoint(
+      principal,
+      "cloudflare_mail",
+      async () => {
+        const domain = {
+          id: crypto.randomUUID(),
+          name: input.name.trim().toLowerCase(),
+        };
+        let cloudflareRouting: { dns: string; catchAll: string } | undefined;
+        const installation = await this.database
+          .prepare(
+            `SELECT cloudflare_account_id, cloudflare_zone_id
+           FROM installation_state WHERE id = 1`,
+          )
+          .first<{
+            cloudflare_account_id: string | null;
+            cloudflare_zone_id: string | null;
+          }>();
+        const token = await this.cloudflareAccessToken();
+        if (token && installation?.cloudflare_zone_id) {
+          const zoneId = encodeURIComponent(installation.cloudflare_zone_id);
+          const zone = await this.cloudflareApi<{ name: string }>(
+            token,
+            `/zones/${zoneId}`,
+          );
+          if (
+            domain.name !== zone.name.toLowerCase() &&
+            !domain.name.endsWith(`.${zone.name.toLowerCase()}`)
+          ) {
+            throw new DomainError(
+              "DOMAIN_ZONE_MISMATCH",
+              "The managed domain is outside the selected Cloudflare zone",
+              409,
+            );
+          }
+          const routing = await this.cloudflareApi<{ status?: string }>(
+            token,
+            `/zones/${zoneId}/email/routing`,
+          );
+          if (routing.status !== "ready") {
+            await this.cloudflareApi(
+              token,
+              `/zones/${zoneId}/email/routing/dns`,
+              { method: "POST" },
+            );
+          }
+          const catchAll = await this.cloudflareApi<{
+            enabled?: boolean;
+            actions?: Array<{ type: string; value?: string[] }>;
+          }>(token, `/zones/${zoneId}/email/routing/rules/catch_all`);
+          const alreadyTargetsWorker = catchAll.actions?.some(
+            (action) =>
+              action.type === "worker" && action.value?.includes("unimailbox"),
+          );
+          if (catchAll.enabled && !alreadyTargetsWorker) {
+            throw new DomainError(
+              "CLOUDFLARE_CATCH_ALL_CONFLICT",
+              "An enabled Email Routing catch-all already targets another destination",
+              409,
+            );
+          }
+          if (!alreadyTargetsWorker) {
+            await this.cloudflareApi(
+              token,
+              `/zones/${zoneId}/email/routing/rules/catch_all`,
+              {
+                method: "PUT",
+                body: JSON.stringify({
+                  name: "UniMailbox Worker",
+                  enabled: true,
+                  matchers: [{ type: "all" }],
+                  actions: [{ type: "worker", value: ["unimailbox"] }],
+                }),
+              },
+            );
+          }
+          cloudflareRouting = { dns: "ready", catchAll: "unimailbox" };
+        }
+        try {
+          await this.database
+            .prepare(
+              `INSERT INTO domains (id, name, status)
+             VALUES (?, ?, 'active')`,
+            )
+            .bind(domain.id, domain.name)
+            .run();
+        } catch {
+          throw new DomainError(
+            "DOMAIN_CONFLICT",
+            "This managed domain already exists",
+            409,
+          );
+        }
+        return {
+          ...domain,
+          expectedRoute: `*@${domain.name} -> unimailbox Worker`,
+          routingConfiguration: cloudflareRouting
+            ? {
+                status: "configured" as const,
+                dns: "ready" as const,
+                catchAll: "unimailbox" as const,
+              }
+            : {
+                status: "manual_setup_required" as const,
+                dashboardUrl: emailRoutingDashboardUrl(
+                  installation?.cloudflare_account_id,
+                ),
+              },
+        };
+      },
+      checkpointOutcome,
+      () => this.requireDomainManagement(principal),
+    );
   }
 
   async inboundSmokeTest(
@@ -663,15 +721,38 @@ export class CloudflareSettingsService {
     }
   }
 
+  private requireDomainManagement(principal: Principal): void {
+    if (
+      !principal.permissions.has("domain.manage") &&
+      !principal.permissions.has("settings.manage")
+    ) {
+      throw new DomainError(
+        "PERMISSION_DENIED",
+        "Permission domain.manage or settings.manage is required",
+        403,
+      );
+    }
+  }
+
   private async runCheckpoint<T>(
     principal: Principal,
     checkpointKey: string,
     operation: () => Promise<T>,
+    checkpointOutcome: (result: T) => CheckpointOutcome = () => ({
+      status: "verified",
+      metadata: {},
+    }),
+    authorize: () => void = () => this.requireManageSettings(principal),
   ): Promise<T> {
-    this.requireManageSettings(principal);
+    authorize();
     try {
       const result = await operation();
-      await this.checkpointStatement(checkpointKey, "verified", {}).run();
+      const outcome = checkpointOutcome(result);
+      await this.checkpointStatement(
+        checkpointKey,
+        outcome.status,
+        outcome.metadata,
+      ).run();
       return result;
     } catch (error) {
       const code = error instanceof DomainError ? error.code : "INTERNAL_ERROR";

@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import { createTestI18n } from "../../i18n/test-instance";
 import { useAppForm } from "./app-form";
 
@@ -49,6 +50,32 @@ function PasswordFieldForm() {
   );
 }
 
+function RecoverableSubmitForm({ onSubmit }: { onSubmit: () => void }) {
+  const form = useAppForm({
+    defaultValues: { value: "" },
+    validators: {
+      onSubmit: z.object({ value: z.string().min(2) }),
+    },
+    onSubmit,
+  });
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        void form.handleSubmit();
+      }}
+    >
+      <form.AppForm>
+        <form.AppField name="value">
+          {(field) => <field.TextField label="states.loading" />}
+        </form.AppField>
+        <form.SubmitButton>Submit</form.SubmitButton>
+      </form.AppForm>
+    </form>
+  );
+}
+
 function renderLocalized(validateOn: "blur" | "submit") {
   return render(
     <I18nextProvider i18n={createTestI18n("en")}>
@@ -91,5 +118,27 @@ describe("application field errors", () => {
       "inputmode",
       "text",
     );
+  });
+
+  it("keeps submit reachable after submit-only validation fails", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <I18nextProvider i18n={createTestI18n("en")}>
+        <RecoverableSubmitForm onSubmit={onSubmit} />
+      </I18nextProvider>,
+    );
+    const button = screen.getByRole("button", { name: "Submit" });
+
+    fireEvent.click(button);
+
+    expect(await screen.findByRole("alert")).toBeVisible();
+    expect(button).toBeEnabled();
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "ok" },
+    });
+    fireEvent.click(button);
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
   });
 });

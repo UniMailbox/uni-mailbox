@@ -4,7 +4,14 @@ import { I18nextProvider } from "react-i18next";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setAccessToken } from "../../lib/api/index";
+import { useUiStore } from "../../lib/ui-store";
 import { createI18nInstance, LOCALE_STORAGE_KEY } from "../../i18n";
+import { TIME_ZONE_STORAGE_KEY } from "../../i18n/timezone";
+import {
+  applyThemeColor,
+  DEFAULT_THEME_COLOR,
+  THEME_COLOR_STORAGE_KEY,
+} from "../../lib/theme";
 import { SettingsPage } from "./SettingsPage";
 
 vi.mock("@tanstack/react-router", async () => {
@@ -25,9 +32,7 @@ vi.mock("@tanstack/react-router", async () => {
   };
 });
 
-function renderSettings(
-  section: "account" | "mailboxes" | "cloudflare" | "storage" | "preferences",
-) {
+function renderSettings(section: "account" | "mailboxes" | "preferences") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -45,6 +50,8 @@ describe("authenticated settings", () => {
     window.history.replaceState({}, "", "/settings");
     window.sessionStorage.clear();
     window.localStorage.clear();
+    useUiStore.setState({ themeColor: DEFAULT_THEME_COLOR, timeZone: "UTC" });
+    applyThemeColor(DEFAULT_THEME_COLOR);
     vi.restoreAllMocks();
   });
 
@@ -61,6 +68,35 @@ describe("authenticated settings", () => {
     expect(
       screen.queryByRole("option", { name: /ar-XB/i }),
     ).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Cloudflare Mail/i })).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: /Storage & runtime/i }),
+    ).toBeNull();
+  });
+
+  it("persists the selected time zone from language and region settings", () => {
+    renderSettings("preferences");
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Time zone" }), {
+      target: { value: "Asia/Singapore" },
+    });
+
+    expect(useUiStore.getState().timeZone).toBe("Asia/Singapore");
+    expect(localStorage.getItem(TIME_ZONE_STORAGE_KEY)).toBe("Asia/Singapore");
+  });
+
+  it("applies and persists the selected theme color", () => {
+    renderSettings("preferences");
+
+    fireEvent.change(screen.getByLabelText("Theme color"), {
+      target: { value: "#2563eb" },
+    });
+
+    expect(useUiStore.getState().themeColor).toBe("#2563eb");
+    expect(localStorage.getItem(THEME_COLOR_STORAGE_KEY)).toBe("#2563eb");
+    expect(
+      document.documentElement.style.getPropertyValue("--theme-color"),
+    ).toBe("#2563eb");
   });
 
   it("changes only the login email and returns to login", async () => {
@@ -140,6 +176,26 @@ describe("authenticated settings", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("shows localized validation before creating an invalid mailbox", async () => {
+    const fetchMock = vi
+      .spyOn(window, "fetch")
+      .mockResolvedValue(Response.json({ data: [] }));
+    renderSettings("mailboxes");
+    await screen.findByRole("heading", { name: "Create mailbox" });
+    fetchMock.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: "Create mailbox" }));
+
+    const alerts = await screen.findAllByRole("alert");
+    expect(alerts.map((alert) => alert.textContent).join(" ")).toContain(
+      "Local part",
+    );
+    expect(alerts.map((alert) => alert.textContent).join(" ")).toContain(
+      "Domain ID",
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("submits a whitespace-padded member UUID normalized by the endpoint schema", async () => {
     setAccessToken("access-token");
     const mailboxId = "11111111-1111-4111-8111-111111111111";
@@ -203,71 +259,5 @@ describe("authenticated settings", () => {
       userId,
       role: "viewer",
     });
-  });
-
-  it("shows required services and keeps R2 verification disabled on KV", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      Response.json({
-        data: {
-          required: {
-            d1: "ok",
-            kv: "ok",
-            queue: "ok",
-            assets: "ok",
-          },
-          attachments: {
-            backend: "kv",
-            r2: "missing",
-            reason:
-              "ATTACHMENTS binding is absent; KV is the default storage backend",
-          },
-        },
-      }),
-    );
-    renderSettings("storage");
-
-    expect(await screen.findByText("KV storage is active")).toBeVisible();
-    expect(screen.getByText("KV healthy")).toBeVisible();
-    expect(
-      screen.getByRole("button", { name: "Verify R2 write access" }),
-    ).toBeDisabled();
-    for (const resource of ["D1", "KV", "QUEUE", "ASSETS"]) {
-      expect(screen.getByText(resource)).toBeVisible();
-    }
-  });
-
-  it("renders independent Cloudflare configuration cards", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      Response.json({
-        data: [
-          {
-            checkpointKey: "cloudflare_mail",
-            status: "failed",
-            metadata: {},
-            errorCode: "CLOUDFLARE_API_FAILED",
-            errorMessage: "Retry Cloudflare verification",
-            verifiedAt: null,
-          },
-          {
-            checkpointKey: "brevo",
-            status: "pending",
-            metadata: {},
-            errorCode: null,
-            errorMessage: null,
-            verifiedAt: null,
-          },
-        ],
-      }),
-    );
-    renderSettings("cloudflare");
-
-    expect(await screen.findByText("Connect the control plane")).toBeVisible();
-    expect(screen.getByText("Email Routing domain")).toBeVisible();
-    expect(screen.getByText("Inbound smoke test")).toBeVisible();
-    expect(
-      screen.getByRole("heading", { name: "Connect Brevo" }),
-    ).toBeVisible();
-    expect(screen.getByText("Outbound smoke test")).toBeVisible();
-    expect(screen.getByText("Action required")).toBeVisible();
   });
 });

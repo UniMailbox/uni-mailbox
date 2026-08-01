@@ -7,6 +7,38 @@ const { fieldContext, formContext, useFieldContext, useFormContext } =
 
 export const useAppFieldContext = useFieldContext;
 
+type SubmittableForm = {
+  handleSubmit(): Promise<void>;
+};
+
+type FormRootProps = Omit<
+  React.ComponentPropsWithoutRef<"form">,
+  "noValidate" | "onSubmit"
+> & {
+  form: SubmittableForm;
+};
+
+/**
+ * Bridges a native form submission into TanStack Form.
+ *
+ * Native constraint validation is deliberately disabled: shared contract
+ * schemas own validation and produce localized `FieldError` feedback. Without
+ * `noValidate`, the browser can reject an email or required value before the
+ * React submit handler and TanStack validators run.
+ */
+function FormRoot({ form, ...props }: FormRootProps) {
+  return (
+    <form
+      {...props}
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault();
+        void form.handleSubmit();
+      }}
+    />
+  );
+}
+
 type InputProps = {
   label: string;
   placeholder?: string;
@@ -64,14 +96,21 @@ function PasswordField(props: InputProps) {
   );
 }
 
-function SubmitButton({ children }: { children: React.ReactNode }) {
+/**
+ * Keeps submit reachable after a failed submit-only validation attempt.
+ * `canSubmit` becomes false while errors exist, so using it as `disabled`
+ * would prevent users from submitting the corrected values.
+ */
+function SubmitButton({
+  children,
+  disabled,
+  ...props
+}: Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "type">) {
   const form = useFormContext();
   return (
-    <form.Subscribe
-      selector={(state) => [state.canSubmit, state.isSubmitting] as const}
-    >
-      {([canSubmit, isSubmitting]) => (
-        <button disabled={!canSubmit || isSubmitting} type="submit">
+    <form.Subscribe selector={(state) => state.isSubmitting}>
+      {(isSubmitting) => (
+        <button {...props} disabled={disabled || isSubmitting} type="submit">
           {children}
         </button>
       )}
@@ -86,4 +125,4 @@ export const { useAppForm } = createFormHook({
   formComponents: { SubmitButton },
 });
 
-export { TextField, PasswordField, SubmitButton, FieldError };
+export { FormRoot, TextField, PasswordField, SubmitButton, FieldError };

@@ -155,9 +155,19 @@ describe("AdminApplicationService domains and signatures", () => {
     await seedAdministrator();
   });
 
-  it("creates, updates, and deletes domains", async () => {
+  async function seedDomain(name: string) {
+    const domain = { id: crypto.randomUUID(), name };
+    await env.DB.prepare(
+      "INSERT INTO domains (id, name, status) VALUES (?, ?, 'active')",
+    )
+      .bind(domain.id, domain.name)
+      .run();
+    return domain;
+  }
+
+  it("updates and deletes domains", async () => {
     const admin = service();
-    const created = await admin.createDomain(administrator, "example.com");
+    const created = await seedDomain("example.com");
     const updated = await admin.updateDomain(administrator, created.id, {
       status: "disabled",
     });
@@ -169,10 +179,7 @@ describe("AdminApplicationService domains and signatures", () => {
 
   it("forbids deleting a domain that still has mailboxes", async () => {
     const admin = service();
-    const domain = await admin.createDomain(
-      administrator,
-      "active.example.com",
-    );
+    const domain = await seedDomain("active.example.com");
     await env.DB.prepare(
       `INSERT INTO mailboxes (
          id, domain_id, owner_user_id, address, display_name
@@ -191,7 +198,7 @@ describe("AdminApplicationService domains and signatures", () => {
 
   it("returns and updates a signature", async () => {
     const admin = service();
-    const domain = await admin.createDomain(administrator, "sig.example.com");
+    const domain = await seedDomain("sig.example.com");
     const empty = await admin.getSignature(administrator, domain.id);
     expect(empty).toMatchObject({ domain_id: domain.id });
     await admin.putSignature(administrator, domain.id, {

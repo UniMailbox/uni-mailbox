@@ -120,7 +120,7 @@ describe("frontend contract enforcement", () => {
         "apps/web/src/features/Example.tsx":
           "export const Example = () => <form><input /></form>;",
         "apps/web/src/lib/form/AppForm.tsx":
-          "export const Example = () => { const form = useAppForm({}); return <form onSubmit={() => form.handleSubmit()}><form.AppField name='name'>{() => null}</form.AppField></form>; };",
+          "export const Example = () => { const form = useAppForm({}); return <form noValidate onSubmit={() => form.handleSubmit()}><form.AppField name='name'>{() => null}</form.AppField></form>; };",
       },
       async (root) => {
         const errors = await checkFrontendContracts(root);
@@ -141,6 +141,32 @@ describe("frontend contract enforcement", () => {
       async (root) =>
         expect(await checkFrontendContracts(root)).toContainEqual(
           expect.stringMatching(/TanStack Form composition/u),
+        ),
+    );
+  });
+
+  it("rejects native constraint validation on a TanStack-managed form", async () => {
+    await withFrontend(
+      {
+        "apps/web/src/features/Example.tsx":
+          "const form = useAppForm({}); export const Example = () => <form onSubmit={() => form.handleSubmit()}><form.AppField name='email'>{() => null}</form.AppField></form>;",
+      },
+      async (root) =>
+        expect(await checkFrontendContracts(root)).toContainEqual(
+          expect.stringMatching(/noValidate/u),
+        ),
+    );
+  });
+
+  it("rejects disabling submit with canSubmit for submit-only validation", async () => {
+    await withFrontend(
+      {
+        "apps/web/src/features/Example.tsx":
+          "const form = useAppForm({ validators: { onSubmit: schema } }); export const Example = () => <form noValidate onSubmit={() => form.handleSubmit()}><form.AppField name='email'>{() => null}</form.AppField><form.Subscribe selector={(state) => state.canSubmit}>{(canSubmit) => <button disabled={!canSubmit} type='submit'>{t('submit')}</button>}</form.Subscribe></form>;",
+      },
+      async (root) =>
+        expect(await checkFrontendContracts(root)).toContainEqual(
+          expect.stringMatching(/submit.*reachable/u),
         ),
     );
   });

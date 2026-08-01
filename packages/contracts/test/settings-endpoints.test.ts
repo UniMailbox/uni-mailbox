@@ -108,6 +108,46 @@ describe("current Worker settings endpoint contracts", () => {
       errorMessage: "provider-only diagnostic",
     });
     expect(
+      administrationEndpoints.cloudflareDomainCreate.responses[201].parse({
+        id: domainId,
+        name: "mail.example.com",
+        expectedRoute: "*@mail.example.com -> unimailbox Worker",
+        routingConfiguration: {
+          status: "manual_setup_required",
+          dashboardUrl:
+            "https://dash.cloudflare.com/?to=%2Faccount-1%2Femail-service%2Frouting",
+        },
+      }),
+    ).toMatchObject({
+      routingConfiguration: { status: "manual_setup_required" },
+    });
+    expect(
+      administrationEndpoints.cloudflareDomainCreate.responses[201].parse({
+        id: domainId,
+        name: "mail.example.com",
+        expectedRoute: "*@mail.example.com -> unimailbox Worker",
+        routingConfiguration: {
+          status: "configured",
+          dns: "ready",
+          catchAll: "unimailbox",
+        },
+      }),
+    ).toMatchObject({ routingConfiguration: { status: "configured" } });
+    expect(
+      administrationEndpoints.createDomain.responses[201].parse({
+        id: domainId,
+        name: "mail.example.com",
+        expectedRoute: "*@mail.example.com -> unimailbox Worker",
+        routingConfiguration: {
+          status: "manual_setup_required",
+          dashboardUrl:
+            "https://dash.cloudflare.com/?to=%2Faccount-1%2Femail-service%2Frouting",
+        },
+      }),
+    ).toMatchObject({
+      routingConfiguration: { status: "manual_setup_required" },
+    });
+    expect(
       administrationEndpoints.infrastructure.responses[200].parse({
         required: { d1: "ok", kv: "ok", queue: "missing", assets: "error" },
         attachments: {

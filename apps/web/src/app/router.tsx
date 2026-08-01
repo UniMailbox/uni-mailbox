@@ -11,7 +11,7 @@ import {
 } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
 import { ADMIN_RESOURCE_PERMISSIONS } from "@unimailbox/contracts";
-import { ApiClientError } from "../lib/api/errors";
+import { ApiClientError } from "../lib/api";
 import { sessionQueryOptions } from "../features/auth/api";
 import { LoginPage } from "../features/auth/LoginPage";
 import { MailWorkspace } from "../features/mail/MailWorkspace";
@@ -189,6 +189,9 @@ const settingsRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: "settings/$section",
   beforeLoad: ({ params }) => {
+    if (params.section === "cloudflare" || params.section === "storage") {
+      throw redirect({ to: "/admin/settings", replace: true });
+    }
     if (!isSettingsSection(params.section)) throw notFound();
   },
   component: SettingsRoute,
