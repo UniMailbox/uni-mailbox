@@ -4,8 +4,6 @@ import { pathToFileURL } from "node:url";
 
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx"]);
 const TECHNICAL_VISIBLE_VALUES = new Set(["CM", "OP", "UniMailbox"]);
-// Presigned binary upload is intentionally not a normal JSON endpoint request.
-const ALLOWED_DIRECT_FETCH_FILE = "apps/web/src/features/mail/ComposePanel.tsx";
 // The transport is the one approved owner of fetch for endpoint contracts.
 const API_TRANSPORT_FILE = "apps/web/src/lib/api/transport.ts";
 const CONTRACTS_API_DIRECTORY = "packages/contracts/src/api";
@@ -85,8 +83,7 @@ function rawFormFailures(content) {
 /**
  * Validates frontend-only invariants that TypeScript cannot express: no visible
  * untranslated copy, no physical directional CSS, no React Hook Form, and no
- * uncontracted API call. The direct-upload and transport exceptions are
- * deliberately file-scoped because they own their distinct transport needs.
+ * uncontracted API call. The transport is the sole owner of fetch.
  */
 export async function checkFrontendContracts(root = process.cwd()) {
   const errors = [];
@@ -112,7 +109,7 @@ export async function checkFrontendContracts(root = process.cwd()) {
       }
     }
 
-    if (fileName !== ALLOWED_DIRECT_FETCH_FILE && fileName !== API_TRANSPORT_FILE) {
+    if (fileName !== API_TRANSPORT_FILE) {
       patternFailures(root, file, content, /\bfetch\s*\(/gu, "direct fetch bypasses endpoint contracts", errors);
     }
     for (const match of content.matchAll(/\bapiClient\.request\(\s*([A-Za-z_$][\w$]*Endpoints)\.([A-Za-z_$][\w$]*)/gu)) {

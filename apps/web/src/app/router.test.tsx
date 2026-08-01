@@ -67,6 +67,18 @@ describe("safe post-login destinations", () => {
 });
 
 describe("router memory history", () => {
+  it("redirects a signed-in visitor from register while an anonymous visitor remains there", async () => {
+    const signedIn = routerAt("/register");
+    await signedIn.router.load();
+    expect(signedIn.router.state.location.pathname).toBe("/inbox");
+
+    vi.stubGlobal("fetch", vi.fn(async () => apiError("AUTH_REQUIRED", 401)));
+    const anonymous = routerAt("/register", null);
+    renderRouter(anonymous.router, anonymous.queryClient);
+    expect(await screen.findByRole("heading", { name: "Sign in to your mail plane." })).toBeVisible();
+    expect(anonymous.router.state.location.pathname).toBe("/register");
+  });
+
   it("redirects the protected settings index to the account section", async () => {
     const { router } = routerAt("/settings");
     await router.load();
@@ -136,6 +148,14 @@ describe("router memory history", () => {
     await router.load();
     expect(router.state.location.pathname).toBe("/not-a-route");
     expect(router.state.matches.at(-1)?.globalNotFound).toBe(true);
+    expect(await screen.findByText("This page was not found")).toBeVisible();
+  });
+
+  it("keeps an unsupported settings section on its localized not-found route", async () => {
+    const { queryClient, router } = routerAt("/settings/typo");
+    renderRouter(router, queryClient);
+    await router.load();
+    expect(router.state.location.pathname).toBe("/settings/typo");
     expect(await screen.findByText("This page was not found")).toBeVisible();
   });
 

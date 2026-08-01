@@ -15,7 +15,7 @@ function parseRequest<TEndpoint extends EndpointDefinition>(
   const schemas = endpoint.request;
   if (!schemas) return {};
   const result: RequestInput = {};
-  for (const member of ["params", "query", "headers", "body"] as const) {
+  for (const member of ["url", "params", "query", "headers", "body"] as const) {
     const schema = schemas[member];
     if (schema) result[member] = schema.parse((input as RequestInput)[member]);
   }
@@ -68,13 +68,9 @@ export function createApiClient(
   return {
     async request(endpoint, input) {
       const parsed = parseRequest(endpoint, input);
-      const path = addQuery(
-        buildPath(
-          endpoint.path,
-          parsed.params as Record<string, unknown> | undefined,
-        ),
-        parsed.query as Record<string, unknown> | undefined,
-      );
+      const path = endpoint.transport === "worker-signed-url"
+        ? parsed.url as string
+        : addQuery(buildPath(endpoint.path, parsed.params as Record<string, unknown> | undefined), parsed.query as Record<string, unknown> | undefined);
       const init: RequestInit = {
         method: endpoint.method,
         headers: parsed.headers as HeadersInit | undefined,

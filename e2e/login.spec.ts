@@ -43,6 +43,23 @@ test("keyboard-only login focus sequence", async ({ page, uiLocale }) => {
   ]);
 });
 
+test("register redirects a signed-in operator but keeps an anonymous visitor on register", async ({ page, uiLocale }) => {
+  let signedIn = true;
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill(
+      signedIn
+        ? { contentType: "application/json", body: JSON.stringify({ data: { userId: "operator-1", email: "operator@example.com", permissions: ["message.read"] } }) }
+        : { status: 401, contentType: "application/json", body: JSON.stringify(anonymousSessionError) },
+    ),
+  );
+  await page.goto("/register");
+  await expect(page).toHaveURL(/\/inbox$/u);
+  signedIn = false;
+  await page.goto("/register");
+  await expect(page).toHaveURL(/\/register$/u);
+  await expect(page.getByRole("heading", { name: uiLocale.copy.loginTitle })).toBeVisible();
+});
+
 test("login form posts credentials and routes to the inbox", async ({
   page, uiLocale,
 }) => {

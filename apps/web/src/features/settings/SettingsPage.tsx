@@ -24,6 +24,7 @@ import { endSession } from "../../lib/session";
 import { mailboxesQueryOptions } from "../mail/api";
 import { CloudflareSettings } from "./CloudflareSettings";
 import { StorageSettings } from "./StorageSettings";
+import { type SettingsSection } from "./sections";
 import {
   identityEmailMutationOptions,
   identityPasswordMutationOptions,
@@ -32,12 +33,7 @@ import {
   mailboxMembersQueryOptions,
 } from "./api";
 
-export type SettingsSection =
-  | "account"
-  | "mailboxes"
-  | "cloudflare"
-  | "storage"
-  | "preferences";
+export type { SettingsSection } from "./sections";
 type Member = EndpointResponse<typeof mailboxEndpoints.listMembers>[number];
 
 function Submit({

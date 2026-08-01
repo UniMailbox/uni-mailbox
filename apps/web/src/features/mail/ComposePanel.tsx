@@ -15,7 +15,7 @@ import {
   type EndpointResponse,
 } from "@unimailbox/contracts";
 import { draftsDb } from "../../lib/drafts-db";
-import { apiClient, ApiClientError } from "../../lib/api/index";
+import { apiClient } from "../../lib/api/index";
 import {
   FieldError,
   useAppFieldContext,
@@ -404,13 +404,12 @@ export function ComposePanel({
           disposition: "attachment",
         },
       });
-      const response = await fetch(upload.uploadUrl, {
-        method: "PUT",
+      await apiClient.request(attachmentEndpoints.uploadContent, {
+        url: upload.uploadUrl,
+        params: { attachmentId: upload.attachmentId },
         headers: upload.uploadHeaders,
         body: file,
       });
-      if (!response.ok)
-        throw new ApiClientError("ATTACHMENT_UPLOAD_UNAVAILABLE", response.status);
       await apiClient.request(attachmentEndpoints.completeUpload, {
         params: { attachmentId: upload.attachmentId },
       });
