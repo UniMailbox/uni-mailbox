@@ -14,7 +14,7 @@ import { useUiStore } from "../../lib/ui-store";
 import { ErrorState, LoadingState } from "../../components/Status";
 import { BidiText } from "../../components/BidiText";
 import type { RuntimeLocale } from "../../i18n";
-import { formatDate, formatKibibytes } from "../../i18n/format";
+import { formatDateTime, formatKibibytes } from "../../i18n/format";
 import {
   attachmentDownloadMutationOptions,
   messageAttachmentsQueryOptions,
@@ -28,6 +28,7 @@ export function MessagePage({ messageId }: { messageId: string }) {
   const queryClient = useQueryClient();
   const openComposer = useUiStore((state) => state.setComposeOpen);
   const selectMailbox = useUiStore((state) => state.setSelectedMailboxId);
+  const timeZone = useUiStore((state) => state.timeZone);
   const message = useQuery(messageQueryOptions(messageId));
   const attachments = useQuery(messageAttachmentsQueryOptions(messageId));
   const move = useMutation(messageMoveMutationOptions(queryClient));
@@ -61,7 +62,7 @@ export function MessagePage({ messageId }: { messageId: string }) {
   const date = timestamp ? new Date(timestamp) : null;
   const formattedTimestamp =
     date && !Number.isNaN(date.getTime())
-      ? formatDate(date, i18n.resolvedLanguage as RuntimeLocale)
+      ? formatDateTime(date, i18n.resolvedLanguage as RuntimeLocale, timeZone)
       : t("message.unavailableDate");
   return (
     <main className="message-page">
@@ -173,7 +174,7 @@ export function MessagePage({ messageId }: { messageId: string }) {
           </div>
           <div>
             <dt>{t("message.timestamp")}</dt>
-            <dd>{formattedTimestamp}</dd>
+            <dd data-testid="message-timestamp">{formattedTimestamp}</dd>
           </div>
         </dl>
         {safeHtml ? (

@@ -1,8 +1,6 @@
 export const SETTINGS_SECTIONS = [
   "account",
   "mailboxes",
-  "cloudflare",
-  "storage",
   "preferences",
 ] as const;
 

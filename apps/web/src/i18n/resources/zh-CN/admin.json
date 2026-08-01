@@ -5,6 +5,10 @@
   "live": "实时",
   "registry": "{{resource}} 注册表",
   "audited": "更改将由 UniMailbox 记录审计。",
+  "runtime": {
+    "heading": "Cloudflare 与运行时",
+    "description": "部署级邮件路由与存储配置在此管理，不属于工作区偏好。"
+  },
   "navigation": {
     "users": "用户",
     "roles": "角色与访问权限",

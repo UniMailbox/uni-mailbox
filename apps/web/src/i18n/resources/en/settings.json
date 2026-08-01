@@ -16,10 +16,12 @@
   },
   "preferences": {
     "heading": "Language & region",
-    "description": "Choose the language used across UniMailbox.",
+    "description": "Choose the language and time zone used across UniMailbox.",
     "language": "Language",
     "english": "English",
-    "chinese": "简体中文"
+    "chinese": "简体中文",
+    "timeZone": "Time zone",
+    "timeZoneDescription": "Message and administration timestamps use this time zone."
   },
   "account": {
     "heading": "Login identity",

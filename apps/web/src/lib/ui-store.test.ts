@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useUiStore } from "./ui-store";
+import { TIME_ZONE_STORAGE_KEY } from "../i18n/timezone";
 
 describe("ui-store", () => {
   beforeEach(() => {
@@ -9,6 +10,7 @@ describe("ui-store", () => {
       composeOpen: false,
       composeIntent: null,
       sidebarOpen: false,
+      timeZone: "UTC",
     });
   });
 
@@ -44,5 +46,13 @@ describe("ui-store", () => {
     expect(useUiStore.getState().sidebarOpen).toBe(true);
     useUiStore.getState().setSidebarOpen(false);
     expect(useUiStore.getState().sidebarOpen).toBe(false);
+  });
+
+  it("updates and persists the selected time zone", () => {
+    useUiStore.getState().setTimeZone("Asia/Singapore");
+    expect(useUiStore.getState().timeZone).toBe("Asia/Singapore");
+    expect(window.localStorage.getItem(TIME_ZONE_STORAGE_KEY)).toBe(
+      "Asia/Singapore",
+    );
   });
 });

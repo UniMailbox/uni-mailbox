@@ -16,10 +16,12 @@
   },
   "preferences": {
     "heading": "语言与地区",
-    "description": "选择 UniMailbox 中使用的语言。",
+    "description": "选择 UniMailbox 中使用的语言和时区。",
     "language": "语言",
     "english": "English",
-    "chinese": "简体中文"
+    "chinese": "简体中文",
+    "timeZone": "时区",
+    "timeZoneDescription": "邮件与管理页面中的时间会按此时区显示。"
   },
   "account": {
     "heading": "登录身份",

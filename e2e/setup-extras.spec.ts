@@ -1,21 +1,64 @@
 import { expect, test } from "./fixtures/locale";
+import type { Page } from "@playwright/test";
 
-test("storage settings show required services and healthy KV without R2", async ({
-  page,
-  uiLocale,
-}) => {
-  await page.route("**/api/v1/auth/session", async (route) => {
-    await route.fulfill({
+const systemSettings = {
+  site_title: "UniMailbox",
+  registration_enabled: 0,
+  invite_required: 1,
+  inbound_enabled: 1,
+  outbound_enabled: 1,
+  unknown_recipient_policy: "reject",
+  max_mailboxes_per_user: 10,
+  max_attachments_per_message: 20,
+  max_attachment_bytes: 25_000_000,
+  sender_blocklist_json: "[]",
+  subject_blocklist_json: "[]",
+  content_blocklist_json: "[]",
+};
+
+async function mockSystemSettingsShell(page: Page) {
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
         data: {
           userId: "user-admin-1",
           email: "admin@example.com",
-          permissions: ["settings.manage"],
+          permissions: ["settings.read", "settings.manage"],
         },
       }),
-    });
-  });
+    }),
+  );
+  await page.route("**/api/v1/admin/settings", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: systemSettings }),
+    }),
+  );
+  await page.route("**/api/v1/admin/cloudflare/status", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: [] }),
+    }),
+  );
+  await page.route("**/api/v1/admin/infrastructure", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          required: { d1: "ok", kv: "ok", queue: "ok", assets: "ok" },
+          attachments: { backend: "kv", r2: "missing", reason: "" },
+        },
+      }),
+    }),
+  );
+}
+
+test("storage settings show required services and healthy KV without R2", async ({
+  page,
+  uiLocale,
+}) => {
+  await mockSystemSettingsShell(page);
   await page.route("**/api/v1/admin/infrastructure", async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -37,7 +80,7 @@ test("storage settings show required services and healthy KV without R2", async 
       }),
     });
   });
-  await page.goto("/settings/storage");
+  await page.goto("/admin/settings");
 
   await expect(page.getByText(uiLocale.copy.kvActive)).toBeVisible();
   await expect(page.getByText(uiLocale.copy.kvHealthy)).toBeVisible();
@@ -50,18 +93,7 @@ test("Cloudflare mail configuration is available after login", async ({
   page,
   uiLocale,
 }) => {
-  await page.route("**/api/v1/auth/session", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        data: {
-          userId: "user-admin-1",
-          email: "admin@example.com",
-          permissions: ["settings.manage"],
-        },
-      }),
-    });
-  });
+  await mockSystemSettingsShell(page);
   await page.route("**/api/v1/admin/cloudflare/status", async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -87,7 +119,7 @@ test("Cloudflare mail configuration is available after login", async ({
       }),
     });
   });
-  await page.goto("/settings/cloudflare");
+  await page.goto("/admin/settings");
 
   await expect(page.getByText(uiLocale.copy.controlPlane)).toBeVisible();
   await expect(page.getByText(uiLocale.copy.domainHeading)).toBeVisible();
@@ -100,18 +132,7 @@ test("a locally added domain leads the operator to Cloudflare Email Routing", as
   page,
   uiLocale,
 }) => {
-  await page.route("**/api/v1/auth/session", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        data: {
-          userId: "user-admin-1",
-          email: "admin@example.com",
-          permissions: ["settings.manage"],
-        },
-      }),
-    });
-  });
+  await mockSystemSettingsShell(page);
   await page.route("**/api/v1/admin/cloudflare/status", async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -136,7 +157,7 @@ test("a locally added domain leads the operator to Cloudflare Email Routing", as
       }),
     });
   });
-  await page.goto("/settings/cloudflare");
+  await page.goto("/admin/settings");
 
   await page
     .getByRole("textbox", { name: /Managed domain|受管域名/u })
