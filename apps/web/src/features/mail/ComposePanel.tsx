@@ -326,10 +326,15 @@ export function ComposePanel({
 
   async function persistDraft(values: ComposeFormValues): Promise<DraftDetail> {
     const input = draftEndpoints.create.request.body.parse(messageInput(values));
+    // The TanStack form store can publish hydrated fields before React commits
+    // the paired draft-version state update. Keep the already-validated query
+    // response as the source for that narrow interval so an immediate send
+    // never downgrades an existing draft's optimistic-concurrency header.
+    const currentDraftVersion = draftVersion ?? draft.data?.updated_at;
     const result = serverDraftId
       ? await apiClient.request(draftEndpoints.update, {
           params: { draftId: serverDraftId },
-          headers: { "if-match": `"${draftVersion ?? ""}"` },
+          headers: { "if-match": `"${currentDraftVersion ?? ""}"` },
           body: input,
         })
       : await apiClient.request(draftEndpoints.create, {

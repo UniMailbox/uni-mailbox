@@ -1,6 +1,6 @@
 import { useQuery, type QueryClient, type UseQueryResult } from "@tanstack/react-query";
 import type { PermissionKey, SessionProfile } from "@unimailbox/contracts";
-import { ApiError, setAccessToken } from "./api";
+import { ApiClientError, setAccessToken } from "./api/index";
 import { authKeys, sessionQueryOptions } from "../features/auth/api";
 
 export const SESSION_QUERY_KEY = authKeys.session();
@@ -11,7 +11,7 @@ export const SESSION_QUERY_KEY = authKeys.session();
  * This is deliberately the *only* source of truth for "am I signed in". The
  * presence of an access token in sessionStorage is not enough: the token may be
  * expired, revoked, or absent while a valid refresh cookie still exists. The
- * request goes through `apiRequest`, so a missing/expired access token is
+ * request goes through the contract-aware API client, so a missing/expired access token is
  * transparently upgraded via the refresh cookie before we conclude anything.
  *
  * `retry: false` is required — retrying a 401 just delays the login redirect.
@@ -22,7 +22,7 @@ export function useSession(): UseQueryResult<SessionProfile, unknown> {
 
 /** True when the failure means "not signed in" rather than "server problem". */
 export function isUnauthenticated(error: unknown): boolean {
-  return error instanceof ApiError && error.status === 401;
+  return error instanceof ApiClientError && error.status === 401;
 }
 
 export function hasPermission(

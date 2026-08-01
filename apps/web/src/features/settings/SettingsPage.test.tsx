@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setAccessToken } from "../../lib/api";
+import { setAccessToken } from "../../lib/api/index";
 import { createI18nInstance, LOCALE_STORAGE_KEY } from "../../i18n";
 import { SettingsPage } from "./SettingsPage";
 

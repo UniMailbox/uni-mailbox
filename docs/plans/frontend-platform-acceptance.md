@@ -25,19 +25,19 @@ Do not convert `Blocked` or a narrower passing check into `Passed`.
 
 | Gate | Status | Required evidence |
 | --- | --- | --- |
-| English UI complete | Pending | English Playwright project and literal assertions |
-| Simplified Chinese UI complete | Pending | Chinese Playwright project and literal assertions |
-| Language preference | Pending | Unit and E2E persistence evidence |
-| Error localization | Pending | Known/unknown/request-ID unit and browser evidence |
-| TanStack Router | Pending | Route tests, legacy routing scan, browser history E2E |
-| TanStack Query service model | Pending | Key/invalidation tests and component source scan |
-| Endpoint contracts | Pending | Contract tests, client tests, enforcement script |
-| TanStack Form | Pending | Form tests and dependency/source scan |
-| RTL foundations | Pending | Desktop/mobile pseudo-RTL E2E |
-| Compose preservation | Pending | Focused unit and browser regression suite |
-| Accessibility | Pending | Role-based tests and locale-aware browser selectors |
-| Full repository gates | Pending | Exact command log |
-| User-change preservation | Pending | Baseline and final diff audit |
+| English UI complete | Failed | Isolated matrix run did not complete successfully; see Task 13 report. |
+| Simplified Chinese UI complete | Failed | Isolated matrix run did not complete successfully; see Task 13 report. |
+| Language preference | Failed | Unit coverage passed; both locale browser persistence scenarios failed. |
+| Error localization | Blocked | Unit coverage passed; browser matrix did not complete. |
+| TanStack Router | Failed | Route unit coverage and source scan passed; browser setup/guard scenarios failed. |
+| TanStack Query service model | Passed | Feature API tests and enforcement passed. |
+| Endpoint contracts | Passed | Contract/client tests and enforcement passed. |
+| TanStack Form | Passed | Form tests and source/dependency enforcement passed. |
+| RTL foundations | Failed | Static RTL scan passed; desktop browser scenario produced a failure artifact and mobile did not complete. |
+| Compose preservation | Failed | Focused suite passed; browser Compose scenario failed with an invalid fixture response. |
+| Accessibility | Blocked | Role-based unit evidence passed; required browser/manual checks did not complete. |
+| Full repository gates | Failed | All non-browser gates passed; the Playwright command did not complete successfully. |
+| User-change preservation | Passed | Clean implementation-worktree baseline and final scope audit recorded. |
 
 ## 1. Locale Runtime
 
@@ -63,7 +63,7 @@ Evidence:
 pnpm --filter @unimailbox/web exec vitest run src/i18n/locale.test.ts src/i18n/index.test.ts
 ```
 
-Status: `Pending`
+Status: `Passed` — 2026-08-01 focused locale/index suite: 6 tests passed.
 
 ## 2. Resource Integrity
 
@@ -84,7 +84,7 @@ pnpm i18n:check
 pnpm --filter @unimailbox/web exec vitest run src/i18n/resources.test.ts
 ```
 
-Status: `Pending`
+Status: `Passed` — 2026-08-01 `pnpm i18n:check` and resource suite: 2 tests passed.
 
 ## 3. English and Chinese Functional Matrix
 
@@ -123,7 +123,7 @@ pnpm exec playwright test --project=zh-CN
 Each critical workflow includes at least one literal assertion in the target
 language so translation-resource drift cannot make both UI and test pass.
 
-Status: `Pending`
+Status: `Failed` — 2026-08-01 isolated full matrix was attempted on port 5184; it did not complete successfully. See the Task 13 report for the exact preserved output and artifacts.
 
 ## 4. Router and Guard Semantics
 
@@ -152,7 +152,7 @@ rg -n "pushState|replaceState|popstate|window\\.location\\.pathname" apps/web/sr
 
 Expected source scan: no production custom-router implementation.
 
-Status: `Pending`
+Status: `Failed` — 2026-08-01 router suite passed (24 tests) and the production scan is clean, but the isolated matrix produced setup/login failure artifacts.
 
 ## 5. Query Ownership and Cache Correctness
 
@@ -181,7 +181,7 @@ rg -n "apiRequest|apiResponse" apps/web/src/features -g '*.ts' -g '*.tsx'
 
 Expected scans: no matches in production feature components.
 
-Status: `Pending`
+Status: `Passed` — 2026-08-01 feature API suite: 20 tests passed; production scans and `pnpm frontend:contracts` passed.
 
 ## 6. Endpoint Contracts and Client
 
@@ -210,7 +210,7 @@ pnpm --filter @unimailbox/web exec vitest run src/lib/api
 pnpm frontend:contracts
 ```
 
-Status: `Pending`
+Status: `Passed` — 2026-08-01 contracts: 56 tests passed; typed client/transport and enforcement passed. Deprecated generic request helpers were removed.
 
 ## 7. Error Safety and Localization
 
@@ -236,7 +236,7 @@ rg -n "error\\.message|attachments\\.reason|diagnosticMessage" apps/web/src -g '
 
 Expected scan: no visible production render of these values.
 
-Status: `Pending`
+Status: `Blocked` — 2026-08-01 unit suite passed (11 tests); the required browser matrix did not complete.
 
 ## 8. TanStack Form and Validation
 
@@ -260,7 +260,7 @@ rg -n "react-hook-form|useForm<|useForm\\(" apps/web/src -g '*.ts' -g '*.tsx'
 
 Expected scan: TanStack form imports/usages only; no React Hook Form.
 
-Status: `Pending`
+Status: `Passed` — 2026-08-01 shared form/feature suite and production source/dependency enforcement passed; React Hook Form was removed.
 
 ## 9. Compose Preservation
 
@@ -287,7 +287,7 @@ pnpm exec playwright test --project=en e2e/inbox.spec.ts
 pnpm exec playwright test --project=zh-CN e2e/inbox.spec.ts
 ```
 
-Status: `Pending`
+Status: `Failed` — 2026-08-01 focused Compose suite passed (16 tests, including current `if-match`), but its browser workflow returned an invalid fixture response.
 
 ## 10. RTL and Bidirectional Layout
 
@@ -317,7 +317,7 @@ rg -n "margin-(left|right)|padding-(left|right)|border-(left|right)|text-align:\
 
 Expected source scan: no unexplained application-layout match.
 
-Status: `Pending`
+Status: `Failed` — 2026-08-01 logical-CSS scan passed, but the isolated desktop RTL workflow produced a failure artifact and the mobile workflow did not complete.
 
 ## 11. Accessibility
 
@@ -337,7 +337,7 @@ Evidence:
 - Playwright keyboard smoke checks in production locales and RTL mobile.
 - Manual focus-order check recorded below.
 
-Status: `Pending`
+Status: `Blocked` — 2026-08-01 role/name unit assertions passed; the required browser keyboard and manual checks did not complete.
 
 ## 12. Static Legacy-Pattern Gates
 
@@ -353,7 +353,7 @@ pnpm frontend:contracts
 Allowed technical matches must be narrowly documented by the enforcement
 script and may not contain visible product copy or an uncontracted endpoint.
 
-Status: `Pending`
+Status: `Passed` — 2026-08-01 `i18n:check` and `frontend:contracts` passed. Raw broad `rg` output is limited to tests and approved technical/brand/domain literals; enforcement rejects production violations.
 
 ## 13. Manual Visual Checks
 
@@ -395,15 +395,15 @@ Record:
 
 | Command | Date/time | Status | Output summary or blocker |
 | --- | --- | --- | --- |
-| `pnpm install --frozen-lockfile` | | Pending | |
-| `pnpm i18n:check` | | Pending | |
-| `pnpm frontend:contracts` | | Pending | |
-| `pnpm typecheck` | | Pending | |
-| `pnpm test` | | Pending | |
-| `pnpm build` | | Pending | |
-| `pnpm test:e2e` | | Pending | |
-| `pnpm audit --prod` | | Pending | |
-| `git diff --check` | | Pending | |
+| `pnpm install --frozen-lockfile` | 2026-08-01 | Passed | Lockfile current; ignored optional build scripts warning. |
+| `pnpm i18n:check` | 2026-08-01 | Passed | Resource parity passed. |
+| `pnpm frontend:contracts` | 2026-08-01 | Passed | Contract enforcement passed. |
+| `pnpm typecheck` | 2026-08-01 | Passed | All six typed workspace packages passed. |
+| `pnpm test` | 2026-08-01 | Passed | 56 contracts, 5 config, 12 email-core, 138 web, 198 worker/script, 10 Worker HTTP, 43 integration tests. |
+| `pnpm build` | 2026-08-01 | Passed | All workspace builds passed; Vite emitted the existing large-chunk warning. |
+| `pnpm test:e2e` | 2026-08-01 | Failed | Single isolated-port (5184) attempt launched 34 tests but did not complete successfully; see Task 13 report. |
+| `pnpm audit --prod` | 2026-08-01 | Passed | No known vulnerabilities. |
+| `git diff --check` | 2026-08-01 | Pending | Run after the acceptance/documentation edits. |
 
 ## 15. Preservation Audit
 
@@ -425,7 +425,7 @@ git diff --stat "${FRONTEND_BASELINE_SHA}..HEAD"
 git diff --name-status "${FRONTEND_BASELINE_SHA}..HEAD"
 ```
 
-Status: `Pending`
+Status: `Passed` — 2026-08-01 baseline was clean at `dcd628c`; this worktree alone was changed. Final staged-path and original-checkout audits are recorded in the Task 13 report.
 
 ## Completion Decision
 

@@ -40,11 +40,11 @@ export type ApiTransportOptions = {
   setAccessToken?: (token: string | null) => void;
 };
 
-function storageToken(): string | null {
+export function getAccessToken(): string | null {
   return window.sessionStorage.getItem(ACCESS_TOKEN_KEY);
 }
 
-function storeToken(token: string | null): void {
+export function setAccessToken(token: string | null): void {
   if (token) window.sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
   else window.sessionStorage.removeItem(ACCESS_TOKEN_KEY);
 }
@@ -104,8 +104,8 @@ export function createApiTransport(
   const fetcher: FetchLike =
     options.fetch ?? ((input, init) => window.fetch(input, init));
   const basePath = options.basePath ?? "/api/v1";
-  const getAccessToken = options.getAccessToken ?? storageToken;
-  const setAccessToken = options.setAccessToken ?? storeToken;
+  const readAccessToken = options.getAccessToken ?? getAccessToken;
+  const writeAccessToken = options.setAccessToken ?? setAccessToken;
 
   async function fetchResponse(
     path: string,
@@ -113,7 +113,7 @@ export function createApiTransport(
     mediaType: MediaType = "json",
   ): Promise<Response> {
     const headers = new Headers(init.headers);
-    const token = getAccessToken();
+    const token = readAccessToken();
     if (token) headers.set("authorization", `Bearer ${token}`);
     if (
       init.body &&
@@ -134,18 +134,18 @@ export function createApiTransport(
     try {
       const response = await fetchResponse("/auth/refresh", { method: "POST" });
       if (!response.ok) {
-        setAccessToken(null);
+        writeAccessToken(null);
         return false;
       }
       const result = await decodeSuccess<{ accessToken: string }>(response);
       if (!result || typeof result.accessToken !== "string") {
-        setAccessToken(null);
+        writeAccessToken(null);
         return false;
       }
-      setAccessToken(result.accessToken);
+      writeAccessToken(result.accessToken);
       return true;
     } catch {
-      setAccessToken(null);
+      writeAccessToken(null);
       return false;
     }
   }
