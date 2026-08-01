@@ -129,7 +129,7 @@ test("compose uploads an attachment, saves a server draft, and sends it", async 
     });
   });
   await page.route("**/test-upload", (route) =>
-    route.fulfill({ status: 200, body: "" }),
+    route.fulfill({ status: 204, body: "" }),
   );
 
   await page.goto(`/inbox/${mailboxId}`);
