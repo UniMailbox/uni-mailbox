@@ -7,6 +7,11 @@ import { setAccessToken } from "../../lib/api/index";
 import { useUiStore } from "../../lib/ui-store";
 import { createI18nInstance, LOCALE_STORAGE_KEY } from "../../i18n";
 import { TIME_ZONE_STORAGE_KEY } from "../../i18n/timezone";
+import {
+  applyThemeColor,
+  DEFAULT_THEME_COLOR,
+  THEME_COLOR_STORAGE_KEY,
+} from "../../lib/theme";
 import { SettingsPage } from "./SettingsPage";
 
 vi.mock("@tanstack/react-router", async () => {
@@ -45,7 +50,8 @@ describe("authenticated settings", () => {
     window.history.replaceState({}, "", "/settings");
     window.sessionStorage.clear();
     window.localStorage.clear();
-    useUiStore.setState({ timeZone: "UTC" });
+    useUiStore.setState({ themeColor: DEFAULT_THEME_COLOR, timeZone: "UTC" });
+    applyThemeColor(DEFAULT_THEME_COLOR);
     vi.restoreAllMocks();
   });
 
@@ -77,6 +83,20 @@ describe("authenticated settings", () => {
 
     expect(useUiStore.getState().timeZone).toBe("Asia/Singapore");
     expect(localStorage.getItem(TIME_ZONE_STORAGE_KEY)).toBe("Asia/Singapore");
+  });
+
+  it("applies and persists the selected theme color", () => {
+    renderSettings("preferences");
+
+    fireEvent.change(screen.getByLabelText("Theme color"), {
+      target: { value: "#2563eb" },
+    });
+
+    expect(useUiStore.getState().themeColor).toBe("#2563eb");
+    expect(localStorage.getItem(THEME_COLOR_STORAGE_KEY)).toBe("#2563eb");
+    expect(
+      document.documentElement.style.getPropertyValue("--theme-color"),
+    ).toBe("#2563eb");
   });
 
   it("changes only the login email and returns to login", async () => {

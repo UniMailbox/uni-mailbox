@@ -8,10 +8,13 @@
   --muted: #69736e;
   --paper: #f8f7f1;
   --canvas: #edf0ea;
+  --theme-color: #123d31;
   --forest: #123d31;
   --forest-deep: #0d2c24;
   --mint: #b8f2cf;
   --lime: #d6ee87;
+  --theme-focus: #2d956f;
+  --theme-focus-soft: #c9ead7;
   --line: #d1d7cf;
   --danger: #a3342d;
   --mono: "SFMono-Regular", "Cascadia Code", ui-monospace, monospace;
@@ -33,6 +36,7 @@ button,
 input,
 select,
 textarea {
+  accent-color: var(--forest);
   font: inherit;
 }
 button,
@@ -57,7 +61,7 @@ svg {
   flex: 0 0 auto;
 }
 :focus-visible {
-  outline: 3px solid #42a77d;
+  outline: 3px solid var(--theme-focus);
   outline-offset: 3px;
 }
 
@@ -207,8 +211,8 @@ svg {
 .field input:focus,
 .field select:focus,
 .field textarea:focus {
-  border-color: #43856d;
-  outline: 2px solid #c9ead7;
+  border-color: var(--theme-focus);
+  outline: 2px solid var(--theme-focus-soft);
 }
 .form-stack {
   display: grid;
@@ -1307,6 +1311,47 @@ svg {
 .settings-card .field small {
   color: var(--muted);
   font-size: 11px;
+}
+.theme-color-field > label {
+  color: #53615a;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.theme-color-control {
+  display: flex;
+  min-height: 46px;
+  gap: 12px;
+  align-items: center;
+}
+.theme-color-control input[type="color"] {
+  width: 62px;
+  min-height: 46px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  cursor: pointer;
+  background: white;
+}
+.theme-color-control input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.theme-color-control input[type="color"]::-webkit-color-swatch {
+  border: 0;
+  border-radius: 2px;
+}
+.theme-color-control input[type="color"]::-moz-color-swatch {
+  border: 0;
+  border-radius: 2px;
+}
+.theme-color-control output {
+  color: var(--ink);
+  font: 13px var(--mono);
+  letter-spacing: 0.04em;
+}
+.theme-color-control .text-button {
+  margin-inline-start: auto;
 }
 .repair-box {
   display: grid;
