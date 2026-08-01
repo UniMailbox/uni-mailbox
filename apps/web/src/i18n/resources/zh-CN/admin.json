@@ -5,6 +5,10 @@
   "live": "实时",
   "registry": "{{resource}} 注册表",
   "audited": "更改将由 UniMailbox 记录审计。",
+  "runtime": {
+    "heading": "Cloudflare 与运行时",
+    "description": "部署级邮件路由与存储配置在此管理，不属于工作区偏好。"
+  },
   "navigation": {
     "users": "用户",
     "roles": "角色与访问权限",
@@ -18,14 +22,27 @@
   },
   "actions": {
     "create": "创建",
+    "view": "查看",
+    "edit": "编辑",
     "update": "应用更改",
     "delete": "删除",
+    "confirmDelete": "删除记录",
+    "cancel": "取消",
+    "close": "关闭",
     "save": "保存",
     "saveSettings": "保存设置",
     "saveSignature": "保存签名",
     "reconcile": "立即协调",
     "add": "添加{{resource}}",
     "manage": "管理现有{{resource}}"
+  },
+  "dialog": {
+    "action": "记录操作",
+    "createTitle": "添加{{resource}}",
+    "viewTitle": "查看{{resource}}记录",
+    "editTitle": "编辑{{resource}}记录",
+    "deleteTitle": "删除{{resource}}记录",
+    "deleteWarning": "此操作无法撤销。删除前请确认以下记录。"
   },
   "states": {
     "emptyTitle": "暂无记录",
@@ -122,6 +139,7 @@
     "received_messages": "已接收邮件",
     "sent_messages": "已发送邮件",
     "failed_jobs": "失败任务",
-    "failed_webhooks": "失败的 Webhook"
+    "failed_webhooks": "失败的 Webhook",
+    "actions": "操作"
   }
 }

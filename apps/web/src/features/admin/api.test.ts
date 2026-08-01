@@ -18,6 +18,19 @@ function queryClient() {
   return client;
 }
 
+function manualDomainResult(id: string, name = "mail.example.com") {
+  return {
+    id,
+    name,
+    expectedRoute: `*@${name} -> unimailbox Worker`,
+    routingConfiguration: {
+      status: "manual_setup_required" as const,
+      dashboardUrl:
+        "https://dash.cloudflare.com/?to=%2Faccount-1%2Femail-service%2Frouting",
+    },
+  };
+}
+
 describe("administration query ownership", () => {
   it("normalizes audit search before its key and request input", () => {
     expect(adminKeys.auditEvents("  mailbox  ")).toEqual([
@@ -43,7 +56,7 @@ describe("administration query ownership", () => {
     const client = queryClient();
     const mutations = adminMutationOptions(client);
     await mutations.create.onSuccess?.(
-      { id: "11111111-1111-4111-8111-111111111111", name: "mail.example.com" },
+      manualDomainResult("11111111-1111-4111-8111-111111111111"),
       { resource: "domains", name: "mail.example.com" },
       undefined,
       { client, meta: undefined, mutationKey: undefined },
@@ -105,13 +118,13 @@ describe("administration query ownership", () => {
       context,
     );
     await mutations.create.onSuccess?.(
-      { id, name: "operator" },
+      { id, name: "operator", description: "", permissions: [] },
       { resource: "roles", name: "operator", description: "", permissions: [] },
       undefined,
       context,
     );
     await mutations.create.onSuccess?.(
-      { id, name: "mail.example.com" },
+      manualDomainResult(id),
       { resource: "domains", name: "mail.example.com" },
       undefined,
       context,

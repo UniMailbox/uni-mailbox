@@ -16,6 +16,12 @@ const member: Principal = {
   permissions: new Set(),
 };
 
+const domainManager: Principal = {
+  userId: "33333333-3333-4333-8333-333333333333",
+  email: "domain-manager@example.com",
+  permissions: new Set(["domain.manage"]),
+};
+
 function settingsService() {
   return new CloudflareSettingsService(
     env.KV,
@@ -51,6 +57,192 @@ describe("authenticated Cloudflare settings", () => {
         expect.objectContaining({
           checkpointKey: "r2_storage",
           status: "pending",
+        }),
+      ]),
+    );
+  });
+
+  it("uses Cloudflare's current account-level Email Routing dashboard path", () => {
+    expect(
+      settingsService()
+        .dashboardLink(administrator, {
+          accountId: "account-1",
+          zoneId: "zone-1",
+          destination: "email-routing",
+        })
+        .toString(),
+    ).toBe(
+      "https://dash.cloudflare.com/?to=%2Faccount-1%2Femail-service%2Frouting",
+    );
+  });
+
+  it("keeps a locally added domain pending and returns its manual Email Routing destination", async () => {
+    const settings = settingsService();
+    await env.DB.prepare(
+      `UPDATE installation_state
+       SET cloudflare_account_id = ?, cloudflare_zone_id = ?
+       WHERE id = 1`,
+    )
+      .bind("account-1", "zone-1")
+      .run();
+
+    await expect(
+      settings.createDomain(domainManager, { name: "mail.example.com" }),
+    ).resolves.toMatchObject({
+      name: "mail.example.com",
+      routingConfiguration: {
+        status: "manual_setup_required",
+        dashboardUrl:
+          "https://dash.cloudflare.com/?to=%2Faccount-1%2Femail-service%2Frouting",
+      },
+    });
+    await expect(settings.listCheckpoints(administrator)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          checkpointKey: "cloudflare_mail",
+          status: "pending",
+          metadata: {
+            domainName: "mail.example.com",
+            routingStatus: "manual_setup_required",
+          },
+          verifiedAt: null,
+        }),
+      ]),
+    );
+  });
+
+  it("falls back to Cloudflare's account chooser when no account has been saved", async () => {
+    const settings = settingsService();
+
+    await expect(
+      settings.createDomain(domainManager, { name: "example.com" }),
+    ).resolves.toMatchObject({
+      routingConfiguration: {
+        status: "manual_setup_required",
+        dashboardUrl:
+          "https://dash.cloudflare.com/?to=%2F%3Aaccount%2Femail-service%2Frouting",
+      },
+    });
+  });
+
+  it("reports verified only when OAuth configured Cloudflare routing", async () => {
+    const credentialId = "44444444-4444-4444-8444-444444444444";
+    const cipher = new CredentialCipher("e".repeat(32));
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO encrypted_credentials (
+           id, encrypted_payload, encryption_version
+         ) VALUES (?, ?, 1)`,
+      ).bind(
+        credentialId,
+        await cipher.encrypt({
+          accessToken: "cloudflare-access-token",
+          refreshToken: "",
+        }),
+      ),
+      env.DB.prepare(
+        `UPDATE installation_state
+         SET cloudflare_account_id = ?, cloudflare_zone_id = ?,
+             cloudflare_credential_id = ?
+         WHERE id = 1`,
+      ).bind("account-1", "zone-1", credentialId),
+    ]);
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        Response.json({ success: true, result: { name: "example.com" } }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ success: true, result: { status: "ready" } }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          success: true,
+          result: {
+            enabled: true,
+            actions: [{ type: "worker", value: ["unimailbox"] }],
+          },
+        }),
+      );
+    const settings = settingsService();
+
+    await expect(
+      settings.createDomain(domainManager, { name: "mail.example.com" }),
+    ).resolves.toMatchObject({
+      routingConfiguration: {
+        status: "configured",
+        dns: "ready",
+        catchAll: "unimailbox",
+      },
+    });
+    await expect(settings.listCheckpoints(administrator)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          checkpointKey: "cloudflare_mail",
+          status: "verified",
+          metadata: {
+            domainName: "mail.example.com",
+            routingStatus: "configured",
+          },
+        }),
+      ]),
+    );
+  });
+
+  it("reports the domain ready only after OAuth configures its Email Routing", async () => {
+    const credentialId = crypto.randomUUID();
+    const cipher = new CredentialCipher("e".repeat(32));
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO encrypted_credentials (
+           id, encrypted_payload, encryption_version
+         ) VALUES (?, ?, 1)`,
+      ).bind(
+        credentialId,
+        await cipher.encrypt({ accessToken: "cloudflare-access-token" }),
+      ),
+      env.DB.prepare(
+        `UPDATE installation_state
+         SET cloudflare_account_id = ?, cloudflare_zone_id = ?,
+             cloudflare_credential_id = ?
+         WHERE id = 1`,
+      ).bind("account-1", "zone-1", credentialId),
+    ]);
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        Response.json({ success: true, result: { name: "example.com" } }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ success: true, result: { status: "ready" } }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          success: true,
+          result: {
+            enabled: true,
+            actions: [{ type: "worker", value: ["unimailbox"] }],
+          },
+        }),
+      );
+    const settings = settingsService();
+
+    await expect(
+      settings.createDomain(administrator, { name: "mail.example.com" }),
+    ).resolves.toMatchObject({
+      routingConfiguration: {
+        status: "configured",
+        dns: "ready",
+        catchAll: "unimailbox",
+      },
+    });
+    await expect(settings.listCheckpoints(administrator)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          checkpointKey: "cloudflare_mail",
+          status: "verified",
+          metadata: {
+            domainName: "mail.example.com",
+            routingStatus: "configured",
+          },
         }),
       ]),
     );
