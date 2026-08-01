@@ -1,10 +1,16 @@
 import { expect, test } from "./fixtures/locale";
 
-test("language preference applies immediately and persists after reload", async ({ page, uiLocale }) => {
+test("project locale initializes per context and preserves user choice after reload", async ({ page, uiLocale }) => {
   await page.route("**/api/v1/auth/session", (route) => route.fulfill({
     contentType: "application/json",
     body: JSON.stringify({ data: { userId: "operator-1", email: "operator@example.com", permissions: ["settings.manage"] } }),
   }));
+
+  const secondPage = await page.context().newPage();
+  await secondPage.goto("/login");
+  await expect(secondPage.locator("html")).toHaveAttribute("lang", uiLocale.code);
+  await secondPage.close();
+
   await page.goto("/settings/preferences");
 
   await expect(page.locator("html")).toHaveAttribute("lang", uiLocale.code);
@@ -35,11 +41,12 @@ test("authorized administration uses localized navigation", async ({ page, uiLoc
   await expect(
     page.getByText(uiLocale.copy.administration, { exact: true }),
   ).toBeVisible();
-  await page.locator(".create-panel summary").first().click();
-  await page.getByLabel(uiLocale.copy.displayName).fill("Operator");
-  await page.getByLabel(uiLocale.copy.emailField).fill("operator@example.com");
-  await page.getByLabel(uiLocale.copy.passwordField).fill("correct horse battery staple");
-  await page.getByLabel(uiLocale.copy.roleIds).fill("11111111-1111-4111-8111-111111111111");
-  await page.getByRole("button", { name: uiLocale.copy.create }).click();
+  const createPanel = page.locator(".create-panel").first();
+  await createPanel.locator("summary").click();
+  await createPanel.getByLabel(uiLocale.copy.displayName).fill("Operator");
+  await createPanel.getByLabel(uiLocale.copy.emailField).fill("operator@example.com");
+  await createPanel.getByLabel(uiLocale.copy.passwordField).fill("correct horse battery staple");
+  await createPanel.getByLabel(uiLocale.copy.roleIds).fill("11111111-1111-4111-8111-111111111111");
+  await createPanel.getByRole("button", { name: uiLocale.copy.create }).click();
   await expect.poll(() => created).toBe(true);
 });

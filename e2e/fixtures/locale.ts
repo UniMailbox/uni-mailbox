@@ -1,4 +1,5 @@
 import { expect, test as base } from "@playwright/test";
+import type { BrowserContext } from "@playwright/test";
 
 type ProductionLocale = "en" | "zh-CN";
 export type LocaleFixture = {
@@ -40,11 +41,27 @@ export function seedLocalePreference(
   }
 }
 
+export async function initializeProjectLocale(
+  context: Pick<BrowserContext, "addInitScript">,
+  locale: LocaleFixture["code"],
+) {
+  await context.addInitScript(seedLocalePreference, locale);
+}
+
+export function attachmentReadyPattern(locale: LocaleFixture["code"]) {
+  return locale === "zh-CN"
+    ? /^1 个附件已就绪$/u
+    : /^1 attachment(?:s|\(s\))? ready$/u;
+}
+
 export const test = base.extend<{ uiLocale: LocaleFixture }>({
+  context: async ({ context }, use, testInfo) => {
+    await initializeProjectLocale(context, projectLocale(testInfo.project.name));
+    await use(context);
+  },
   uiLocale: [
-    async ({ page }, use, testInfo) => {
+    async ({}, use, testInfo) => {
       const code = projectLocale(testInfo.project.name);
-      await page.addInitScript(seedLocalePreference, code);
       await use({ code, copy: code === "zh-CN" ? copy["zh-CN"] : copy.en });
     },
     { auto: true },
