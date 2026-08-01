@@ -3,6 +3,7 @@ import type { ErrorCode } from "./errors";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 export type MediaType = "json" | "empty" | "binary" | "redirect";
+export type RequestBodyMediaType = "json" | "binary";
 
 export type EndpointDefinition = {
   method: HttpMethod;
@@ -17,6 +18,8 @@ export type EndpointDefinition = {
   responses: Record<number, z.ZodTypeAny | null>;
   errors: readonly ErrorCode[];
   mediaType: MediaType;
+  /** Request encoding is independent from the response media type. */
+  requestBodyMediaType?: RequestBodyMediaType;
   /** Worker-issued absolute URL with signed query credentials, not a generic third-party response. */
   transport?: "worker-signed-url";
   /** A binary endpoint may expose only safe, contract-defined response metadata. */

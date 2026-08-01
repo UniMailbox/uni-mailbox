@@ -78,6 +78,7 @@ export const attachmentEndpoints = {
     responses: { 204: null },
     errors: attachmentErrors,
     mediaType: "empty",
+    requestBodyMediaType: "binary",
     transport: "worker-signed-url",
   }),
   download: defineEndpoint({
