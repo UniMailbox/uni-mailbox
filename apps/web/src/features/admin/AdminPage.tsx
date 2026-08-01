@@ -358,6 +358,7 @@ function CreateUserPanel() {
     <details className="create-panel">
       <summary>{t("actions.add", { resource: t("navigation.users") })}</summary>
       <form
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
           void form.handleSubmit();
@@ -389,13 +390,11 @@ function CreateUserPanel() {
           {() => <AdminTextField label="roleIds" />}
         </form.AppField>
         {mutation.error ? <ErrorState error={mutation.error} /> : null}
-        <form.Subscribe
-          selector={(state) => [state.canSubmit, state.isSubmitting] as const}
-        >
-          {([canSubmit, isSubmitting]) => (
+        <form.Subscribe selector={(state) => state.isSubmitting}>
+          {(isSubmitting) => (
             <button
               className="button primary"
-              disabled={!canSubmit || isSubmitting || mutation.isPending}
+              disabled={isSubmitting || mutation.isPending}
               type="submit"
             >
               {t("actions.create")}
@@ -426,6 +425,7 @@ function CreateRolePanel() {
     <details className="create-panel">
       <summary>{t("actions.add", { resource: t("navigation.roles") })}</summary>
       <form
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
           void form.handleSubmit();
@@ -441,13 +441,11 @@ function CreateRolePanel() {
           {() => <AdminTextField label="permissions" />}
         </form.AppField>
         {mutation.error ? <ErrorState error={mutation.error} /> : null}
-        <form.Subscribe
-          selector={(state) => [state.canSubmit, state.isSubmitting] as const}
-        >
-          {([canSubmit, isSubmitting]) => (
+        <form.Subscribe selector={(state) => state.isSubmitting}>
+          {(isSubmitting) => (
             <button
               className="button primary"
-              disabled={!canSubmit || isSubmitting || mutation.isPending}
+              disabled={isSubmitting || mutation.isPending}
               type="submit"
             >
               {t("actions.create")}
@@ -480,6 +478,7 @@ function CreateDomainPanel() {
         {t("actions.add", { resource: t("navigation.domains") })}
       </summary>
       <form
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
           void form.handleSubmit();
@@ -489,13 +488,11 @@ function CreateDomainPanel() {
           {() => <AdminTextField label="name" technical />}
         </form.AppField>
         {mutation.error ? <ErrorState error={mutation.error} /> : null}
-        <form.Subscribe
-          selector={(state) => [state.canSubmit, state.isSubmitting] as const}
-        >
-          {([canSubmit, isSubmitting]) => (
+        <form.Subscribe selector={(state) => state.isSubmitting}>
+          {(isSubmitting) => (
             <button
               className="button primary"
-              disabled={!canSubmit || isSubmitting || mutation.isPending}
+              disabled={isSubmitting || mutation.isPending}
               type="submit"
             >
               {t("actions.create")}
@@ -533,6 +530,7 @@ function CreateProviderPanel() {
         {t("actions.add", { resource: t("navigation.provider-connections") })}
       </summary>
       <form
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
           void form.handleSubmit();
@@ -560,13 +558,11 @@ function CreateProviderPanel() {
           )}
         </form.AppField>
         {mutation.error ? <ErrorState error={mutation.error} /> : null}
-        <form.Subscribe
-          selector={(state) => [state.canSubmit, state.isSubmitting] as const}
-        >
-          {([canSubmit, isSubmitting]) => (
+        <form.Subscribe selector={(state) => state.isSubmitting}>
+          {(isSubmitting) => (
             <button
               className="button primary"
-              disabled={!canSubmit || isSubmitting || mutation.isPending}
+              disabled={isSubmitting || mutation.isPending}
               type="submit"
             >
               {t("actions.create")}
@@ -639,6 +635,7 @@ function ManageUserPanel() {
         {t("actions.manage", { resource: t("navigation.users") })}
       </summary>
       <form
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
           void form.handleSubmit();
@@ -673,18 +670,11 @@ function ManageUserPanel() {
         {(update.error ?? remove.error) ? (
           <ErrorState error={update.error ?? remove.error} />
         ) : null}
-        <form.Subscribe
-          selector={(state) => [state.canSubmit, state.isSubmitting] as const}
-        >
-          {([canSubmit, isSubmitting]) => (
+        <form.Subscribe selector={(state) => state.isSubmitting}>
+          {(isSubmitting) => (
             <button
               className="button primary"
-              disabled={
-                !canSubmit ||
-                isSubmitting ||
-                update.isPending ||
-                remove.isPending
-              }
+              disabled={isSubmitting || update.isPending || remove.isPending}
               type="submit"
             >
               {t("actions.update")}
@@ -730,6 +720,7 @@ function ManageRolePanel() {
         {t("actions.manage", { resource: t("navigation.roles") })}
       </summary>
       <form
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
           void form.handleSubmit();
@@ -755,18 +746,11 @@ function ManageRolePanel() {
         {(update.error ?? remove.error) ? (
           <ErrorState error={update.error ?? remove.error} />
         ) : null}
-        <form.Subscribe
-          selector={(state) => [state.canSubmit, state.isSubmitting] as const}
-        >
-          {([canSubmit, isSubmitting]) => (
+        <form.Subscribe selector={(state) => state.isSubmitting}>
+          {(isSubmitting) => (
             <button
               className="button primary"
-              disabled={
-                !canSubmit ||
-                isSubmitting ||
-                update.isPending ||
-                remove.isPending
-              }
+              disabled={isSubmitting || update.isPending || remove.isPending}
               type="submit"
             >
               {t("actions.update")}
@@ -814,6 +798,7 @@ function ManageDomainPanel() {
         {t("actions.manage", { resource: t("navigation.domains") })}
       </summary>
       <form
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
           void form.handleSubmit();
@@ -845,18 +830,11 @@ function ManageDomainPanel() {
         {(update.error ?? remove.error) ? (
           <ErrorState error={update.error ?? remove.error} />
         ) : null}
-        <form.Subscribe
-          selector={(state) => [state.canSubmit, state.isSubmitting] as const}
-        >
-          {([canSubmit, isSubmitting]) => (
+        <form.Subscribe selector={(state) => state.isSubmitting}>
+          {(isSubmitting) => (
             <button
               className="button primary"
-              disabled={
-                !canSubmit ||
-                isSubmitting ||
-                update.isPending ||
-                remove.isPending
-              }
+              disabled={isSubmitting || update.isPending || remove.isPending}
               type="submit"
             >
               {t("actions.update")}
@@ -895,6 +873,7 @@ function ManageProviderPanel() {
         })}
       </summary>
       <form
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
           void form.handleSubmit();
@@ -931,13 +910,11 @@ function ManageProviderPanel() {
           )}
         </form.AppField>
         {update.error ? <ErrorState error={update.error} /> : null}
-        <form.Subscribe
-          selector={(state) => [state.canSubmit, state.isSubmitting] as const}
-        >
-          {([canSubmit, isSubmitting]) => (
+        <form.Subscribe selector={(state) => state.isSubmitting}>
+          {(isSubmitting) => (
             <button
               className="button primary"
-              disabled={!canSubmit || isSubmitting || update.isPending}
+              disabled={isSubmitting || update.isPending}
               type="submit"
             >
               {t("actions.update")}
@@ -970,6 +947,7 @@ function DeleteWebhookPanel() {
         {t("actions.manage", { resource: t("navigation.webhook-events") })}
       </summary>
       <form
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
           void form.handleSubmit();
@@ -979,13 +957,11 @@ function DeleteWebhookPanel() {
           {() => <AdminTextField label="id" />}
         </form.AppField>
         {remove.error ? <ErrorState error={remove.error} /> : null}
-        <form.Subscribe
-          selector={(state) => [state.canSubmit, state.isSubmitting] as const}
-        >
-          {([canSubmit, isSubmitting]) => (
+        <form.Subscribe selector={(state) => state.isSubmitting}>
+          {(isSubmitting) => (
             <button
               className="button primary"
-              disabled={!canSubmit || isSubmitting || remove.isPending}
+              disabled={isSubmitting || remove.isPending}
               type="submit"
             >
               {t("actions.delete")}
@@ -1075,6 +1051,7 @@ function SignatureEditor({
       </label>
       {signature.isLoading ? <LoadingState /> : null}
       <form
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
           void form.handleSubmit();
@@ -1094,15 +1071,11 @@ function SignatureEditor({
           <SuccessNote>{t("states.signatureSaved")}</SuccessNote>
         ) : null}
         {canSave ? (
-          <form.Subscribe
-            selector={(state) => [state.canSubmit, state.isSubmitting] as const}
-          >
-            {([canSubmit, isSubmitting]) => (
+          <form.Subscribe selector={(state) => state.isSubmitting}>
+            {(isSubmitting) => (
               <button
                 className="button primary"
-                disabled={
-                  !canSubmit || isSubmitting || save.isPending || !domainId
-                }
+                disabled={isSubmitting || save.isPending || !domainId}
                 type="submit"
               >
                 {t("actions.saveSignature")}
@@ -1202,6 +1175,7 @@ function SettingsEditor({
     <section className="admin-editor">
       <h2>{t("navigation.settings")}</h2>
       <form
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
           void form.handleSubmit();
@@ -1267,13 +1241,11 @@ function SettingsEditor({
           <SuccessNote>{t("states.settingsSaved")}</SuccessNote>
         ) : null}
         {canSave ? (
-          <form.Subscribe
-            selector={(state) => [state.canSubmit, state.isSubmitting] as const}
-          >
-            {([canSubmit, isSubmitting]) => (
+          <form.Subscribe selector={(state) => state.isSubmitting}>
+            {(isSubmitting) => (
               <button
                 className="button primary"
-                disabled={!canSubmit || isSubmitting || save.isPending}
+                disabled={isSubmitting || save.isPending}
                 type="submit"
               >
                 {t("actions.saveSettings")}

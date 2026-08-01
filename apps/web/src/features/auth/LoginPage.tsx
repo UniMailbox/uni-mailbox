@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { LoginSchema } from "@unimailbox/contracts";
 import { useTranslation } from "react-i18next";
-import { useAppForm } from "../../lib/form/app-form";
+import { FieldError, FormRoot, useAppForm } from "../../lib/form/app-form";
 import { loginMutationOptions } from "./api";
 import { safeLoginTarget } from "../../app/router";
 import { ErrorState } from "../../components/Status";
@@ -41,13 +41,7 @@ export function LoginPage() {
           <div className="section-kicker">{t("login.kicker")}</div>
           <h1>{t("login.title")}</h1>
           <p className="lede">{t("login.description")}</p>
-          <form
-            className="form-stack"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void form.handleSubmit();
-            }}
-          >
+          <FormRoot className="form-stack" form={form}>
             <form.AppField name="email">
               {(field) => (
                 <label className="field">
@@ -62,6 +56,7 @@ export function LoginPage() {
                     type="email"
                     value={field.state.value}
                   />
+                  <FieldError label={t("login.email")} />
                 </label>
               )}
             </form.AppField>
@@ -76,19 +71,16 @@ export function LoginPage() {
                     type="password"
                     value={field.state.value}
                   />
+                  <FieldError label={t("login.password")} />
                 </label>
               )}
             </form.AppField>
             {login.error ? <ErrorState error={login.error} /> : null}
-            <form.Subscribe
-              selector={(state) =>
-                [state.canSubmit, state.isSubmitting] as const
-              }
-            >
-              {([canSubmit, isSubmitting]) => (
+            <form.Subscribe selector={(state) => state.isSubmitting}>
+              {(isSubmitting) => (
                 <button
                   className="button primary auth-submit"
-                  disabled={!canSubmit || isSubmitting}
+                  disabled={isSubmitting}
                   type="submit"
                 >
                   <LockKeyhole aria-hidden="true" />
@@ -97,7 +89,7 @@ export function LoginPage() {
                 </button>
               )}
             </form.Subscribe>
-          </form>
+          </FormRoot>
         </div>
         <footer>{t("login.footer")}</footer>
       </section>

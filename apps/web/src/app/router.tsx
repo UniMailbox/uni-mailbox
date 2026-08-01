@@ -11,7 +11,7 @@ import {
 } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
 import { ADMIN_RESOURCE_PERMISSIONS } from "@unimailbox/contracts";
-import { ApiClientError } from "../lib/api/errors";
+import { ApiClientError } from "../lib/api";
 import { sessionQueryOptions } from "../features/auth/api";
 import { LoginPage } from "../features/auth/LoginPage";
 import { MailWorkspace } from "../features/mail/MailWorkspace";

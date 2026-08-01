@@ -18,6 +18,7 @@ import { draftsDb } from "../../lib/drafts-db";
 import { apiClient } from "../../lib/api/index";
 import {
   FieldError,
+  FormRoot,
   useAppFieldContext,
   useAppForm,
 } from "../../lib/form/app-form";
@@ -440,13 +441,7 @@ export function ComposePanel({
           <X />
         </button>
       </header>
-      <form
-        noValidate
-        onSubmit={(event) => {
-          event.preventDefault();
-          void form.handleSubmit();
-        }}
-      >
+      <FormRoot form={form}>
         <form.AppField name="to">
           {(field) => (
             <label className="compose-line">
@@ -585,7 +580,7 @@ export function ComposePanel({
             </button>
           </div>
         </footer>
-      </form>
+      </FormRoot>
     </aside>
   );
 }

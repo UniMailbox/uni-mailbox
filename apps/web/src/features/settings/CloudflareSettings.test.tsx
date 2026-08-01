@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { describe, expect, it, vi } from "vitest";
 import { createI18nInstance } from "../../i18n";
@@ -84,5 +84,36 @@ describe("CloudflareSettings", () => {
       expect(input).toHaveAttribute("dir", "ltr");
     }
     expect(inputs[3]).not.toHaveAttribute("dir");
+  });
+
+  it("shows contract validation when a configuration form is invalid", async () => {
+    const fetchMock = vi
+      .spyOn(window, "fetch")
+      .mockResolvedValue(Response.json({ data: [] }));
+    render(
+      <I18nextProvider i18n={createI18nInstance("en")}>
+        <QueryClientProvider
+          client={
+            new QueryClient({
+              defaultOptions: {
+                queries: { retry: false },
+                mutations: { retry: false },
+              },
+            })
+          }
+        >
+          <CloudflareSettings />
+        </QueryClientProvider>
+      </I18nextProvider>,
+    );
+    await screen.findByText("Email Routing domain");
+    fetchMock.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add domain" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Managed domain",
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
