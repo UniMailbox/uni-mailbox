@@ -25,8 +25,8 @@ Do not convert `Blocked` or a narrower passing check into `Passed`.
 
 | Gate | Status | Required evidence |
 | --- | --- | --- |
-| English UI complete | Passed | Fresh English Playwright project: 20/20. |
-| Simplified Chinese UI complete | Passed | Fresh Chinese Playwright project: 20/20. |
+| English UI complete | Passed | Fresh English Playwright project: 22/22. |
+| Simplified Chinese UI complete | Passed | Fresh Chinese Playwright project: 22/22. |
 | Language preference | Passed | Context initialization, reload, and actual logout/login E2E evidence. |
 | Error localization | Passed | Known/unknown/request-ID unit and fresh browser evidence. |
 | TanStack Router | Passed | Route tests, legacy routing scan, and fresh browser guards. |
@@ -36,7 +36,7 @@ Do not convert `Blocked` or a narrower passing check into `Passed`.
 | RTL foundations | Passed | Fresh desktop/mobile pseudo-RTL E2E: 6/6. |
 | Compose preservation | Passed | Focused unit and fresh browser regression suite. |
 | Accessibility | Passed | Role/name assertions plus executable EN/zh/RTL keyboard E2E and visual evidence. |
-| Full repository gates | Passed | Exact command log, including a fresh 46/46 browser matrix. |
+| Full repository gates | Passed | Exact command log, including a fresh 50/50 browser matrix. |
 | User-change preservation | Passed | Clean implementation-worktree baseline and final scope audit recorded. |
 
 ## 1. Locale Runtime
@@ -123,9 +123,9 @@ pnpm exec playwright test --project=zh-CN
 Each critical workflow includes at least one literal assertion in the target
 language so translation-resource drift cannot make both UI and test pass.
 
-Status: `Passed` — 2026-08-01 fresh isolated-server Playwright matrix: 20/20
-`en`, 20/20 `zh-CN`, 3/3 `rtl-desktop`, and 3/3 `rtl-mobile` workflows passed
-(46/46 total). Each matrix row above has direct E2E coverage.
+Status: `Passed` — 2026-08-01 fresh isolated-server Playwright matrix: 22/22
+`en`, 22/22 `zh-CN`, 3/3 `rtl-desktop`, and 3/3 `rtl-mobile` workflows passed
+(50/50 total). Each matrix row above has direct E2E coverage.
 
 ## 4. Router and Guard Semantics
 
@@ -324,7 +324,8 @@ rg -n "margin-(left|right)|padding-(left|right)|border-(left|right)|text-align:\
 Expected source scan: no unexplained application-layout match.
 
 Status: `Passed` — logical-CSS scan passed; fresh desktop/mobile pseudo-RTL
-browser matrix passed 4/4, including directional controls and LTR identifiers.
+browser matrix passed 3/3 per viewport (6/6 total), including directional
+controls and LTR identifiers.
 
 ## 11. Accessibility
 
@@ -414,7 +415,7 @@ Record:
 | `pnpm typecheck` | 2026-08-01 | Passed | All six typed workspace packages passed. |
 | `pnpm test` | 2026-08-01 | Passed | 56 contracts, 5 config, 12 email-core, 138 web, 202 worker/script, 10 Worker HTTP, 43 integration tests. |
 | `pnpm build` | 2026-08-01 | Passed | All workspace builds passed; Vite emitted the existing large-chunk warning. |
-| `pnpm test:e2e` | 2026-08-01 | Passed | Fresh Vite port 5192 and new browser contexts; Playwright 46/46 passed with one worker in 17.9s. |
+| `pnpm test:e2e` | 2026-08-01 | Passed | Fresh Vite port 5194 and new browser contexts; Playwright 50/50 passed with one worker in 18.1s. |
 | `pnpm audit --prod` | 2026-08-01 | Passed | No known vulnerabilities. |
 | `git diff --check` | 2026-08-01 | Passed | Passed after the acceptance/documentation edits. |
 
@@ -438,7 +439,10 @@ git diff --stat "${FRONTEND_BASELINE_SHA}..HEAD"
 git diff --name-status "${FRONTEND_BASELINE_SHA}..HEAD"
 ```
 
-Status: `Passed` — 2026-08-01 baseline was clean at `dcd628c`; this worktree alone was changed. Final staged-path and original-checkout audits are recorded in the Task 13 report.
+Status: `Passed` — 2026-08-01 baseline was clean at `dcd628c`; this worktree
+alone was changed. The auditable evidence is the committed baseline command
+set above plus the scoped commit history and path audit recorded in this
+acceptance document; no ignored report is required for preservation proof.
 
 ## Completion Decision
 
