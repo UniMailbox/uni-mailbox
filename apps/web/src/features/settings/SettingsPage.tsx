@@ -2,8 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
-  Cloud,
-  Database,
   KeyRound,
   Languages,
   MailPlus,
@@ -21,9 +19,9 @@ import { ErrorState, LoadingState } from "../../components/Status";
 import { BidiText } from "../../components/BidiText";
 import { FieldError, FormRoot, useAppForm } from "../../lib/form/app-form";
 import { endSession } from "../../lib/session";
+import { useUiStore } from "../../lib/ui-store";
+import { supportedTimeZones } from "../../i18n/timezone";
 import { mailboxesQueryOptions } from "../mail/api";
-import { CloudflareSettings } from "./CloudflareSettings";
-import { StorageSettings } from "./StorageSettings";
 import { type SettingsSection } from "./sections";
 import {
   identityEmailMutationOptions,
@@ -35,6 +33,7 @@ import {
 
 export type { SettingsSection } from "./sections";
 type Member = EndpointResponse<typeof mailboxEndpoints.listMembers>[number];
+const timeZones = supportedTimeZones();
 
 function Submit({
   disabled,
@@ -164,6 +163,8 @@ function MailboxMembers({ mailboxId }: { mailboxId: string }) {
 
 function Preferences() {
   const { t, i18n } = useTranslation("settings");
+  const timeZone = useUiStore((state) => state.timeZone);
+  const setTimeZone = useUiStore((state) => state.setTimeZone);
   return (
     <section className="settings-card vertical">
       <p>{t("preferences.description")}</p>
@@ -177,6 +178,22 @@ function Preferences() {
           <option value="en">{t("preferences.english")}</option>
           <option value="zh-CN">{t("preferences.chinese")}</option>
         </select>
+      </label>
+      <label className="field" htmlFor="settings-time-zone">
+        <span>{t("preferences.timeZone")}</span>
+        <select
+          aria-label={t("preferences.timeZone")}
+          id="settings-time-zone"
+          onChange={(event) => setTimeZone(event.target.value)}
+          value={timeZone}
+        >
+          {timeZones.map((value) => (
+            <option key={value} value={value}>
+              {value.replaceAll("_", " ")}
+            </option>
+          ))}
+        </select>
+        <small>{t("preferences.timeZoneDescription")}</small>
       </label>
     </section>
   );
@@ -226,8 +243,6 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
   }> = [
     { section: "account", to: "/settings/account", icon: <KeyRound /> },
     { section: "mailboxes", to: "/settings/mailboxes", icon: <MailPlus /> },
-    { section: "cloudflare", to: "/settings/cloudflare", icon: <Cloud /> },
-    { section: "storage", to: "/settings/storage", icon: <Database /> },
     {
       section: "preferences",
       to: "/settings/preferences",
@@ -444,10 +459,8 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
             </FormRoot>
           </section>
         </div>
-      ) : section === "cloudflare" ? (
-        <CloudflareSettings />
       ) : (
-        <StorageSettings />
+        <Preferences />
       )}
     </main>
   );

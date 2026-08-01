@@ -5,6 +5,10 @@
   "live": "Live",
   "registry": "{{resource}} registry",
   "audited": "Changes are audited by UniMailbox.",
+  "runtime": {
+    "heading": "Cloudflare and runtime",
+    "description": "Deployment-level mail routing and storage configuration is managed here, outside workspace preferences."
+  },
   "navigation": {
     "users": "Users",
     "roles": "Roles and access",

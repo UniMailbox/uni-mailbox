@@ -112,6 +112,15 @@ describe("router memory history", () => {
     expect(router.state.location.pathname).toBe("/settings/account");
   });
 
+  it.each(["cloudflare", "storage"])(
+    "moves the legacy workspace %s route to administration settings",
+    async (section) => {
+      const { router } = routerAt(`/settings/${section}`);
+      await router.load();
+      expect(router.state.location.pathname).toBe("/admin/settings");
+    },
+  );
+
   it.each([
     "/inbox",
     "/sent",
