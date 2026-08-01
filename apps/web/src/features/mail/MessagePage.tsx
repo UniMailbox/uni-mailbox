@@ -129,7 +129,8 @@ export function MessagePage({ messageId }: { messageId: string }) {
               });
             }}
           >
-            <Reply aria-hidden="true" className="directional-icon" /> {t("message.reply")}
+            <Reply aria-hidden="true" className="directional-icon" />{" "}
+            {t("message.reply")}
           </button>
         </div>
       </header>
@@ -142,13 +143,21 @@ export function MessagePage({ messageId }: { messageId: string }) {
             values={{ id: message.data.id.slice(0, 8) }}
           />
         </div>
-        <h1><BidiText>{message.data.subject || t("messages.noSubject")}</BidiText></h1>
+        <h1>
+          <BidiText>{message.data.subject || t("messages.noSubject")}</BidiText>
+        </h1>
         <dl className="message-envelope">
           <div>
             <dt>{t("message.from")}</dt>
             <dd>
-              <BidiText>{message.data.from_name || message.data.from_address}</BidiText>
-              <small><BidiText kind="identifier">{message.data.from_address}</BidiText></small>
+              <BidiText>
+                {message.data.from_name || message.data.from_address}
+              </BidiText>
+              <small>
+                <BidiText kind="identifier">
+                  {message.data.from_address}
+                </BidiText>
+              </small>
             </dd>
           </div>
           <div>
@@ -189,7 +198,9 @@ export function MessagePage({ messageId }: { messageId: string }) {
               >
                 <Download />
                 <span>
-                  <strong><BidiText kind="identifier">{attachment.filename}</BidiText></strong>
+                  <strong>
+                    <BidiText kind="identifier">{attachment.filename}</BidiText>
+                  </strong>
                   <small>
                     {t("message.attachmentMeta", {
                       mimeType: attachment.mime_type,

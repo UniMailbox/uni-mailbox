@@ -302,9 +302,13 @@ export function CloudflareSettings() {
           inbound.data.recipient ? (
             <div className="operator-instruction">
               <span>{t("cloudflare.sendTo")}</span>
-              <strong><BidiText kind="identifier">{inbound.data.recipient}</BidiText></strong>
+              <strong>
+                <BidiText kind="identifier">{inbound.data.recipient}</BidiText>
+              </strong>
               <span>{t("cloudflare.subject")}</span>
-              <BidiText kind="identifier"><code>{inbound.data.subject}</code></BidiText>
+              <BidiText kind="identifier">
+                <code>{inbound.data.subject}</code>
+              </BidiText>
             </div>
           ) : null}
           <button
@@ -384,7 +388,9 @@ export function CloudflareSettings() {
           {brevo.isSuccess ? (
             <SuccessNote>
               {t("cloudflare.connectionId")}:{" "}
-              <BidiText kind="identifier"><code>{brevo.data.connectionId}</code></BidiText>
+              <BidiText kind="identifier">
+                <code>{brevo.data.connectionId}</code>
+              </BidiText>
             </SuccessNote>
           ) : null}
         </section>

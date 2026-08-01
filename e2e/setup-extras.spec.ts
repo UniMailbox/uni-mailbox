@@ -1,12 +1,19 @@
 import { expect, test } from "./fixtures/locale";
 
 test("storage settings show required services and healthy KV without R2", async ({
-  page, uiLocale,
+  page,
+  uiLocale,
 }) => {
   await page.route("**/api/v1/auth/session", async (route) => {
     await route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ data: { userId: "user-admin-1", email: "admin@example.com", permissions: ["settings.manage"] } }),
+      body: JSON.stringify({
+        data: {
+          userId: "user-admin-1",
+          email: "admin@example.com",
+          permissions: ["settings.manage"],
+        },
+      }),
     });
   });
   await page.route("**/api/v1/admin/infrastructure", async (route) => {
@@ -40,12 +47,19 @@ test("storage settings show required services and healthy KV without R2", async 
 });
 
 test("Cloudflare mail configuration is available after login", async ({
-  page, uiLocale,
+  page,
+  uiLocale,
 }) => {
   await page.route("**/api/v1/auth/session", async (route) => {
     await route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ data: { userId: "user-admin-1", email: "admin@example.com", permissions: ["settings.manage"] } }),
+      body: JSON.stringify({
+        data: {
+          userId: "user-admin-1",
+          email: "admin@example.com",
+          permissions: ["settings.manage"],
+        },
+      }),
     });
   });
   await page.route("**/api/v1/admin/cloudflare/status", async (route) => {

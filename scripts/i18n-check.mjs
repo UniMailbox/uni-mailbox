@@ -1,9 +1,16 @@
 import { readFile, readdir } from "node:fs/promises";
-import { dirname, relative, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { relative, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const productionLocales = ["en", "zh-CN"];
-const requiredNamespaces = ["common", "auth", "mail", "settings", "admin", "errors"];
+const requiredNamespaces = [
+  "common",
+  "auth",
+  "mail",
+  "settings",
+  "admin",
+  "errors",
+];
 const pluralSuffixes = new Set(["zero", "one", "two", "few", "many", "other"]);
 
 async function jsonFiles(directory) {
@@ -13,7 +20,8 @@ async function jsonFiles(directory) {
       .map((entry) => entry.name)
       .sort();
   } catch (error) {
-    if (error && typeof error === "object" && error.code === "ENOENT") return [];
+    if (error && typeof error === "object" && error.code === "ENOENT")
+      return [];
     throw error;
   }
 }
@@ -95,17 +103,35 @@ export async function checkI18nResources(root = process.cwd()) {
     for (const namespace of resources.keys()) {
       if (!requiredNamespaces.includes(namespace)) {
         const resource = resources.get(namespace);
-        errors.push(format(root, resource.file, 1, `${namespace} is not an allowed production namespace for ${locale}`));
+        errors.push(
+          format(
+            root,
+            resource.file,
+            1,
+            `${namespace} is not an allowed production namespace for ${locale}`,
+          ),
+        );
       }
     }
   }
-  const allNamespaces = new Set([...requiredNamespaces, ...english.keys(), ...chinese.keys()]);
+  const allNamespaces = new Set([
+    ...requiredNamespaces,
+    ...english.keys(),
+    ...chinese.keys(),
+  ]);
   for (const namespace of [...allNamespaces].sort()) {
     const en = english.get(namespace);
     const zh = chinese.get(namespace);
     if (!en || !zh) {
       const existing = en ?? zh;
-      errors.push(format(root, existing.file, 1, `namespace ${namespace} is missing from ${en ? "zh-CN" : "en"}`));
+      errors.push(
+        format(
+          root,
+          existing.file,
+          1,
+          `namespace ${namespace} is missing from ${en ? "zh-CN" : "en"}`,
+        ),
+      );
       continue;
     }
 
@@ -115,25 +141,65 @@ export async function checkI18nResources(root = process.cwd()) {
       const zhValue = zh.flat.get(key);
       if (!enValue || !zhValue) {
         const existing = enValue ?? zhValue;
-        errors.push(format(root, existing.file, existing.line, `${namespace}.${key} is missing from ${enValue ? "zh-CN" : "en"}`));
+        errors.push(
+          format(
+            root,
+            existing.file,
+            existing.line,
+            `${namespace}.${key} is missing from ${enValue ? "zh-CN" : "en"}`,
+          ),
+        );
         continue;
       }
       for (const value of [enValue, zhValue]) {
         if (typeof value.value !== "string" || value.value.trim() === "") {
-          errors.push(format(root, value.file, value.line, `${namespace}.${key} must be a non-empty string translation value`));
+          errors.push(
+            format(
+              root,
+              value.file,
+              value.line,
+              `${namespace}.${key} must be a non-empty string translation value`,
+            ),
+          );
         }
       }
-      if (typeof enValue.value === "string" && typeof zhValue.value === "string" && JSON.stringify(interpolationVariables(enValue.value)) !== JSON.stringify(interpolationVariables(zhValue.value))) {
-        errors.push(format(root, zhValue.file, zhValue.line, `${namespace}.${key} has unequal interpolation variables`));
+      if (
+        typeof enValue.value === "string" &&
+        typeof zhValue.value === "string" &&
+        JSON.stringify(interpolationVariables(enValue.value)) !==
+          JSON.stringify(interpolationVariables(zhValue.value))
+      ) {
+        errors.push(
+          format(
+            root,
+            zhValue.file,
+            zhValue.line,
+            `${namespace}.${key} has unequal interpolation variables`,
+          ),
+        );
       }
     }
 
-    const pluralBases = new Set([...pluralSets(en.flat).keys(), ...pluralSets(zh.flat).keys()]);
+    const pluralBases = new Set([
+      ...pluralSets(en.flat).keys(),
+      ...pluralSets(zh.flat).keys(),
+    ]);
     for (const base of [...pluralBases].sort()) {
-      const enSuffixes = [...(pluralSets(en.flat).get(base) ?? new Set())].sort();
-      const zhSuffixes = [...(pluralSets(zh.flat).get(base) ?? new Set())].sort();
+      const enSuffixes = [
+        ...(pluralSets(en.flat).get(base) ?? new Set()),
+      ].sort();
+      const zhSuffixes = [
+        ...(pluralSets(zh.flat).get(base) ?? new Set()),
+      ].sort();
       if (JSON.stringify(enSuffixes) !== JSON.stringify(zhSuffixes)) {
-        errors.push(format(root, zh.file, 1, `${namespace}.${base} has unequal plural suffixes`));
+        errors.push(
+          format(
+            root,
+            zh.file,
+            1,
+            `${namespace}.${base} has unequal plural suffixes`,
+          ),
+        );
       }
     }
   }
@@ -150,6 +216,9 @@ async function main() {
   console.log("i18n resource parity passed");
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+) {
   await main();
 }

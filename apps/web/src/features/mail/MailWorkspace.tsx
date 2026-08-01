@@ -184,12 +184,16 @@ export function MailWorkspace({
                 <Icon />
                 <span>{t(`folders.${id}`)}</span>
                 {id === "inbox" && activeMailbox?.unread_count ? (
-                  <strong>{formatNumber(activeMailbox.unread_count, locale)}</strong>
+                  <strong>
+                    {formatNumber(activeMailbox.unread_count, locale)}
+                  </strong>
                 ) : null}
               </Link>
             );
           })}
-          <div className="nav-label admin-label">{t("navigation.controlPlane")}</div>
+          <div className="nav-label admin-label">
+            {t("navigation.controlPlane")}
+          </div>
           <Link to="/settings/mailboxes">
             <Settings /> <span>{t("navigation.settings")}</span>
           </Link>
@@ -241,7 +245,9 @@ export function MailWorkspace({
           <header className="folder-header">
             <div>
               <p className="section-kicker">
-                <BidiText kind="identifier">{activeMailbox?.address ?? t("messages.mailbox")}</BidiText>
+                <BidiText kind="identifier">
+                  {activeMailbox?.address ?? t("messages.mailbox")}
+                </BidiText>
               </p>
               <h1>{t(`folders.${activeFolder[0]}`)}</h1>
             </div>
@@ -332,14 +338,27 @@ export function MailWorkspace({
                   >
                     <div className="message-sender">
                       <strong>
-                        <BidiText>{message.from_name || message.from_address}</BidiText>
+                        <BidiText>
+                          {message.from_name || message.from_address}
+                        </BidiText>
                       </strong>
-                      <small><BidiText kind="identifier">{message.from_address}</BidiText></small>
+                      <small>
+                        <BidiText kind="identifier">
+                          {message.from_address}
+                        </BidiText>
+                      </small>
                     </div>
                     <div className="message-preview">
-                      <strong><BidiText>{message.subject || t("messages.noSubject")}</BidiText></strong>
+                      <strong>
+                        <BidiText>
+                          {message.subject || t("messages.noSubject")}
+                        </BidiText>
+                      </strong>
                       <span>
-                        {message.status && ["draft", "queued", "sent", "received"].includes(message.status)
+                        {message.status &&
+                        ["draft", "queued", "sent", "received"].includes(
+                          message.status,
+                        )
                           ? t(`messages.status.${message.status}`)
                           : t("messages.unknownStatus")}
                       </span>

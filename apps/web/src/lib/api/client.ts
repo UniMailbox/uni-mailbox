@@ -68,9 +68,16 @@ export function createApiClient(
   return {
     async request(endpoint, input) {
       const parsed = parseRequest(endpoint, input);
-      const path = endpoint.transport === "worker-signed-url"
-        ? parsed.url as string
-        : addQuery(buildPath(endpoint.path, parsed.params as Record<string, unknown> | undefined), parsed.query as Record<string, unknown> | undefined);
+      const path =
+        endpoint.transport === "worker-signed-url"
+          ? (parsed.url as string)
+          : addQuery(
+              buildPath(
+                endpoint.path,
+                parsed.params as Record<string, unknown> | undefined,
+              ),
+              parsed.query as Record<string, unknown> | undefined,
+            );
       const init: RequestInit = {
         method: endpoint.method,
         headers: parsed.headers as HeadersInit | undefined,
@@ -79,7 +86,7 @@ export function createApiClient(
           : {
               body:
                 endpoint.requestBodyMediaType === "binary"
-                  ? parsed.body as BodyInit
+                  ? (parsed.body as BodyInit)
                   : JSON.stringify(parsed.body),
             }),
       };

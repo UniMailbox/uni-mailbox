@@ -14,9 +14,15 @@ export function zodIssueToken(issue: ZodIssue): ValidationToken {
 
   switch (issue.code) {
     case "too_small":
-      return { key: "errors:validation.minLength", values: { field, min: Number(issue.minimum) } };
+      return {
+        key: "errors:validation.minLength",
+        values: { field, min: Number(issue.minimum) },
+      };
     case "too_big":
-      return { key: "errors:validation.maxLength", values: { field, max: Number(issue.maximum) } };
+      return {
+        key: "errors:validation.maxLength",
+        values: { field, max: Number(issue.maximum) },
+      };
     case "invalid_string":
       return issue.validation === "email"
         ? { key: "errors:validation.email", values: { field } }

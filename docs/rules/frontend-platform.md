@@ -29,15 +29,15 @@ Enforcement:
 
 Each state value must have exactly one owner:
 
-| State | Owner |
-| --- | --- |
-| Path, params, search, navigation, route guard result | TanStack Router |
-| Remote records, loading, retries, cache, server errors | TanStack Query |
-| Field values, field errors, submit/reset lifecycle | TanStack Form |
-| Product copy, locale, plurals, formatting locale | i18next |
-| Composer visibility and transient UI intent | Zustand |
-| Offline working drafts | Dexie |
-| HTTP method/path/request/response/error shape | `@unimailbox/contracts` |
+| State                                                  | Owner                   |
+| ------------------------------------------------------ | ----------------------- |
+| Path, params, search, navigation, route guard result   | TanStack Router         |
+| Remote records, loading, retries, cache, server errors | TanStack Query          |
+| Field values, field errors, submit/reset lifecycle     | TanStack Form           |
+| Product copy, locale, plurals, formatting locale       | i18next                 |
+| Composer visibility and transient UI intent            | Zustand                 |
+| Offline working drafts                                 | Dexie                   |
+| HTTP method/path/request/response/error shape          | `@unimailbox/contracts` |
 
 Prohibited:
 

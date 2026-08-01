@@ -1,52 +1,104 @@
 import { expect, test } from "./fixtures/locale";
 
-test("project locale initializes per context and preserves user choice after reload", async ({ page, uiLocale }) => {
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
-    contentType: "application/json",
-    body: JSON.stringify({ data: { userId: "operator-1", email: "operator@example.com", permissions: ["settings.manage"] } }),
-  }));
+test("project locale initializes per context and preserves user choice after reload", async ({
+  page,
+  uiLocale,
+}) => {
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          userId: "operator-1",
+          email: "operator@example.com",
+          permissions: ["settings.manage"],
+        },
+      }),
+    }),
+  );
 
   const secondPage = await page.context().newPage();
   await secondPage.goto("/login");
-  await expect(secondPage.locator("html")).toHaveAttribute("lang", uiLocale.code);
+  await expect(secondPage.locator("html")).toHaveAttribute(
+    "lang",
+    uiLocale.code,
+  );
   await secondPage.close();
 
   await page.goto("/settings/preferences");
 
   await expect(page.locator("html")).toHaveAttribute("lang", uiLocale.code);
-  await expect(page.getByRole("heading", { name: uiLocale.copy.preferences })).toBeVisible();
-  await page.getByLabel(uiLocale.copy.language).selectOption(uiLocale.code === "en" ? "zh-CN" : "en");
+  await expect(
+    page.getByRole("heading", { name: uiLocale.copy.preferences }),
+  ).toBeVisible();
+  await page
+    .getByLabel(uiLocale.copy.language)
+    .selectOption(uiLocale.code === "en" ? "zh-CN" : "en");
   const expected = uiLocale.code === "en" ? "zh-CN" : "en";
   await expect(page.locator("html")).toHaveAttribute("lang", expected);
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("lang", expected);
-  await expect.poll(() => page.evaluate(() => localStorage.getItem("unimailbox.locale"))).toBe(expected);
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("unimailbox.locale")))
+    .toBe(expected);
 });
 
-test("authorized administration uses localized navigation", async ({ page, uiLocale }) => {
+test("authorized administration uses localized navigation", async ({
+  page,
+  uiLocale,
+}) => {
   let created = false;
   await page.route("**/api/v1/**", (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/auth/session")) {
-      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: { userId: "operator-1", email: "operator@example.com", permissions: ["user.read", "user.manage"] } }) });
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            userId: "operator-1",
+            email: "operator@example.com",
+            permissions: ["user.read", "user.manage"],
+          },
+        }),
+      });
     }
     if (path.endsWith("/admin/users") && route.request().method() === "POST") {
       created = true;
-      return route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ data: { id: "11111111-1111-4111-8111-111111111111", email: "operator@example.com" } }) });
+      return route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            id: "11111111-1111-4111-8111-111111111111",
+            email: "operator@example.com",
+          },
+        }),
+      });
     }
-    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: [] }) });
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: [] }),
+    });
   });
   await page.goto("/admin/users");
-  await expect(page.getByRole("heading", { name: uiLocale.copy.users })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: uiLocale.copy.users }),
+  ).toBeVisible();
   await expect(
     page.getByText(uiLocale.copy.administration, { exact: true }),
   ).toBeVisible();
   const createPanel = page.locator(".create-panel").first();
   await createPanel.locator("summary").click();
   await createPanel.getByLabel(uiLocale.copy.displayName).fill("Operator");
-  await createPanel.getByLabel(uiLocale.copy.emailField).fill("operator@example.com");
-  await createPanel.getByLabel(uiLocale.copy.passwordField).fill("correct horse battery staple");
-  await createPanel.getByLabel(uiLocale.copy.roleIds).fill("11111111-1111-4111-8111-111111111111");
+  await createPanel
+    .getByLabel(uiLocale.copy.emailField)
+    .fill("operator@example.com");
+  await createPanel
+    .getByLabel(uiLocale.copy.passwordField)
+    .fill("correct horse battery staple");
+  await createPanel
+    .getByLabel(uiLocale.copy.roleIds)
+    .fill("11111111-1111-4111-8111-111111111111");
   await createPanel.getByRole("button", { name: uiLocale.copy.create }).click();
   await expect.poll(() => created).toBe(true);
 });

@@ -23,21 +23,21 @@ Do not convert `Blocked` or a narrower passing check into `Passed`.
 
 ## Completion Summary
 
-| Gate | Status | Required evidence |
-| --- | --- | --- |
-| English UI complete | Passed | Fresh English Playwright project: 22/22. |
-| Simplified Chinese UI complete | Passed | Fresh Chinese Playwright project: 22/22. |
-| Language preference | Passed | Context initialization, reload, and actual logout/login E2E evidence. |
-| Error localization | Passed | Known/unknown/request-ID unit and fresh browser evidence. |
-| TanStack Router | Passed | Route tests, legacy routing scan, and fresh browser guards. |
-| TanStack Query service model | Passed | Feature API tests and enforcement passed. |
-| Endpoint contracts | Passed | Contract/client tests and enforcement passed. |
-| TanStack Form | Passed | Form tests and source/dependency enforcement passed. |
-| RTL foundations | Passed | Fresh desktop/mobile pseudo-RTL E2E: 6/6. |
-| Compose preservation | Passed | Focused unit and fresh browser regression suite. |
-| Accessibility | Passed | Role/name assertions plus executable EN/zh/RTL keyboard E2E and visual evidence. |
-| Full repository gates | Passed | Exact command log, including a fresh 50/50 browser matrix. |
-| User-change preservation | Passed | Clean implementation-worktree baseline and final scope audit recorded. |
+| Gate                           | Status | Required evidence                                                                |
+| ------------------------------ | ------ | -------------------------------------------------------------------------------- |
+| English UI complete            | Passed | Fresh English Playwright project: 22/22.                                         |
+| Simplified Chinese UI complete | Passed | Fresh Chinese Playwright project: 22/22.                                         |
+| Language preference            | Passed | Context initialization, reload, and actual logout/login E2E evidence.            |
+| Error localization             | Passed | Known/unknown/request-ID unit and fresh browser evidence.                        |
+| TanStack Router                | Passed | Route tests, legacy routing scan, and fresh browser guards.                      |
+| TanStack Query service model   | Passed | Feature API tests and enforcement passed.                                        |
+| Endpoint contracts             | Passed | Contract/client tests and enforcement passed.                                    |
+| TanStack Form                  | Passed | Form tests and source/dependency enforcement passed.                             |
+| RTL foundations                | Passed | Fresh desktop/mobile pseudo-RTL E2E: 6/6.                                        |
+| Compose preservation           | Passed | Focused unit and fresh browser regression suite.                                 |
+| Accessibility                  | Passed | Role/name assertions plus executable EN/zh/RTL keyboard E2E and visual evidence. |
+| Full repository gates          | Passed | Exact command log, including a fresh 50/50 browser matrix.                       |
+| User-change preservation       | Passed | Clean implementation-worktree baseline and final scope audit recorded.           |
 
 ## 1. Locale Runtime
 
@@ -90,28 +90,28 @@ Status: `Passed` — 2026-08-01 `pnpm i18n:check` and resource suite: 2 tests pa
 
 Both production locales must complete:
 
-| Workflow | en | zh-CN |
-| --- | --- | --- |
-| Login screen and validation | Passed — `e2e/login.spec.ts` | Passed — `e2e/login.spec.ts` |
-| Safe post-login deep link | Passed — `e2e/login.spec.ts` | Passed — `e2e/login.spec.ts` |
-| Inbox list and pagination | Passed — `e2e/inbox.spec.ts` | Passed — `e2e/inbox.spec.ts` |
-| Folder navigation | Passed — `e2e/inbox.spec.ts` | Passed — `e2e/inbox.spec.ts` |
-| Star and move message | Passed — `e2e/inbox.spec.ts`, `e2e/message-mutations.spec.ts` | Passed — `e2e/inbox.spec.ts`, `e2e/message-mutations.spec.ts` |
-| Message detail and attachments | Passed — `e2e/message-mutations.spec.ts`, `e2e/setup.spec.ts` | Passed — `e2e/message-mutations.spec.ts`, `e2e/setup.spec.ts` |
-| New Compose and send | Passed — `e2e/setup.spec.ts` | Passed — `e2e/setup.spec.ts` |
-| Draft restore, save, and send | Passed — `e2e/setup.spec.ts` | Passed — `e2e/setup.spec.ts` |
-| Reply composition | Passed — `e2e/setup.spec.ts` | Passed — `e2e/setup.spec.ts` |
-| Language preference switch | Passed — `e2e/preferences.spec.ts` | Passed — `e2e/preferences.spec.ts` |
-| Preference after reload | Passed — `e2e/preferences.spec.ts` | Passed — `e2e/preferences.spec.ts` |
-| Preference across logout/login | Passed — `e2e/acceptance-gaps.spec.ts` | Passed — `e2e/acceptance-gaps.spec.ts` |
-| Account settings | Passed — `e2e/acceptance-gaps.spec.ts` | Passed — `e2e/acceptance-gaps.spec.ts` |
-| Mailbox/member settings | Passed — `e2e/setup.spec.ts` | Passed — `e2e/setup.spec.ts` |
-| Cloudflare settings | Passed — `e2e/setup-extras.spec.ts` | Passed — `e2e/setup-extras.spec.ts` |
-| Storage settings | Passed — `e2e/setup-extras.spec.ts` | Passed — `e2e/setup-extras.spec.ts` |
-| Administration authorized route | Passed — `e2e/preferences.spec.ts` | Passed — `e2e/preferences.spec.ts` |
-| Administration forbidden route | Passed — `e2e/acceptance-gaps.spec.ts` | Passed — `e2e/acceptance-gaps.spec.ts` |
-| Localized not-found boundary | Passed — `e2e/acceptance-gaps.spec.ts` | Passed — `e2e/acceptance-gaps.spec.ts` |
-| Localized request error and request ID | Passed — `e2e/rtl.spec.ts` | Passed — `e2e/rtl.spec.ts` |
+| Workflow                               | en                                                            | zh-CN                                                         |
+| -------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------- |
+| Login screen and validation            | Passed — `e2e/login.spec.ts`                                  | Passed — `e2e/login.spec.ts`                                  |
+| Safe post-login deep link              | Passed — `e2e/login.spec.ts`                                  | Passed — `e2e/login.spec.ts`                                  |
+| Inbox list and pagination              | Passed — `e2e/inbox.spec.ts`                                  | Passed — `e2e/inbox.spec.ts`                                  |
+| Folder navigation                      | Passed — `e2e/inbox.spec.ts`                                  | Passed — `e2e/inbox.spec.ts`                                  |
+| Star and move message                  | Passed — `e2e/inbox.spec.ts`, `e2e/message-mutations.spec.ts` | Passed — `e2e/inbox.spec.ts`, `e2e/message-mutations.spec.ts` |
+| Message detail and attachments         | Passed — `e2e/message-mutations.spec.ts`, `e2e/setup.spec.ts` | Passed — `e2e/message-mutations.spec.ts`, `e2e/setup.spec.ts` |
+| New Compose and send                   | Passed — `e2e/setup.spec.ts`                                  | Passed — `e2e/setup.spec.ts`                                  |
+| Draft restore, save, and send          | Passed — `e2e/setup.spec.ts`                                  | Passed — `e2e/setup.spec.ts`                                  |
+| Reply composition                      | Passed — `e2e/setup.spec.ts`                                  | Passed — `e2e/setup.spec.ts`                                  |
+| Language preference switch             | Passed — `e2e/preferences.spec.ts`                            | Passed — `e2e/preferences.spec.ts`                            |
+| Preference after reload                | Passed — `e2e/preferences.spec.ts`                            | Passed — `e2e/preferences.spec.ts`                            |
+| Preference across logout/login         | Passed — `e2e/acceptance-gaps.spec.ts`                        | Passed — `e2e/acceptance-gaps.spec.ts`                        |
+| Account settings                       | Passed — `e2e/acceptance-gaps.spec.ts`                        | Passed — `e2e/acceptance-gaps.spec.ts`                        |
+| Mailbox/member settings                | Passed — `e2e/setup.spec.ts`                                  | Passed — `e2e/setup.spec.ts`                                  |
+| Cloudflare settings                    | Passed — `e2e/setup-extras.spec.ts`                           | Passed — `e2e/setup-extras.spec.ts`                           |
+| Storage settings                       | Passed — `e2e/setup-extras.spec.ts`                           | Passed — `e2e/setup-extras.spec.ts`                           |
+| Administration authorized route        | Passed — `e2e/preferences.spec.ts`                            | Passed — `e2e/preferences.spec.ts`                            |
+| Administration forbidden route         | Passed — `e2e/acceptance-gaps.spec.ts`                        | Passed — `e2e/acceptance-gaps.spec.ts`                        |
+| Localized not-found boundary           | Passed — `e2e/acceptance-gaps.spec.ts`                        | Passed — `e2e/acceptance-gaps.spec.ts`                        |
+| Localized request error and request ID | Passed — `e2e/rtl.spec.ts`                                    | Passed — `e2e/rtl.spec.ts`                                    |
 
 Evidence:
 
@@ -373,18 +373,18 @@ Status: `Passed` — 2026-08-01 `i18n:check` and `frontend:contracts` passed. Ra
 
 Record evidence for:
 
-| Check | Viewport | Locale | Status | Evidence |
-| --- | --- | --- | --- | --- |
-| Login long copy and validation | Desktop | zh-CN | Passed | [zh-login-desktop.png](../evidence/frontend-platform/2026-08-01/zh-login-desktop.png) |
-| Inbox dense list | Desktop | zh-CN | Passed | [zh-inbox-dense-desktop.png](../evidence/frontend-platform/2026-08-01/zh-inbox-dense-desktop.png) |
-| Compose recipients/editor/actions | Desktop | zh-CN | Passed | [zh-compose-desktop.png](../evidence/frontend-platform/2026-08-01/zh-compose-desktop.png) |
-| Settings tabs and preference | Mobile | zh-CN | Passed | [zh-settings-preference-mobile.png](../evidence/frontend-platform/2026-08-01/zh-settings-preference-mobile.png) |
-| Admin navigation/table/forms | Desktop | zh-CN | Passed | [zh-admin-desktop.png](../evidence/frontend-platform/2026-08-01/zh-admin-desktop.png) |
-| Sidebar/composer | Desktop | ar-XB | Passed | [sidebar](../evidence/frontend-platform/2026-08-01/rtl-sidebar-desktop.png), [composer](../evidence/frontend-platform/2026-08-01/rtl-compose-desktop.png) |
-| Sidebar/composer | Mobile | ar-XB | Passed | [sidebar](../evidence/frontend-platform/2026-08-01/rtl-sidebar-mobile.png), [composer](../evidence/frontend-platform/2026-08-01/rtl-compose-mobile.png) |
-| Mixed email/UUID/error text | Mobile | ar-XB | Passed | [rtl-mixed-email-uuid-error-mobile.png](../evidence/frontend-platform/2026-08-01/rtl-mixed-email-uuid-error-mobile.png) |
-| Keyboard focus order | Desktop | en | Passed | [en-login-focus-order.png](../evidence/frontend-platform/2026-08-01/en-login-focus-order.png) |
-| Keyboard focus order | Desktop | ar-XB | Passed | [rtl-login-focus-order.png](../evidence/frontend-platform/2026-08-01/rtl-login-focus-order.png) |
+| Check                             | Viewport | Locale | Status | Evidence                                                                                                                                                  |
+| --------------------------------- | -------- | ------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Login long copy and validation    | Desktop  | zh-CN  | Passed | [zh-login-desktop.png](../evidence/frontend-platform/2026-08-01/zh-login-desktop.png)                                                                     |
+| Inbox dense list                  | Desktop  | zh-CN  | Passed | [zh-inbox-dense-desktop.png](../evidence/frontend-platform/2026-08-01/zh-inbox-dense-desktop.png)                                                         |
+| Compose recipients/editor/actions | Desktop  | zh-CN  | Passed | [zh-compose-desktop.png](../evidence/frontend-platform/2026-08-01/zh-compose-desktop.png)                                                                 |
+| Settings tabs and preference      | Mobile   | zh-CN  | Passed | [zh-settings-preference-mobile.png](../evidence/frontend-platform/2026-08-01/zh-settings-preference-mobile.png)                                           |
+| Admin navigation/table/forms      | Desktop  | zh-CN  | Passed | [zh-admin-desktop.png](../evidence/frontend-platform/2026-08-01/zh-admin-desktop.png)                                                                     |
+| Sidebar/composer                  | Desktop  | ar-XB  | Passed | [sidebar](../evidence/frontend-platform/2026-08-01/rtl-sidebar-desktop.png), [composer](../evidence/frontend-platform/2026-08-01/rtl-compose-desktop.png) |
+| Sidebar/composer                  | Mobile   | ar-XB  | Passed | [sidebar](../evidence/frontend-platform/2026-08-01/rtl-sidebar-mobile.png), [composer](../evidence/frontend-platform/2026-08-01/rtl-compose-mobile.png)   |
+| Mixed email/UUID/error text       | Mobile   | ar-XB  | Passed | [rtl-mixed-email-uuid-error-mobile.png](../evidence/frontend-platform/2026-08-01/rtl-mixed-email-uuid-error-mobile.png)                                   |
+| Keyboard focus order              | Desktop  | en     | Passed | [en-login-focus-order.png](../evidence/frontend-platform/2026-08-01/en-login-focus-order.png)                                                             |
+| Keyboard focus order              | Desktop  | ar-XB  | Passed | [rtl-login-focus-order.png](../evidence/frontend-platform/2026-08-01/rtl-login-focus-order.png)                                                           |
 
 Screenshots must represent the current tested build. Static code inspection is
 not sufficient evidence for this section.
@@ -407,17 +407,17 @@ git diff --check
 
 Record:
 
-| Command | Date/time | Status | Output summary or blocker |
-| --- | --- | --- | --- |
-| `pnpm install --frozen-lockfile` | 2026-08-01 | Passed | Lockfile current; ignored optional build scripts warning. |
-| `pnpm i18n:check` | 2026-08-01 | Passed | Resource parity passed. |
-| `pnpm frontend:contracts` | 2026-08-01 | Passed | Contract enforcement passed. |
-| `pnpm typecheck` | 2026-08-01 | Passed | All six typed workspace packages passed. |
-| `pnpm test` | 2026-08-01 | Passed | 56 contracts, 5 config, 12 email-core, 142 web, 203 worker/script, 10 Worker HTTP, 43 integration tests. |
-| `pnpm build` | 2026-08-01 | Passed | All workspace builds passed; Vite emitted the existing large-chunk warning. |
-| `pnpm test:e2e` | 2026-08-01 | Passed | Fresh Vite port 5194 and new browser contexts; Playwright 50/50 passed with one worker in 18.1s. |
-| `pnpm audit --prod` | 2026-08-01 | Passed | No known vulnerabilities. |
-| `git diff --check` | 2026-08-01 | Passed | Passed after the acceptance/documentation edits. |
+| Command                          | Date/time  | Status | Output summary or blocker                                                                                |
+| -------------------------------- | ---------- | ------ | -------------------------------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile` | 2026-08-01 | Passed | Lockfile current; ignored optional build scripts warning.                                                |
+| `pnpm i18n:check`                | 2026-08-01 | Passed | Resource parity passed.                                                                                  |
+| `pnpm frontend:contracts`        | 2026-08-01 | Passed | Contract enforcement passed.                                                                             |
+| `pnpm typecheck`                 | 2026-08-01 | Passed | All six typed workspace packages passed.                                                                 |
+| `pnpm test`                      | 2026-08-01 | Passed | 56 contracts, 5 config, 12 email-core, 142 web, 203 worker/script, 10 Worker HTTP, 43 integration tests. |
+| `pnpm build`                     | 2026-08-01 | Passed | All workspace builds passed; Vite emitted the existing large-chunk warning.                              |
+| `pnpm test:e2e`                  | 2026-08-01 | Passed | Fresh Vite port 5194 and new browser contexts; Playwright 50/50 passed with one worker in 18.1s.         |
+| `pnpm audit --prod`              | 2026-08-01 | Passed | No known vulnerabilities.                                                                                |
+| `git diff --check`               | 2026-08-01 | Passed | Passed after the acceptance/documentation edits.                                                         |
 
 ## 15. Preservation Audit
 

@@ -25,7 +25,9 @@ describe("i18n document synchronization", () => {
     expect(localStorage.getItem(LOCALE_STORAGE_KEY)).toBe("zh-CN");
     expect(document.title).toBe("UniMailbox");
     expect(
-      document.querySelector('meta[name="description"]')?.getAttribute("content"),
+      document
+        .querySelector('meta[name="description"]')
+        ?.getAttribute("content"),
     ).toBe("安全、私有的邮件工作区");
   });
 

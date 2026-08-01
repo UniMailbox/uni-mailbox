@@ -13,11 +13,17 @@ async function stubAnonymousSession(page: Page) {
       });
       return;
     }
-    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: [] }) });
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: [] }),
+    });
   });
 }
 
-test("login route surfaces an accessible credential form", async ({ page, uiLocale }) => {
+test("login route surfaces an accessible credential form", async ({
+  page,
+  uiLocale,
+}) => {
   await stubAnonymousSession(page);
   await page.goto("/login");
 
@@ -43,13 +49,29 @@ test("keyboard-only login focus sequence", async ({ page, uiLocale }) => {
   ]);
 });
 
-test("register redirects a signed-in operator but keeps an anonymous visitor on register", async ({ page, uiLocale }) => {
+test("register redirects a signed-in operator but keeps an anonymous visitor on register", async ({
+  page,
+  uiLocale,
+}) => {
   let signedIn = true;
   await page.route("**/api/v1/auth/session", (route) =>
     route.fulfill(
       signedIn
-        ? { contentType: "application/json", body: JSON.stringify({ data: { userId: "operator-1", email: "operator@example.com", permissions: ["message.read"] } }) }
-        : { status: 401, contentType: "application/json", body: JSON.stringify(anonymousSessionError) },
+        ? {
+            contentType: "application/json",
+            body: JSON.stringify({
+              data: {
+                userId: "operator-1",
+                email: "operator@example.com",
+                permissions: ["message.read"],
+              },
+            }),
+          }
+        : {
+            status: 401,
+            contentType: "application/json",
+            body: JSON.stringify(anonymousSessionError),
+          },
     ),
   );
   await page.goto("/register");
@@ -57,11 +79,14 @@ test("register redirects a signed-in operator but keeps an anonymous visitor on 
   signedIn = false;
   await page.goto("/register");
   await expect(page).toHaveURL(/\/register$/u);
-  await expect(page.getByRole("heading", { name: uiLocale.copy.loginTitle })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: uiLocale.copy.loginTitle }),
+  ).toBeVisible();
 });
 
 test("login form posts credentials and routes to the inbox", async ({
-  page, uiLocale,
+  page,
+  uiLocale,
 }) => {
   let submittedEmail = "";
   let submittedPassword = "";
@@ -91,7 +116,13 @@ test("login form posts credentials and routes to the inbox", async ({
         status: signedIn ? 200 : 401,
         body: JSON.stringify(
           signedIn
-            ? { data: { userId: "user-1", email: "initial-admin@example.com", permissions: ["message.read"] } }
+            ? {
+                data: {
+                  userId: "user-1",
+                  email: "initial-admin@example.com",
+                  permissions: ["message.read"],
+                },
+              }
             : { error: { code: "AUTH_REQUIRED", message: "ignored" } },
         ),
       });
@@ -105,7 +136,9 @@ test("login form posts credentials and routes to the inbox", async ({
   await page.goto("/login");
 
   await page.getByLabel(uiLocale.copy.email).fill("initial-admin@example.com");
-  await page.getByLabel(uiLocale.copy.password).fill("correct horse battery staple");
+  await page
+    .getByLabel(uiLocale.copy.password)
+    .fill("correct horse battery staple");
   await page.getByRole("button", { name: uiLocale.copy.submit }).click();
 
   await expect.poll(() => submittedEmail).toBe("initial-admin@example.com");

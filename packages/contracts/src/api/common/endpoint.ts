@@ -39,8 +39,8 @@ type RequestMember<
   TEndpoint["request"] extends Record<TMember, infer TSchema>
     ? TSchema extends z.ZodTypeAny
       ? { [TKey in TMember]: z.input<TSchema> }
-      : {}
-    : {};
+      : unknown
+    : unknown;
 
 export type EndpointRequest<TEndpoint extends EndpointDefinition> =
   RequestMember<TEndpoint, "url"> &

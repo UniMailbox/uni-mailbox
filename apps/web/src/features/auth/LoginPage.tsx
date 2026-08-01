@@ -41,13 +41,56 @@ export function LoginPage() {
           <div className="section-kicker">{t("login.kicker")}</div>
           <h1>{t("login.title")}</h1>
           <p className="lede">{t("login.description")}</p>
-          <form className="form-stack" onSubmit={(event) => { event.preventDefault(); void form.handleSubmit(); }}>
-            <form.AppField name="email">{(field) => <label className="field"><span>{t("login.email")}</span><input autoComplete="email" dir="ltr" inputMode="email" onBlur={field.handleBlur} onChange={(event) => field.handleChange(event.target.value)} placeholder={t("login.emailPlaceholder")} type="email" value={field.state.value} /></label>}</form.AppField>
-            <form.AppField name="password">{(field) => <label className="field"><span>{t("login.password")}</span><input autoComplete="current-password" onBlur={field.handleBlur} onChange={(event) => field.handleChange(event.target.value)} type="password" value={field.state.value} /></label>}</form.AppField>
+          <form
+            className="form-stack"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void form.handleSubmit();
+            }}
+          >
+            <form.AppField name="email">
+              {(field) => (
+                <label className="field">
+                  <span>{t("login.email")}</span>
+                  <input
+                    autoComplete="email"
+                    dir="ltr"
+                    inputMode="email"
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    placeholder={t("login.emailPlaceholder")}
+                    type="email"
+                    value={field.state.value}
+                  />
+                </label>
+              )}
+            </form.AppField>
+            <form.AppField name="password">
+              {(field) => (
+                <label className="field">
+                  <span>{t("login.password")}</span>
+                  <input
+                    autoComplete="current-password"
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    type="password"
+                    value={field.state.value}
+                  />
+                </label>
+              )}
+            </form.AppField>
             {login.error ? <ErrorState error={login.error} /> : null}
-            <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting] as const}>
+            <form.Subscribe
+              selector={(state) =>
+                [state.canSubmit, state.isSubmitting] as const
+              }
+            >
               {([canSubmit, isSubmitting]) => (
-                <button className="button primary auth-submit" disabled={!canSubmit || isSubmitting} type="submit">
+                <button
+                  className="button primary auth-submit"
+                  disabled={!canSubmit || isSubmitting}
+                  type="submit"
+                >
                   <LockKeyhole aria-hidden="true" />
                   {isSubmitting ? t("login.submitting") : t("login.submit")}
                   <ArrowRight aria-hidden="true" className="directional-icon" />

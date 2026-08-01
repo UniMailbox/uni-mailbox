@@ -1,8 +1,4 @@
-import {
-  attachmentReadyPattern,
-  expect,
-  test,
-} from "./fixtures/locale";
+import { attachmentReadyPattern, expect, test } from "./fixtures/locale";
 import {
   composeAttachmentId,
   composeCreateUploadFixture,
@@ -11,12 +7,17 @@ import {
 } from "./fixtures/mail";
 import { anonymousSessionError, sessionProfile } from "./fixtures/session";
 
-test("legacy setup route sends the operator to login", async ({ page, uiLocale }) => {
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
-    status: 401,
-    contentType: "application/json",
-    body: JSON.stringify(anonymousSessionError),
-  }));
+test("legacy setup route sends the operator to login", async ({
+  page,
+  uiLocale,
+}) => {
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify(anonymousSessionError),
+    }),
+  );
   await page.goto("/setup");
 
   await expect(
@@ -26,12 +27,17 @@ test("legacy setup route sends the operator to login", async ({ page, uiLocale }
   await expect(page.getByText(/installation token/i)).toHaveCount(0);
 });
 
-test("login route exposes an accessible credential form", async ({ page, uiLocale }) => {
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
-    status: 401,
-    contentType: "application/json",
-    body: JSON.stringify(anonymousSessionError),
-  }));
+test("login route exposes an accessible credential form", async ({
+  page,
+  uiLocale,
+}) => {
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify(anonymousSessionError),
+    }),
+  );
   await page.goto("/login");
   await expect(
     page.getByRole("heading", { name: uiLocale.copy.loginTitle }),
@@ -44,7 +50,8 @@ test("login route exposes an accessible credential form", async ({ page, uiLocal
 });
 
 test("compose uploads an attachment, saves a server draft, and sends it", async ({
-  page, uiLocale,
+  page,
+  uiLocale,
 }) => {
   const mailboxId = "11111111-1111-4111-8111-111111111111";
   const draftId = "22222222-2222-4222-8222-222222222222";
@@ -93,7 +100,9 @@ test("compose uploads an attachment, saves a server draft, and sends it", async 
     if (path.endsWith("/complete")) {
       return route.fulfill({
         contentType: "application/json",
-        body: JSON.stringify({ data: { attachmentId: composeAttachmentId, status: "uploaded" } }),
+        body: JSON.stringify({
+          data: { attachmentId: composeAttachmentId, status: "uploaded" },
+        }),
       });
     }
     if (path === "/api/v1/drafts" && route.request().method() === "POST") {
@@ -101,7 +110,11 @@ test("compose uploads an attachment, saves a server draft, and sends it", async 
         status: 201,
         contentType: "application/json",
         body: JSON.stringify({
-          data: composeDraftFixture({ id: draftId, mailboxId, updatedAt: draftVersion }),
+          data: composeDraftFixture({
+            id: draftId,
+            mailboxId,
+            updatedAt: draftVersion,
+          }),
         }),
       });
     }
@@ -110,7 +123,11 @@ test("compose uploads an attachment, saves a server draft, and sends it", async 
       return route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
-          data: composeDraftFixture({ id: draftId, mailboxId, updatedAt: draftVersion }),
+          data: composeDraftFixture({
+            id: draftId,
+            mailboxId,
+            updatedAt: draftVersion,
+          }),
         }),
       });
     }
@@ -142,7 +159,9 @@ test("compose uploads an attachment, saves a server draft, and sends it", async 
     mimeType: "text/plain",
     buffer: Buffer.from("recovery steps"),
   });
-  await expect(page.getByText(attachmentReadyPattern(uiLocale.code))).toBeVisible();
+  await expect(
+    page.getByText(attachmentReadyPattern(uiLocale.code)),
+  ).toBeVisible();
   await page.getByRole("button", { name: uiLocale.copy.saveDraft }).click();
   await expect(page.getByText(uiLocale.copy.saved)).toBeVisible();
   await page.getByRole("button", { name: uiLocale.copy.send }).click();
@@ -153,7 +172,8 @@ test("compose uploads an attachment, saves a server draft, and sends it", async 
 });
 
 test("reply opens a threaded composer with quoted content", async ({
-  page, uiLocale,
+  page,
+  uiLocale,
 }) => {
   const mailboxId = "11111111-1111-4111-8111-111111111111";
   const messageId = "44444444-4444-4444-8444-444444444444";
@@ -164,20 +184,20 @@ test("reply opens a threaded composer with quoted content", async ({
         ? sessionProfile(["message.read"])
         : path === `/api/v1/messages/${messageId}`
           ? replyMessageFixture
-        : path.endsWith("/attachments")
-          ? []
-          : path === "/api/v1/mailboxes"
-            ? [
-                {
-                  id: mailboxId,
-                  address: "ops@example.com",
-                  display_name: "Operations",
-                  status: "active",
-                  domain_id: mailboxId,
-                  role: "owner",
-                },
-              ]
-            : { items: [], nextCursor: null };
+          : path.endsWith("/attachments")
+            ? []
+            : path === "/api/v1/mailboxes"
+              ? [
+                  {
+                    id: mailboxId,
+                    address: "ops@example.com",
+                    display_name: "Operations",
+                    status: "active",
+                    domain_id: mailboxId,
+                    role: "owner",
+                  },
+                ]
+              : { items: [], nextCursor: null };
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({ data }),
@@ -189,13 +209,18 @@ test("reply opens a threaded composer with quoted content", async ({
   await expect(page.getByLabel(uiLocale.copy.to, { exact: true })).toHaveValue(
     "sender@example.net",
   );
-  await expect(page.getByLabel(uiLocale.copy.subject)).toHaveValue("Re: Change window");
+  await expect(page.getByLabel(uiLocale.copy.subject)).toHaveValue(
+    "Re: Change window",
+  );
   await expect(page.locator(".ProseMirror blockquote")).toContainText(
     "Proceed at 02:00 UTC.",
   );
 });
 
-test("mailbox sharing assigns an object-level role", async ({ page, uiLocale }) => {
+test("mailbox sharing assigns an object-level role", async ({
+  page,
+  uiLocale,
+}) => {
   const mailboxId = "11111111-1111-4111-8111-111111111111";
   let sharedRole = "";
   await page.route("**/api/v1/**", async (route) => {

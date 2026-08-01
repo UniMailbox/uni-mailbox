@@ -26,10 +26,13 @@ describe("apiErrorToken", () => {
   it.each([
     ["en", "Authentication is required."],
     ["zh-CN", "需要进行身份验证。"],
-  ] as const)("provides a translated %s known-code message", (locale, expected) => {
-    const i18n = createTestI18n(locale);
-    const token = apiErrorToken(new ApiClientError("AUTH_REQUIRED", 401));
+  ] as const)(
+    "provides a translated %s known-code message",
+    (locale, expected) => {
+      const i18n = createTestI18n(locale);
+      const token = apiErrorToken(new ApiClientError("AUTH_REQUIRED", 401));
 
-    expect(i18n.t(token.key, token.values)).toBe(expected);
-  });
+      expect(i18n.t(token.key, token.values)).toBe(expected);
+    },
+  );
 });
