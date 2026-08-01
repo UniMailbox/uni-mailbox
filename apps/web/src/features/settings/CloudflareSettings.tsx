@@ -8,181 +8,159 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Trans, useTranslation } from "react-i18next";
+import {
+  CloudflareBrevoConnectSchema,
+  CloudflareDomainCreateSchema,
+  CloudflareOutboundSmokeTestSchema,
+  CloudflareVerifySchema,
+} from "@unimailbox/contracts";
 import { ErrorState, LoadingState, SuccessNote } from "../../components/Status";
-import { apiRequest, jsonBody } from "../../lib/api";
+import { BidiText } from "../../components/BidiText";
+import { useAppForm } from "../../lib/form/app-form";
+import {
+  cloudflareDomainMutationOptions,
+  cloudflareInboundMutationOptions,
+  cloudflareOauthRevokeMutationOptions,
+  cloudflareOauthStartMutationOptions,
+  cloudflareOutboundMutationOptions,
+  cloudflareProviderMutationOptions,
+  cloudflareStatusQueryOptions,
+  cloudflareVerifyMutationOptions,
+} from "./api";
 
-interface ConfigurationCheckpoint {
-  checkpointKey: string;
-  status: "pending" | "configured" | "verified" | "failed";
-  metadata: Record<string, unknown>;
-  errorCode: string | null;
-  errorMessage: string | null;
-  verifiedAt: string | null;
-}
-
-function adminPost<T>(path: string, body?: unknown): Promise<T> {
-  return apiRequest<T>(path, {
-    method: "POST",
-    headers: { "idempotency-key": crypto.randomUUID() },
-    ...(body === undefined ? {} : { body: jsonBody(body) }),
-  });
-}
-
-function CheckpointStatus({
-  checkpoint,
+function Submit({
+  children,
+  disabled,
 }: {
-  checkpoint?: ConfigurationCheckpoint;
+  children: React.ReactNode;
+  disabled: boolean;
 }) {
-  const status = checkpoint?.status ?? "pending";
   return (
-    <span className={`checkpoint-status ${status}`}>
+    <button className="button primary" disabled={disabled} type="submit">
+      {children}
+    </button>
+  );
+}
+function CheckpointStatus({
+  status,
+}: {
+  status?: "pending" | "configured" | "verified" | "failed";
+}) {
+  const { t } = useTranslation("settings");
+  const value = status ?? "pending";
+  return (
+    <span className={`checkpoint-status ${value}`}>
       <span aria-hidden="true" />
-      {status === "verified"
-        ? "Verified"
-        : status === "configured"
-          ? "Connected"
-          : status === "failed"
-            ? "Action required"
-            : "Not configured"}
+      {t(`cloudflare.status.${value}`)}
     </span>
   );
 }
 
+export function followCloudflareOauth(
+  url: string,
+  location: Pick<Location, "assign"> = window.location,
+): void {
+  location.assign(url);
+}
+
 export function CloudflareSettings() {
+  const { t } = useTranslation("settings");
   const client = useQueryClient();
   const [inboundToken, setInboundToken] = useState<string>();
-  const verifyForm = useForm<{
-    accountId: string;
-    zoneId: string;
-    mode: "dashboard" | "oauth";
-  }>({ defaultValues: { mode: "dashboard" } });
-  const domainForm = useForm<{ name: string }>();
-  const brevoForm = useForm<{
-    label: string;
-    apiKey: string;
-    webhookSecret: string;
-    domainId: string;
-  }>({ defaultValues: { label: "Primary Brevo" } });
-  const outboundForm = useForm<{
-    connectionId: string;
-    from: string;
-    to: string;
-  }>();
-  const checkpoints = useQuery({
-    queryKey: ["cloudflare-settings"],
-    queryFn: () =>
-      apiRequest<ConfigurationCheckpoint[]>("/admin/cloudflare/status"),
-  });
-  const refresh = () =>
-    client.invalidateQueries({ queryKey: ["cloudflare-settings"] });
+  const checkpoints = useQuery(cloudflareStatusQueryOptions());
   const checkpoint = (key: string) =>
-    checkpoints.data?.find((item) => item.checkpointKey === key);
-
-  const oauth = useMutation({
-    mutationFn: () =>
-      adminPost<{ url: string }>("/admin/cloudflare/oauth/start"),
-    onSuccess: ({ url }) => window.location.assign(url),
+    checkpoints.data?.find(
+      (item: { checkpointKey: string }) => item.checkpointKey === key,
+    );
+  const oauth = useMutation(cloudflareOauthStartMutationOptions(client));
+  const revoke = useMutation(cloudflareOauthRevokeMutationOptions(client));
+  const verify = useMutation(cloudflareVerifyMutationOptions(client));
+  const domain = useMutation(cloudflareDomainMutationOptions(client));
+  const inbound = useMutation(cloudflareInboundMutationOptions(client));
+  const brevo = useMutation(cloudflareProviderMutationOptions(client));
+  const outbound = useMutation(cloudflareOutboundMutationOptions(client));
+  const verifyForm = useAppForm({
+    defaultValues: {
+      accountId: "",
+      zoneId: "",
+      mode: "dashboard" as "dashboard" | "oauth",
+    },
+    validators: { onSubmit: CloudflareVerifySchema },
+    onSubmit: async ({ value }) => {
+      await verify.mutateAsync(value);
+    },
   });
-  const revoke = useMutation({
-    mutationFn: () =>
-      adminPost<{ revoked: boolean }>("/admin/cloudflare/oauth/revoke"),
-    onSuccess: refresh,
-  });
-  const verify = useMutation({
-    mutationFn: (values: {
-      accountId: string;
-      zoneId: string;
-      mode: "dashboard" | "oauth";
-    }) => adminPost("/admin/cloudflare/verify", values),
-    onSuccess: refresh,
-  });
-  const domain = useMutation({
-    mutationFn: (values: { name: string }) =>
-      adminPost<{ id: string; name: string }>(
-        "/admin/cloudflare/domains",
-        values,
-      ),
-    onSuccess: async () => {
+  const domainForm = useAppForm({
+    defaultValues: { name: "" },
+    validators: { onSubmit: CloudflareDomainCreateSchema },
+    onSubmit: async ({ value }) => {
+      await domain.mutateAsync(value);
       domainForm.reset();
-      await refresh();
     },
   });
-  const inbound = useMutation({
-    mutationFn: () =>
-      adminPost<{
-        status: "awaiting_message" | "received";
-        recipient?: string;
-        subject?: string;
-        token?: string;
-      }>("/admin/cloudflare/smoke-test/inbound", {
-        ...(inboundToken ? { token: inboundToken } : {}),
-      }),
-    onSuccess: async (result) => {
-      setInboundToken(
-        result.status === "awaiting_message" ? result.token : undefined,
-      );
-      await refresh();
+  const brevoForm = useAppForm({
+    defaultValues: {
+      label: "Primary Brevo",
+      apiKey: "",
+      webhookSecret: "",
+      domainId: "",
+    },
+    validators: {
+      onSubmit: CloudflareBrevoConnectSchema.omit({ providerKey: true }),
+    },
+    onSubmit: async ({ value }) => {
+      await brevo.mutateAsync(value);
+      brevoForm.reset({
+        label: "Primary Brevo",
+        apiKey: "",
+        webhookSecret: "",
+        domainId: "",
+      });
     },
   });
-  const brevo = useMutation({
-    mutationFn: (values: {
-      label: string;
-      apiKey: string;
-      webhookSecret: string;
-      domainId: string;
-    }) =>
-      adminPost<{ connectionId: string }>("/admin/cloudflare/brevo", {
-        ...values,
-        providerKey: "brevo",
-      }),
-    onSuccess: async () => {
-      brevoForm.reset({ label: "Primary Brevo" });
-      await refresh();
+  const outboundForm = useAppForm({
+    defaultValues: { connectionId: "", from: "", to: "" },
+    validators: { onSubmit: CloudflareOutboundSmokeTestSchema },
+    onSubmit: async ({ value }) => {
+      await outbound.mutateAsync(value);
     },
   });
-  const outbound = useMutation({
-    mutationFn: (values: { connectionId: string; from: string; to: string }) =>
-      adminPost("/admin/cloudflare/smoke-test/outbound", values),
-    onSuccess: refresh,
-  });
-
-  if (checkpoints.isLoading) {
-    return <LoadingState label="Loading Cloudflare configuration" />;
-  }
-  if (checkpoints.error) {
+  if (checkpoints.isLoading)
+    return <LoadingState label={t("cloudflare.loading")} />;
+  if (checkpoints.error)
     return (
       <ErrorState
         error={checkpoints.error}
         retry={() => void checkpoints.refetch()}
       />
     );
-  }
-
   return (
     <div className="configuration-stack">
       <section className="settings-card configuration-hero">
-        <Cloud />
+        <Cloud aria-hidden="true" />
         <div>
           <div className="card-heading">
             <div>
-              <span className="card-index">01 / Cloudflare account</span>
-              <h2>Connect the control plane</h2>
+              <span className="card-index">{t("cloudflare.accountIndex")}</span>
+              <h2>{t("cloudflare.accountHeading")}</h2>
             </div>
-            <CheckpointStatus checkpoint={checkpoint("cloudflare_mail")} />
+            <CheckpointStatus status={checkpoint("cloudflare_mail")?.status} />
           </div>
-          <p>
-            OAuth is optional. Dashboard-assisted mode only records your account
-            and zone IDs, then gives you exact links for Email Routing and DNS.
-          </p>
+          <p>{t("cloudflare.accountDescription")}</p>
           <div className="button-row">
             <button
               className="button primary"
               disabled={oauth.isPending}
-              onClick={() => oauth.mutate()}
+              onClick={() =>
+                oauth.mutate(undefined, {
+                  onSuccess: ({ url }) => followCloudflareOauth(url),
+                })
+              }
               type="button"
             >
-              <Cloud /> Connect with OAuth
+              <Cloud aria-hidden="true" />
+              {t("cloudflare.oauthConnect")}
             </button>
             <button
               className="button secondary"
@@ -190,7 +168,7 @@ export function CloudflareSettings() {
               onClick={() => revoke.mutate()}
               type="button"
             >
-              Revoke OAuth
+              {t("cloudflare.oauthRevoke")}
             </button>
           </div>
           {oauth.error ? <ErrorState error={oauth.error} /> : null}
@@ -198,221 +176,279 @@ export function CloudflareSettings() {
           {revoke.isSuccess ? (
             <SuccessNote>
               {revoke.data.revoked
-                ? "Cloudflare authorization removed."
-                : "No OAuth authorization was connected."}
+                ? t("cloudflare.oauthRemoved")
+                : t("cloudflare.oauthAbsent")}
             </SuccessNote>
           ) : null}
           <form
             className="configuration-form three-column"
-            onSubmit={verifyForm.handleSubmit((values) =>
-              verify.mutate(values),
-            )}
+            onSubmit={(event) => {
+              event.preventDefault();
+              void verifyForm.handleSubmit();
+            }}
           >
-            <label className="field">
-              <span>Cloudflare account ID</span>
-              <input
-                {...verifyForm.register("accountId", { required: true })}
-                autoComplete="off"
-              />
-            </label>
-            <label className="field">
-              <span>Zone ID</span>
-              <input
-                {...verifyForm.register("zoneId", { required: true })}
-                autoComplete="off"
-              />
-            </label>
-            <label className="field">
-              <span>Connection mode</span>
-              <select {...verifyForm.register("mode")}>
-                <option value="dashboard">Dashboard assisted</option>
-                <option value="oauth">OAuth connected</option>
-              </select>
-            </label>
-            <button className="button secondary" disabled={verify.isPending}>
-              <ShieldCheck /> Save and verify
-            </button>
+            <verifyForm.AppField name="accountId">
+              {(field) => (
+                <label className="field">
+                  <span>{t("cloudflare.accountId")}</span>
+                  <input
+                    dir="ltr"
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    value={field.state.value}
+                  />
+                </label>
+              )}
+            </verifyForm.AppField>
+            <verifyForm.AppField name="zoneId">
+              {(field) => (
+                <label className="field">
+                  <span>{t("cloudflare.zoneId")}</span>
+                  <input
+                    dir="ltr"
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    value={field.state.value}
+                  />
+                </label>
+              )}
+            </verifyForm.AppField>
+            <verifyForm.AppField name="mode">
+              {(field) => (
+                <label className="field">
+                  <span>{t("cloudflare.mode")}</span>
+                  <select
+                    onChange={(event) =>
+                      field.handleChange(
+                        event.target.value as "dashboard" | "oauth",
+                      )
+                    }
+                    value={field.state.value}
+                  >
+                    <option value="dashboard">
+                      {t("cloudflare.dashboardMode")}
+                    </option>
+                    <option value="oauth">{t("cloudflare.oauth")}</option>
+                  </select>
+                </label>
+              )}
+            </verifyForm.AppField>
+            <Submit disabled={verify.isPending}>
+              <ShieldCheck aria-hidden="true" /> {t("cloudflare.saveVerify")}
+            </Submit>
           </form>
           {verify.error ? <ErrorState error={verify.error} /> : null}
         </div>
       </section>
-
       <div className="configuration-grid">
         <section className="settings-card vertical">
           <div className="card-heading">
             <div>
-              <span className="card-index">02 / Domain</span>
-              <h2>Email Routing domain</h2>
+              <span className="card-index">{t("cloudflare.domainIndex")}</span>
+              <h2>{t("cloudflare.domainHeading")}</h2>
             </div>
-            <RadioTower />
+            <RadioTower aria-hidden="true" />
           </div>
-          <p>
-            Add the domain that receives mail. With OAuth, UniMailbox verifies
-            the zone and prepares its Email Routing catch-all.
-          </p>
+          <p>{t("cloudflare.domainDescription")}</p>
           <form
             className="form-stack"
-            onSubmit={domainForm.handleSubmit((values) =>
-              domain.mutate(values),
-            )}
+            onSubmit={(event) => {
+              event.preventDefault();
+              void domainForm.handleSubmit();
+            }}
           >
-            <label className="field">
-              <span>Managed domain</span>
-              <input
-                {...domainForm.register("name", { required: true })}
-                placeholder="mail.example.com"
-              />
-            </label>
-            <button className="button primary" disabled={domain.isPending}>
-              Add domain
-            </button>
+            <domainForm.AppField name="name">
+              {(field) => (
+                <label className="field">
+                  <span>{t("cloudflare.domain")}</span>
+                  <input
+                    dir="ltr"
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    placeholder="mail.example.com"
+                    value={field.state.value}
+                  />
+                </label>
+              )}
+            </domainForm.AppField>
+            <Submit disabled={domain.isPending}>
+              {t("cloudflare.addDomain")}
+            </Submit>
           </form>
           {domain.error ? <ErrorState error={domain.error} /> : null}
           {domain.isSuccess ? (
-            <SuccessNote>{domain.data.name} is ready.</SuccessNote>
+            <SuccessNote>
+              <Trans
+                components={{ name: <BidiText kind="identifier" /> }}
+                i18nKey="cloudflare.domainReady"
+                ns="settings"
+                values={{ name: domain.data.name }}
+              />
+            </SuccessNote>
           ) : null}
         </section>
-
         <section className="settings-card vertical">
           <div className="card-heading">
             <div>
-              <span className="card-index">03 / Incoming mail</span>
-              <h2>Inbound smoke test</h2>
+              <span className="card-index">{t("cloudflare.inboundIndex")}</span>
+              <h2>{t("cloudflare.inboundHeading")}</h2>
             </div>
-            <CheckpointStatus checkpoint={checkpoint("inbound_smoke_test")} />
+            <CheckpointStatus
+              status={checkpoint("inbound_smoke_test")?.status}
+            />
           </div>
-          <p>
-            Generate a one-time subject, send it to the displayed address, then
-            verify that the Worker accepted the message.
-          </p>
-          {inbound.data?.recipient ? (
+          <p>{t("cloudflare.inboundDescription")}</p>
+          {inbound.data?.status === "awaiting_message" &&
+          inbound.data.recipient ? (
             <div className="operator-instruction">
-              <span>Send to</span>
-              <strong>{inbound.data.recipient}</strong>
-              <span>Subject</span>
-              <code>{inbound.data.subject}</code>
+              <span>{t("cloudflare.sendTo")}</span>
+              <strong>
+                <BidiText kind="identifier">{inbound.data.recipient}</BidiText>
+              </strong>
+              <span>{t("cloudflare.subject")}</span>
+              <BidiText kind="identifier">
+                <code>{inbound.data.subject}</code>
+              </BidiText>
             </div>
           ) : null}
           <button
             className="button secondary"
             disabled={inbound.isPending}
-            onClick={() => inbound.mutate()}
+            onClick={() => {
+              void inbound
+                .mutateAsync(inboundToken)
+                .then((result) =>
+                  setInboundToken(
+                    result.status === "awaiting_message"
+                      ? result.token
+                      : undefined,
+                  ),
+                );
+            }}
             type="button"
           >
-            <MailCheck />
-            {inboundToken ? "Check for message" : "Start inbound test"}
+            <MailCheck aria-hidden="true" />
+            {inboundToken
+              ? t("cloudflare.checkMessage")
+              : t("cloudflare.startInbound")}
           </button>
           {inbound.error ? <ErrorState error={inbound.error} /> : null}
         </section>
-
         <section className="settings-card vertical">
           <div className="card-heading">
             <div>
-              <span className="card-index">04 / Outbound provider</span>
-              <h2>Connect Brevo</h2>
+              <span className="card-index">
+                {t("cloudflare.providerIndex")}
+              </span>
+              <h2>{t("cloudflare.providerHeading")}</h2>
             </div>
-            <CheckpointStatus checkpoint={checkpoint("brevo")} />
+            <CheckpointStatus status={checkpoint("brevo")?.status} />
           </div>
-          <p>
-            API credentials are encrypted before storage. The login email is
-            never used as a sender or mailbox address.
-          </p>
+          <p>{t("cloudflare.providerDescription")}</p>
           <form
             className="form-stack"
-            onSubmit={brevoForm.handleSubmit((values) => brevo.mutate(values))}
+            onSubmit={(event) => {
+              event.preventDefault();
+              void brevoForm.handleSubmit();
+            }}
           >
-            <label className="field">
-              <span>Connection label</span>
-              <input {...brevoForm.register("label", { required: true })} />
-            </label>
-            <label className="field">
-              <span>Domain ID</span>
-              <input {...brevoForm.register("domainId", { required: true })} />
-            </label>
-            <label className="field">
-              <span>Brevo API key</span>
-              <input
-                {...brevoForm.register("apiKey", { required: true })}
-                autoComplete="off"
-                type="password"
-              />
-            </label>
-            <label className="field">
-              <span>Webhook secret</span>
-              <input
-                {...brevoForm.register("webhookSecret", { required: true })}
-                autoComplete="new-password"
-                type="password"
-              />
-            </label>
-            <button className="button primary" disabled={brevo.isPending}>
-              Connect Brevo
-            </button>
+            {(["label", "domainId", "apiKey", "webhookSecret"] as const).map(
+              (name) => (
+                <brevoForm.AppField key={name} name={name}>
+                  {(field) => (
+                    <label className="field">
+                      <span>
+                        {t(
+                          `cloudflare.${name === "domainId" ? "domainId" : name === "apiKey" ? "apiKey" : name === "webhookSecret" ? "webhookSecret" : "connectionLabel"}`,
+                        )}
+                      </span>
+                      <input
+                        dir={name === "label" ? undefined : "ltr"}
+                        onBlur={field.handleBlur}
+                        onChange={(event) =>
+                          field.handleChange(event.target.value)
+                        }
+                        type={
+                          name === "apiKey" || name === "webhookSecret"
+                            ? "password"
+                            : "text"
+                        }
+                        value={field.state.value}
+                      />
+                    </label>
+                  )}
+                </brevoForm.AppField>
+              ),
+            )}
+            <Submit disabled={brevo.isPending}>
+              {t("cloudflare.connectBrevo")}
+            </Submit>
           </form>
           {brevo.error ? <ErrorState error={brevo.error} /> : null}
           {brevo.isSuccess ? (
             <SuccessNote>
-              Connection ID: <code>{brevo.data.connectionId}</code>
+              {t("cloudflare.connectionId")}:{" "}
+              <BidiText kind="identifier">
+                <code>{brevo.data.connectionId}</code>
+              </BidiText>
             </SuccessNote>
           ) : null}
         </section>
-
         <section className="settings-card vertical">
           <div className="card-heading">
             <div>
-              <span className="card-index">05 / Delivery</span>
-              <h2>Outbound smoke test</h2>
+              <span className="card-index">
+                {t("cloudflare.deliveryIndex")}
+              </span>
+              <h2>{t("cloudflare.deliveryHeading")}</h2>
             </div>
-            <CheckpointStatus checkpoint={checkpoint("outbound_smoke_test")} />
+            <CheckpointStatus
+              status={checkpoint("outbound_smoke_test")?.status}
+            />
           </div>
-          <p>
-            Send one operational test message before using the provider for
-            normal mailbox traffic.
-          </p>
+          <p>{t("cloudflare.deliveryDescription")}</p>
           <form
             className="form-stack"
-            onSubmit={outboundForm.handleSubmit((values) =>
-              outbound.mutate(values),
-            )}
+            onSubmit={(event) => {
+              event.preventDefault();
+              void outboundForm.handleSubmit();
+            }}
           >
-            <label className="field">
-              <span>Connection ID</span>
-              <input
-                {...outboundForm.register("connectionId", { required: true })}
-              />
-            </label>
-            <label className="field">
-              <span>From address</span>
-              <input
-                {...outboundForm.register("from", { required: true })}
-                type="email"
-              />
-            </label>
-            <label className="field">
-              <span>Destination address</span>
-              <input
-                {...outboundForm.register("to", { required: true })}
-                type="email"
-              />
-            </label>
-            <button className="button primary" disabled={outbound.isPending}>
-              <Send /> Send test
-            </button>
+            {(["connectionId", "from", "to"] as const).map((name) => (
+              <outboundForm.AppField key={name} name={name}>
+                {(field) => (
+                  <label className="field">
+                    <span>{t(`cloudflare.${name}`)}</span>
+                    <input
+                      dir="ltr"
+                      onBlur={field.handleBlur}
+                      onChange={(event) =>
+                        field.handleChange(event.target.value)
+                      }
+                      type={name === "connectionId" ? "text" : "email"}
+                      value={field.state.value}
+                    />
+                  </label>
+                )}
+              </outboundForm.AppField>
+            ))}
+            <Submit disabled={outbound.isPending}>
+              <Send aria-hidden="true" /> {t("cloudflare.sendTest")}
+            </Submit>
           </form>
           {outbound.error ? <ErrorState error={outbound.error} /> : null}
           {outbound.isSuccess ? (
-            <SuccessNote>Outbound delivery accepted.</SuccessNote>
+            <SuccessNote>{t("cloudflare.outboundAccepted")}</SuccessNote>
           ) : null}
         </section>
       </div>
-
       <a
         className="dashboard-link"
         href="https://dash.cloudflare.com/"
         rel="noreferrer"
         target="_blank"
       >
-        Open Cloudflare dashboard <ArrowUpRight />
+        {t("cloudflare.dashboard")} <ArrowUpRight aria-hidden="true" />
       </a>
     </div>
   );

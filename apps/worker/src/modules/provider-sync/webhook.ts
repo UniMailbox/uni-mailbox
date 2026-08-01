@@ -38,6 +38,9 @@ export class WebhookApplicationService {
     request: Request,
   ): Promise<{ accepted: true; duplicate: boolean }> {
     const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+    // Per-(connection, IP) per-minute window — TTL of 60s aligns the KV
+    // counter expiry with the rolling window so a single burst can't bleed
+    // into the next minute.
     const rateKey = `rate:webhook:${connectionId}:${await digest(ip)}`;
     const count = Number.parseInt(
       (await this.context.env.KV.get(rateKey)) ?? "0",
@@ -94,6 +97,8 @@ export class WebhookApplicationService {
     );
     const claim = await this.claim(event);
     if (claim === "completed") {
+      // Final-state event already processed in a previous request; the
+      // provider expects us to ack without re-running the import.
       return { accepted: true, duplicate: true };
     }
     try {
@@ -151,6 +156,9 @@ export class WebhookApplicationService {
   private async claim(event: ProviderEvent): Promise<"acquired" | "completed"> {
     const lockToken = crypto.randomUUID();
     const lockExpiresAt = Date.now() + runtimePolicy.webhookLockTtlMs;
+    // Single-event idempotency: each (connection, eventKey) only inserts
+    // once; concurrent re-deliveries from the provider fall into the
+    // existing-row branch below instead of duplicating work.
     const inserted = await this.context.env.DB.prepare(
       `INSERT INTO webhook_deliveries (
          provider_connection_id, provider_key, event_key, event_time,
@@ -179,8 +187,14 @@ export class WebhookApplicationService {
       existing?.processing_status === "succeeded" ||
       existing?.processing_status === "ignored"
     ) {
+      // Final states short-circuit immediately: replays must not retrigger
+      // import or status updates against a row that already settled.
       return "completed";
     }
+    // Takeover: the row exists but is either still 'processing' with a stale
+    // lock, or it failed earlier. We only claim when the previous attempt is
+    // demonstrably safe to retry; anything else returns 0 changes and the
+    // caller surfaces WEBHOOK_BUSY.
     const takeover = await this.context.env.DB.prepare(
       `UPDATE webhook_deliveries
        SET processing_status = 'processing', attempts = attempts + 1,
@@ -242,6 +256,10 @@ export class WebhookApplicationService {
       );
     }
     const stateLock = crypto.randomUUID();
+    // `provider_message_state` doubles as the "have we imported this yet?"
+    // gate. The row is created (or re-locked) only when no final message has
+    // been linked yet, so a webhook for a message we already imported can
+    // short-circuit straight into status update.
     const acquired = await this.context.env.DB.prepare(
       `INSERT INTO provider_message_state (
          provider_connection_id, provider_key, provider_message_id,
@@ -360,6 +378,11 @@ export class WebhookApplicationService {
     messageId: string,
   ): Promise<void> {
     const rank = statusRank[event.status];
+    // The ON CONFLICT guard keeps events monotonic: a later event_time always
+    // wins; a same-instant event only wins when its status rank is at least
+    // as high, so re-ordered deliveries can never demote a more advanced
+    // state. This is the contract `statusRank` and the status-ordering tests
+    // protect.
     await this.context.env.DB.batch([
       this.context.env.DB.prepare(
         `INSERT INTO provider_message_state (

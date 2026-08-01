@@ -27,6 +27,8 @@ import type { WebhookApplicationService } from "../modules/provider-sync/webhook
 import type { Env } from "../platform/config";
 import type { Logger } from "../platform/logger";
 import { errorResponse } from "./errors";
+import { requireAdminIdempotency } from "./admin-idempotency";
+import type { HttpAppBindings } from "./bindings";
 import type { CloudflareSettingsService } from "../modules/administration/cloudflare-settings";
 import type { InfrastructureSettingsService } from "../modules/administration/infrastructure-settings";
 
@@ -52,15 +54,6 @@ export type HttpContextFactory = (
   env: Env,
   executionContext: ExecutionContext | undefined,
 ) => Promise<HttpAppContext>;
-
-interface AppBindings {
-  Bindings: Env;
-  Variables: {
-    appContext: HttpAppContext;
-    requestId: string;
-    principal: Principal;
-  };
-}
 
 function success<T>(data: T, init?: ResponseInit): Response {
   return Response.json({ data }, init);
@@ -93,19 +86,14 @@ function refreshCookie(token: string, expiresAt: string): string {
   return `unimailbox_refresh=${token}; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=${maxAge}`;
 }
 
-async function requestHash(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(value),
-  );
-  return Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("");
-}
-
 export function createHttpApp(createContext: HttpContextFactory) {
-  const app = new Hono<AppBindings>();
+  const app = new Hono<HttpAppBindings>();
 
+  // Middleware order is intentional and load-bearing:
+  //   secureHeaders → requestId → CORS/OPTIONS short-circuit → appContext →
+  //   bootstrap gate → per-resource auth/idempotency.
+  // Reordering breaks the bootstrap carve-out (/health, /setup, /api/v1/setup/*)
+  // and the 503 contract enforced by `BOOTSTRAP_INCOMPLETE`.
   app.use("*", secureHeaders());
   app.use("*", async (context, next) => {
     const requestId = context.req.header("cf-ray") ?? crypto.randomUUID();
@@ -239,6 +227,20 @@ export function createHttpApp(createContext: HttpContextFactory) {
       "unimailbox_refresh=; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=0",
     );
     return response;
+  });
+
+  // The web client needs an authoritative answer to "who am I, and what may I
+  // do?" before it renders a protected route. Everything required already sits
+  // inside the verified access token, so this handler never touches D1 and is
+  // cheap enough to run on every navigation.
+  app.use("/api/v1/auth/session", requireAuth());
+  app.get("/api/v1/auth/session", (context) => {
+    const principal = context.get("principal");
+    return success({
+      userId: principal.userId,
+      email: principal.email,
+      permissions: [...principal.permissions].sort(),
+    });
   });
 
   app.use("/api/v1/auth/logout-all", requireAuth());
@@ -1065,7 +1067,7 @@ export function createHttpApp(createContext: HttpContextFactory) {
   return app;
 }
 
-export function requireAuth(): MiddlewareHandler<AppBindings> {
+export function requireAuth(): MiddlewareHandler<HttpAppBindings> {
   return async (context, next) => {
     const token = parseBearer(context.req.header("authorization"));
     if (!token) {
@@ -1076,85 +1078,5 @@ export function requireAuth(): MiddlewareHandler<AppBindings> {
       await context.get("appContext").auth.verifyAccessToken(token),
     );
     await next();
-  };
-}
-
-function requireAdminIdempotency(): MiddlewareHandler<AppBindings> {
-  return async (context, next) => {
-    if (!["POST", "PUT", "PATCH", "DELETE"].includes(context.req.method)) {
-      await next();
-      return;
-    }
-    const idempotencyKey = context.req.header("idempotency-key");
-    if (!idempotencyKey || idempotencyKey.length > 255) {
-      throw new DomainError(
-        "IDEMPOTENCY_KEY_REQUIRED",
-        "Administrator mutations require an Idempotency-Key",
-        428,
-      );
-    }
-    const principal = context.get("principal");
-    const operation = `admin.${context.req.method.toLowerCase()}.${context.req.path}`;
-    const rawBody = await context.req.raw.clone().text();
-    const hash = await requestHash(
-      JSON.stringify({
-        method: context.req.method,
-        path: context.req.path,
-        body: rawBody,
-      }),
-    );
-    const existing = await context.env.DB.prepare(
-      `SELECT request_hash, response_json
-       FROM idempotency_records
-       WHERE actor_user_id = ? AND operation = ? AND idempotency_key = ?
-         AND expires_at > CURRENT_TIMESTAMP`,
-    )
-      .bind(principal.userId, operation, idempotencyKey)
-      .first<{ request_hash: string; response_json: string }>();
-    if (existing) {
-      if (existing.request_hash !== hash) {
-        throw new DomainError(
-          "IDEMPOTENCY_KEY_REUSED",
-          "The idempotency key was used with different input",
-          409,
-        );
-      }
-      const replay = JSON.parse(existing.response_json) as {
-        body: string;
-        status: number;
-        contentType: string | null;
-      };
-      return new Response(replay.body || null, {
-        status: replay.status,
-        headers: replay.contentType
-          ? { "content-type": replay.contentType, "x-idempotent-replay": "1" }
-          : { "x-idempotent-replay": "1" },
-      });
-    }
-
-    await next();
-    if (context.res.status < 200 || context.res.status >= 300) return;
-    const response = context.res.clone();
-    const body = await response.text();
-    await context.env.DB.prepare(
-      `INSERT INTO idempotency_records (
-         id, actor_user_id, operation, idempotency_key, request_hash,
-         response_status, response_json, expires_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', '+1 day'))`,
-    )
-      .bind(
-        crypto.randomUUID(),
-        principal.userId,
-        operation,
-        idempotencyKey,
-        hash,
-        response.status,
-        JSON.stringify({
-          body,
-          status: response.status,
-          contentType: response.headers.get("content-type"),
-        }),
-      )
-      .run();
   };
 }

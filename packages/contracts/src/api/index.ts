@@ -1,5 +1,21 @@
 import { z } from "zod";
-import { MAX_ATTACHMENTS_PER_MESSAGE, MAX_ATTACHMENT_BYTES } from "../domain";
+import {
+  MAX_ATTACHMENTS_PER_MESSAGE,
+  MAX_ATTACHMENT_BYTES,
+  type PermissionKey,
+} from "../domain";
+
+export * from "./common/endpoint";
+export * from "./common/envelope";
+export * from "./common/errors";
+export * from "./common/pagination";
+export * from "./auth";
+export * from "./attachments";
+export * from "./administration";
+export * from "./drafts";
+export * from "./endpoints";
+export * from "./mailboxes";
+export * from "./messages";
 
 export interface ApiSuccess<T> {
   data: T;
@@ -10,7 +26,8 @@ export interface ApiErrorBody {
     code: string;
     message: string;
     details?: unknown;
-    requestId: string;
+    params?: unknown;
+    requestId?: string;
   };
 }
 
@@ -65,20 +82,6 @@ export interface AttachmentUpload {
   expiresAt: string;
 }
 
-export const LoginSchema = z.object({
-  email: z
-    .string()
-    .trim()
-    .email()
-    .transform((value) => value.toLowerCase()),
-  password: z.string().min(12).max(1024),
-});
-
-export const RegisterSchema = LoginSchema.extend({
-  displayName: z.string().trim().min(1).max(120),
-  registrationKey: z.string().trim().min(8).max(255).optional(),
-});
-
 export const MailboxCreateSchema = z.object({
   localPart: z
     .string()
@@ -88,11 +91,6 @@ export const MailboxCreateSchema = z.object({
     .regex(/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/i),
   domainId: z.string().uuid(),
   displayName: z.string().trim().max(120).default(""),
-});
-
-export const MailboxMemberSchema = z.object({
-  userId: z.string().uuid(),
-  role: z.enum(["viewer", "sender", "admin"]),
 });
 
 export const ProviderConnectionSchema = z.object({
@@ -105,4 +103,44 @@ export const ProviderConnectionSchema = z.object({
 export interface CursorPage<T> {
   items: T[];
   nextCursor: string | null;
+}
+
+/**
+ * Response body of `GET /api/v1/auth/session`. This is the only thing the web
+ * client is allowed to base access decisions on — it is derived from a verified
+ * access token, so a tampered client cannot widen it.
+ */
+/**
+ * The permission the Worker asserts for the primary listing behind each
+ * `/admin/<resource>` screen. The web client uses this to avoid rendering a
+ * console page that can only ever return 403. Keep each entry aligned with the
+ * matching `assertPermission` call in
+ * `apps/worker/src/modules/administration/index.ts`; the contract test in
+ * `packages/contracts/test/session.test.ts` pins the key set.
+ */
+export const ADMIN_RESOURCE_PERMISSIONS = {
+  users: "user.read",
+  roles: "role.read",
+  domains: "domain.read",
+  signatures: "signature.read",
+  settings: "settings.read",
+  "provider-connections": "domain.read",
+  "webhook-events": "webhook_event.read",
+  "audit-events": "analytics.read",
+  analytics: "analytics.read",
+} as const satisfies Record<string, PermissionKey>;
+
+export type AdminResourceKey = keyof typeof ADMIN_RESOURCE_PERMISSIONS;
+
+/**
+ * True when the principal can open at least one administration console page.
+ * Used to decide whether the "Administration" entry point is reachable at all.
+ */
+export function canOpenAdminConsole(
+  permissions: readonly PermissionKey[],
+): boolean {
+  const granted = new Set<string>(permissions);
+  return Object.values(ADMIN_RESOURCE_PERMISSIONS).some((permission) =>
+    granted.has(permission),
+  );
 }

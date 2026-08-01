@@ -35,6 +35,15 @@ function unquote(value: string): string {
     : value;
 }
 
+// A draft "version" is a fresh `updated_at` value that doubles as the
+// optimistic-lock token. The ISO timestamp keeps it monotonic per writer and
+// the UUID tail prevents two writers in the same millisecond from colliding;
+// this combination is what `If-Match` and the WHERE-updated_at guards rely on,
+// not a value to display to end users.
+function createDraftVersion(): string {
+  return `${new Date().toISOString()}#${crypto.randomUUID()}`;
+}
+
 export function assertDraftVersion(
   current: string,
   ifMatch: string | undefined,
@@ -230,7 +239,17 @@ export class DraftApplicationService {
       ...recipients.cc.map((address) => ["cc", address]),
       ...recipients.bcc.map((address) => ["bcc", address]),
     ];
-    const nextVersion = `${new Date().toISOString()}#${crypto.randomUUID()}`;
+    const nextVersion = createDraftVersion();
+    // Optimistic-locking batch:
+    //   1. The first statement bumps `updated_at` from `draft.updated_at` to
+    //      `nextVersion` and is the only authoritative signal of a successful
+    //      write — `results[0].meta.changes === 1` is what we treat as
+    //      "version is now ours".
+    //   2. Every subsequent statement guards on the NEW `nextVersion` via
+    //      `EXISTS (SELECT 1 FROM messages WHERE updated_at = ?)` so that
+    //      concurrent writers can't be partially mutated. The whole batch is
+    //      atomic at the D1 statement boundary, so a conflict on the first
+    //      statement short-circuits the rest.
     const results = await this.context.env.DB.batch([
       this.context.env.DB.prepare(
         `UPDATE messages
@@ -384,7 +403,12 @@ export class DraftApplicationService {
     const jobId = hasExternal ? crypto.randomUUID() : null;
     const status = jobId ? "queued" : "sent";
     const response = { messageId: draftId, status } as const;
-    const nextVersion = `${new Date().toISOString()}#${crypto.randomUUID()}`;
+    const nextVersion = createDraftVersion();
+    // Same optimistic-lock semantics as update(): the first UPDATE is the
+    // commit signal, and every later statement (folder move, internal inbox
+    // copies, outbound job, idempotency record) is bound to `nextVersion`.
+    // The idempotency INSERT is in the same batch so a transaction rollback
+    // never leaves a record without the matching state change.
     const results = await this.context.env.DB.batch([
       this.context.env.DB.prepare(
         `UPDATE messages
@@ -475,6 +499,9 @@ export class DraftApplicationService {
     }
     if (jobId) {
       try {
+        // Best-effort enqueue: if the queue is unavailable the scheduled
+        // `recoverExpiredOutboundLocks` + `dispatchPending` cron will pick
+        // the row up on the next pass.
         await new OutboundJobService(this.context).dispatch(jobId);
       } catch {
         this.context.logger.warn("outbound.dispatch.deferred", {

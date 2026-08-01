@@ -174,6 +174,10 @@ export class R2AttachmentStore implements AttachmentStore {
   }
 }
 
+// KV does not allow listing alongside the user-provided metadata on the
+// same key, so the body and its metadata live in two keys per object. The
+// split also lets us give the body a longer expiry than the metadata by
+// writing them independently if retention ever diverges.
 const BODY_PREFIX = "attachment:";
 const META_PREFIX = "attachment-meta:";
 
@@ -231,6 +235,10 @@ export class KvAttachmentStore implements AttachmentStore {
       customMetadata: meta.customMetadata,
     };
     await Promise.all([
+      // Two parallel writes: the body carries the upload timestamp as KV
+      // metadata (needed by orphan sweeps), and the serialized metadata
+      // carries the size, http headers, and custom keys. If the meta write
+      // is lost, `get` falls back to the body's byte length below.
       this.kv.put(BODY_PREFIX + key, buffer, {
         metadata: {
           uploadedAt: new Date().toISOString(),
@@ -246,6 +254,8 @@ export class KvAttachmentStore implements AttachmentStore {
       this.kv.get(META_PREFIX + key),
     ]);
     if (!body) return null;
+    // If metadata is missing, fall back to deriving `size` from the body
+    // length so older deployments (or partial writes) keep working.
     const meta = metaRaw ? parseMeta(metaRaw) : { size: body.byteLength };
     return {
       body,
@@ -301,6 +311,10 @@ export class KvAttachmentStore implements AttachmentStore {
   }
 }
 
+// Composite used while attachments migrate from KV to R2. Reads prefer R2
+// and transparently fall back to KV when the R2 object is missing, which is
+// what lets us run the two stores side-by-side during a cutover. Writes
+// still go straight to R2; the legacy KV copy is removed on delete.
 class R2WithKvFallbackAttachmentStore implements AttachmentStore {
   readonly backend: StorageBackend = "r2";
 

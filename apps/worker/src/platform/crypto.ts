@@ -2,6 +2,10 @@ import { DomainError } from "@unimailbox/contracts";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+// Versioned Additional Authenticated Data: binds the ciphertext to the
+// (product, purpose, key) tuple so a rotated master key (or any other
+// cipher-suite change) requires bumping the suffix and rejecting prior
+// envelopes explicitly.
 const additionalData = encoder.encode("unimailbox:credentials:v1");
 
 function toBase64(bytes: Uint8Array): string {
@@ -30,6 +34,9 @@ export class CredentialCipher {
   }
 
   async encrypt(payload: Readonly<Record<string, string>>): Promise<string> {
+    // 96-bit IV is the AES-GCM default (RFC 5116); the random values come
+    // from the runtime's CSPRNG so ciphertexts of identical payloads still
+    // differ.
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const ciphertext = await crypto.subtle.encrypt(
       {
@@ -50,6 +57,9 @@ export class CredentialCipher {
   async decrypt(value: string): Promise<Readonly<Record<string, string>>> {
     try {
       const envelope = JSON.parse(value) as EncryptedEnvelope;
+      // Any deviation from the v1 envelope — wrong version, missing field,
+      // corrupt base64 — is treated as a decryption failure rather than a
+      // partial recovery, so we never leak a partially-decoded payload.
       if (
         envelope.version !== 1 ||
         typeof envelope.iv !== "string" ||
@@ -85,6 +95,9 @@ export class CredentialCipher {
   }
 
   private async importKey(): Promise<CryptoKey> {
+    // Derive a 32-byte AES-256 key from the variable-length master key by
+    // hashing it. We never store the digest itself, only the import handle
+    // returned to `subtle`.
     const digest = await crypto.subtle.digest(
       "SHA-256",
       encoder.encode(this.masterKey),
