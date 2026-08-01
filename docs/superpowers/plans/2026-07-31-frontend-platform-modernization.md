@@ -29,19 +29,19 @@
 
 ## Design Coverage
 
-| Confirmed design requirement | Implementing tasks |
-| --- | --- |
-| Locale runtime and persistent preference | 2, 8 |
-| Complete English and Chinese product copy | 4, 5, 7, 8, 9, 11 |
-| Future-safe RTL and bidirectional content | 2, 11, 12 |
-| TanStack Router and guard semantics | 5 |
-| TanStack Query service model and invalidation | 1, 5, 6, 8, 9 |
-| Shared endpoint contracts and typed client | 3, 5, 6, 8, 9, 13 |
-| Code-driven localized errors and request IDs | 3, 4, 8, 9 |
-| TanStack Form and shared Zod validation | 4, 5, 8, 9, 10, 13 |
-| Compose state preservation | 7, 10, 12 |
-| Rules and enforceable acceptance | 11, 12, 13 |
-| Full verification and preservation audit | 13 |
+| Confirmed design requirement                  | Implementing tasks |
+| --------------------------------------------- | ------------------ |
+| Locale runtime and persistent preference      | 2, 8               |
+| Complete English and Chinese product copy     | 4, 5, 7, 8, 9, 11  |
+| Future-safe RTL and bidirectional content     | 2, 11, 12          |
+| TanStack Router and guard semantics           | 5                  |
+| TanStack Query service model and invalidation | 1, 5, 6, 8, 9      |
+| Shared endpoint contracts and typed client    | 3, 5, 6, 8, 9, 13  |
+| Code-driven localized errors and request IDs  | 3, 4, 8, 9         |
+| TanStack Form and shared Zod validation       | 4, 5, 8, 9, 10, 13 |
+| Compose state preservation                    | 7, 10, 12          |
+| Rules and enforceable acceptance              | 11, 12, 13         |
+| Full verification and preservation audit      | 13                 |
 
 The later Worker enforcement described in the design remains outside this
 plan. The frontend compatibility client and shared contracts produced here are
@@ -142,10 +142,7 @@ responsibilities move to the focused modules above.
 
 ```ts
 import { describe, expect, it } from "vitest";
-import {
-  createAppQueryClient,
-  createTestQueryClient,
-} from "./query-client";
+import { createAppQueryClient, createTestQueryClient } from "./query-client";
 
 describe("query client policy", () => {
   it("uses the production freshness and retry policy", () => {
@@ -559,7 +556,10 @@ export class ApiClientError extends Error {
   readonly diagnosticMessage?: string;
 
   constructor(
-    readonly code: ErrorCode | "UNKNOWN_SERVER_ERROR" | "CLIENT_RESPONSE_INVALID",
+    readonly code:
+      | ErrorCode
+      | "UNKNOWN_SERVER_ERROR"
+      | "CLIENT_RESPONSE_INVALID",
     readonly status: number,
     options: {
       rawCode?: string;
@@ -836,9 +836,7 @@ The authenticated layout calls:
 beforeLoad: async ({ context, location }) => {
   try {
     return {
-      session: await context.queryClient.ensureQueryData(
-        sessionQueryOptions(),
-      ),
+      session: await context.queryClient.ensureQueryData(sessionQueryOptions()),
     };
   } catch (error) {
     if (error instanceof ApiClientError && error.status === 401) {
@@ -850,7 +848,7 @@ beforeLoad: async ({ context, location }) => {
     }
     throw error;
   }
-}
+};
 ```
 
 Admin child guards assert the matching
@@ -970,11 +968,13 @@ Add the mailbox, message, draft, and attachment endpoint groups to
 Assert:
 
 ```ts
-expect(mailKeys.messages({
-  mailboxId: "mailbox-1",
-  folder: "inbox",
-  search: "  urgent  ",
-})).toEqual(["mail", "messages", "mailbox-1", "inbox", "urgent"]);
+expect(
+  mailKeys.messages({
+    mailboxId: "mailbox-1",
+    folder: "inbox",
+    search: "  urgent  ",
+  }),
+).toEqual(["mail", "messages", "mailbox-1", "inbox", "urgent"]);
 ```
 
 Assert mutation effects:
@@ -1477,7 +1477,9 @@ export function BidiText({
   kind?: "auto" | "identifier";
 }) {
   return kind === "identifier" ? (
-    <bdi className="bidi-identifier" dir="ltr">{children}</bdi>
+    <bdi className="bidi-identifier" dir="ltr">
+      {children}
+    </bdi>
   ) : (
     <bdi dir="auto">{children}</bdi>
   );
@@ -1625,7 +1627,8 @@ Assert:
 await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
 expect(
   await page.evaluate(
-    () => document.documentElement.scrollWidth <=
+    () =>
+      document.documentElement.scrollWidth <=
       document.documentElement.clientWidth,
   ),
 ).toBe(true);

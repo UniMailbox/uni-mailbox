@@ -2,6 +2,14 @@ import type { AppContext } from "../../app-context";
 import { OutboundJobService } from "../outbound-mail";
 import { isOrphanCleanupEligible } from "./orphan-policy";
 
+// Mirrors the cron schedule in wrangler.jsonc: every minute the worker may
+// run, with a denser tick at the top of every hour and a single daily
+// window at 03:17 UTC. The off-the-hour daily window is intentional so
+// cleanup does not contend with the worker's other top-of-hour traffic.
+const HOURLY_TRIGGER_MINUTE = 0;
+const DAILY_TRIGGER_HOUR = 3;
+const DAILY_TRIGGER_MINUTE = 17;
+
 export async function runScheduledTasks(
   context: AppContext,
   scheduledTime: number,
@@ -12,18 +20,38 @@ export async function runScheduledTasks(
   await recoverExpiredOutboundLocks(context);
   await new OutboundJobService(context).dispatchPending();
   const date = new Date(scheduledTime);
-  if (date.getUTCMinutes() === 0) {
-    await cleanupExpiredUploads(context);
-    await aggregateOperationalMetrics(context);
+  if (date.getUTCMinutes() === HOURLY_TRIGGER_MINUTE) {
+    await runHourlyMaintenance(context);
   }
-  if (date.getUTCHours() === 3 && date.getUTCMinutes() === 17) {
-    await runDailyCleanup(context);
-    await cleanupTrashAndMessages(context);
-    await cleanupOrphanObjects(context);
+  if (
+    date.getUTCHours() === DAILY_TRIGGER_HOUR &&
+    date.getUTCMinutes() === DAILY_TRIGGER_MINUTE
+  ) {
+    await runDailyMaintenance(context);
   }
   await processMaintenanceJobs(context);
 }
 
+// Hourly path: purge expired uploads and refresh operational metrics. The
+// 100-row LIMIT on upload cleanup caps per-tick CPU; the rest rolls over
+// into the next hour's tick.
+async function runHourlyMaintenance(context: AppContext): Promise<void> {
+  await cleanupExpiredUploads(context);
+  await aggregateOperationalMetrics(context);
+}
+
+// Daily path: roll off idempotency/cache tables and scan for orphan storage
+// objects. The four DELETEs in `runDailyCleanup` keep ~24h of replay records
+// and ~90 days of webhook audit data, matching the `runtimePolicy` TTLs.
+async function runDailyMaintenance(context: AppContext): Promise<void> {
+  await runDailyCleanup(context);
+  await cleanupTrashAndMessages(context);
+  await cleanupOrphanObjects(context);
+}
+
+// Recovers jobs whose worker crashed mid-send: rows still flagged
+// 'processing' but with an expired lock are pulled back to 'pending' so the
+// next dispatch tick retries them. Idempotent against the active claim path.
 async function recoverExpiredOutboundLocks(context: AppContext): Promise<void> {
   await context.env.DB.prepare(
     `UPDATE outbound_jobs
@@ -36,6 +64,9 @@ async function recoverExpiredOutboundLocks(context: AppContext): Promise<void> {
 }
 
 async function cleanupExpiredUploads(context: AppContext): Promise<void> {
+  // LIMIT 100 keeps a single tick from monopolising the worker; remaining
+  // rows roll into the next hourly tick. The two-step delete (object store
+  // then row) mirrors upload lifetime guarantees from the contract.
   const uploads = await context.env.DB.prepare(
     `SELECT id, object_key
      FROM attachment_uploads
@@ -138,6 +169,9 @@ async function cleanupOrphanObjects(context: AppContext): Promise<void> {
   const stored = state
     ? (JSON.parse(state.cursor_json) as { cursor?: string })
     : {};
+  // The list cursor is persisted to `maintenance_jobs.cursor_json` so the
+  // scan resumes from where the last run left off when the listing is
+  // truncated — this is what keeps the daily orphan sweep bounded.
   const listing = await context.attachmentStore.list({
     limit: 100,
     ...(stored.cursor ? { cursor: stored.cursor } : {}),
@@ -217,6 +251,8 @@ async function processMaintenanceJobs(context: AppContext): Promise<void> {
   for (const job of jobs.results) {
     const handler = maintenanceHandlers[job.job_key];
     if (!handler) {
+      // Without a handler the job would loop forever on retry; marking it
+      // failed keeps the queue clean and surfaces the missing key in logs.
       await context.env.DB.prepare(
         `UPDATE maintenance_jobs
          SET status = 'failed', last_error = ?,

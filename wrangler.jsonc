@@ -11,6 +11,12 @@
     "directory": "apps/web/dist",
     "run_worker_first": ["/api/*", "/health", "/setup*"],
   },
+  "dev": {
+    // Pinned so a stale wrangler dev on the same host cannot silently move to
+    // 8788 and break the Vite proxy in apps/web/vite.config.ts.
+    "port": 8787,
+    "ip": "127.0.0.1",
+  },
   "d1_databases": [
     {
       "binding": "DB",

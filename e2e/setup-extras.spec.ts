@@ -1,4 +1,14 @@
 import { expect, test } from "@playwright/test";
+import { adminSession } from "./fixtures/session";
+
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/v1/auth/session", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: adminSession() }),
+    });
+  });
+});
 
 test("storage settings show required services and healthy KV without R2", async ({
   page,

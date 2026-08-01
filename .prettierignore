@@ -1,1 +1,4 @@
 pnpm-lock.yaml
+.pnpm-store/
+.superpowers/
+.worktrees/

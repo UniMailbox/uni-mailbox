@@ -14,6 +14,14 @@ function normalizeGroup(values: readonly string[]): string[] {
   ];
 }
 
+/**
+ * Normalises recipient lists for outbound delivery.
+ *
+ * Addresses are lowercased, trimmed, deduplicated, and de-overlapped so the
+ * same address does not appear in more than one header line. The relative
+ * order of the *first* occurrence is preserved so the resulting headers are
+ * deterministic across runs.
+ */
 export function normalizeRecipients(
   to: readonly string[],
   cc: readonly string[] = [],
@@ -42,6 +50,14 @@ export interface ReplyHeaderInput {
   maximumLength?: number;
 }
 
+/**
+ * Builds the `In-Reply-To` and `References` headers for a reply.
+ *
+ * References are concatenated in chronological order and trimmed from the
+ * *front* (oldest entries) when they would exceed `maximumLength` — by
+ * default 998 octets, the RFC 5322 §2.1.1 line length limit that most SMTP
+ * servers enforce before hard-folding.
+ */
 export function buildReplyHeaders(input: ReplyHeaderInput): {
   inReplyTo: string;
   references: string;
@@ -85,6 +101,13 @@ export function composeSignature(input: {
   return `${input.body}\n\n-- \n${input.signature}${quoted}`;
 }
 
+/**
+ * Produces a stable JSON string suitable for hashing request payloads for
+ * idempotency keys. Object keys are sorted recursively so that callers using
+ * differently-ordered objects (e.g. field re-ordering on the wire) hash to
+ * the same value. Array order is preserved because some payloads (recipients,
+ * attachment ids) carry positional meaning.
+ */
 export function canonicalRequestHashInput(input: unknown): string {
   const normalize = (value: unknown): unknown => {
     if (Array.isArray(value)) {
