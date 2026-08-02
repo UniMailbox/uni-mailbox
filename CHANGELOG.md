@@ -12,6 +12,8 @@ Please updates released sections from Conventional Commits.
 - AGPL-3.0-only open-source licensing and contributor/security policies.
 - Stable distribution, installation adoption, protected production deployment,
   and daily upstream upgrade documentation.
+- Domain-level Brevo or Resend provider selection, administrator test delivery
+  to a chosen recipient, and managed-domain attribution for provider webhooks.
 
 ### Fixed
 

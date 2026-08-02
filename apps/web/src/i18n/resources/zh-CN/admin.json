@@ -33,6 +33,7 @@
     "saveSettings": "保存设置",
     "saveSignature": "保存签名",
     "reconcile": "立即协调",
+    "sendProviderTest": "发送测试邮件",
     "add": "添加{{resource}}",
     "manage": "管理现有{{resource}}"
   },
@@ -49,7 +50,17 @@
     "emptyBody": "在此创建的第一条记录将显示在此表中。",
     "signatureSaved": "签名已保存。",
     "settingsSaved": "运行策略已保存。",
-    "syncComplete": "提供商协调已完成。"
+    "syncComplete": "提供商协调已完成。",
+    "providerTestSent": "{{provider}} 已接受发送到 {{email}} 的测试邮件。"
+  },
+  "providerTest": {
+    "heading": "测试此域名的提供商",
+    "description": "使用当前已保存到此域名的提供商发送测试邮件。",
+    "placeholder": "you@example.com"
+  },
+  "providers": {
+    "brevo": "Brevo",
+    "resend": "Resend"
   },
   "search": {
     "label": "搜索审计操作、资源或请求 ID",
@@ -65,11 +76,14 @@
     "description": "说明",
     "permissions": "权限键（以逗号分隔）",
     "label": "连接标签",
-    "apiKey": "Brevo API 密钥",
+    "provider": "提供商",
+    "apiKey": "提供商 API 密钥",
     "webhookSecret": "Webhook 密钥",
     "status": "状态",
     "action": "操作",
     "outboundConnectionId": "出站连接 ID",
+    "outboundProvider": "出站提供商",
+    "testRecipient": "测试收件人",
     "domain": "域名",
     "plainSignature": "纯文本签名",
     "htmlSignature": "HTML 签名",
@@ -106,7 +120,8 @@
     "store": "不投递到邮箱，仅存储",
     "true": "是",
     "false": "否",
-    "empty": "—"
+    "empty": "—",
+    "noProvider": "不使用出站提供商"
   },
   "columns": {
     "id": "ID",
@@ -120,9 +135,11 @@
     "is_system": "系统角色",
     "permissions": "权限",
     "outbound_connection_id": "出站连接 ID",
+    "domain_id": "域名 ID",
     "provider_key": "提供商",
     "provider_label": "提供商标签",
     "label": "标签",
+    "webhook_path": "Webhook 路径",
     "event_type": "事件类型",
     "provider_message_id": "提供商邮件 ID",
     "message_id": "邮件 ID",

@@ -173,6 +173,7 @@ const ProviderConnectionSchema = z.object({
   last_health_error: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
+  webhook_path: z.string(),
 });
 const SignatureSchema = z.object({
   id: UuidSchema.optional(),
@@ -202,6 +203,7 @@ const SettingsSchema = z.object({
 });
 const WebhookEventSchema = z.object({
   id: UuidSchema,
+  domain_id: UuidSchema.nullable(),
   provider_connection_id: UuidSchema,
   provider_key: z.string(),
   event_type: z.string(),
@@ -592,7 +594,39 @@ export const administrationEndpoints = {
         outboundConnectionId: UuidSchema.nullable().optional(),
       }),
     },
-    errors: adminMutationErrors,
+    errors: [
+      ...adminMutationErrors,
+      "DOMAIN_NOT_FOUND",
+      "PROVIDER_CONNECTION_INACTIVE",
+      "PROVIDER_CONNECTION_NOT_FOUND",
+    ],
+    mediaType: "json",
+  }),
+  testDomainProvider: defineEndpoint({
+    method: "POST",
+    path: "/admin/domains/:id/provider-test",
+    request: {
+      params: z.object({ id: UuidSchema }),
+      headers: IdempotencyHeadersSchema,
+      body: z.object({ to: AddressSchema }),
+    },
+    responses: {
+      200: z.object({
+        status: z.literal("sent"),
+        domainId: UuidSchema,
+        providerKey: z.string(),
+        connectionId: UuidSchema,
+        providerMessageId: z.string(),
+        acceptedAt: z.string(),
+      }),
+    },
+    errors: [
+      ...adminMutationErrors,
+      "DOMAIN_NOT_FOUND",
+      "OUTBOUND_PROVIDER_NOT_CONFIGURED",
+      "PROVIDER_CONNECTION_INACTIVE",
+      "PROVIDER_CONNECTION_NOT_FOUND",
+    ],
     mediaType: "json",
   }),
   deleteDomain: defineEndpoint({
@@ -649,6 +683,21 @@ export const administrationEndpoints = {
     method: "GET",
     path: "/admin/provider-connections",
     responses: { 200: z.array(ProviderConnectionSchema) },
+    errors: adminReadErrors,
+    mediaType: "json",
+  }),
+  providerCatalog: defineEndpoint({
+    method: "GET",
+    path: "/admin/providers",
+    responses: {
+      200: z.array(
+        z.object({
+          key: z.string(),
+          supportsWebhook: z.boolean(),
+          supportsSync: z.boolean(),
+        }),
+      ),
+    },
     errors: adminReadErrors,
     mediaType: "json",
   }),

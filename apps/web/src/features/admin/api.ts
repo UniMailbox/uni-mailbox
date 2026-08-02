@@ -165,6 +165,7 @@ export const adminKeys = {
     [...adminKeys.resource(resource), id.trim()] as const,
   signature: (domainId: string) =>
     [...adminKeys.all, "signature", domainId.trim()] as const,
+  providerCatalog: () => [...adminKeys.all, "provider-catalog"] as const,
   auditEvents: (search: string) =>
     [...adminKeys.resource("audit-events"), search.trim()] as const,
 };
@@ -230,6 +231,33 @@ export function adminQueryOptions(
     }
   };
   return queryOptions<AdminQueryData>({ queryKey, queryFn });
+}
+
+export function providerConnectionsQueryOptions() {
+  return queryOptions({
+    queryKey: adminKeys.resource("provider-connections"),
+    queryFn: () =>
+      apiClient.request(administrationEndpoints.providerConnections, {}),
+  });
+}
+
+export function providerCatalogQueryOptions() {
+  return queryOptions({
+    queryKey: adminKeys.providerCatalog(),
+    queryFn: () =>
+      apiClient.request(administrationEndpoints.providerCatalog, {}),
+  });
+}
+
+export function testDomainProviderMutationOptions(domainId: string) {
+  return mutationOptions({
+    mutationFn: (to: string) =>
+      apiClient.request(administrationEndpoints.testDomainProvider, {
+        headers: idempotencyHeaders(),
+        params: { id: domainId },
+        body: { to },
+      }),
+  });
 }
 
 async function invalidateResource(

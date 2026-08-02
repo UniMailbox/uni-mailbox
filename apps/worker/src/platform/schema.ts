@@ -180,6 +180,7 @@ export const messages = sqliteTable(
   "messages",
   {
     id: text("id").primaryKey(),
+    domainId: text("domain_id"),
     threadId: text("thread_id"),
     fromAddress: text("from_address").notNull(),
     fromName: text("from_name").notNull(),
@@ -208,6 +209,10 @@ export const messages = sqliteTable(
     ),
     threadIndex: index("idx_messages_thread").on(table.threadId),
     statusIndex: index("idx_messages_status").on(table.status),
+    domainIndex: index("idx_messages_domain").on(
+      table.domainId,
+      table.createdAt,
+    ),
     createdIndex: index("idx_messages_created_at").on(table.createdAt),
   }),
 );
@@ -396,6 +401,7 @@ export const providerMessageState = sqliteTable(
     providerKey: text("provider_key").notNull(),
     providerMessageId: text("provider_message_id").notNull(),
     messageId: text("message_id"),
+    domainId: text("domain_id"),
     statusEventTime: integer("status_event_time"),
     statusRank: integer("status_rank").notNull(),
     importLockToken: text("import_lock_token"),
@@ -409,12 +415,17 @@ export const providerMessageState = sqliteTable(
     messageIndex: index("idx_provider_message_state_message").on(
       table.messageId,
     ),
+    domainIndex: index("idx_provider_message_state_domain").on(
+      table.domainId,
+      table.updatedAt,
+    ),
   }),
 );
 
 export const webhookDeliveries = sqliteTable(
   "webhook_deliveries",
   {
+    domainId: text("domain_id"),
     providerConnectionId: text("provider_connection_id").notNull(),
     providerKey: text("provider_key").notNull(),
     eventKey: text("event_key").notNull(),
@@ -434,6 +445,10 @@ export const webhookDeliveries = sqliteTable(
       table.processingStatus,
       table.updatedAt,
     ),
+    domainIndex: index("idx_webhook_deliveries_domain").on(
+      table.domainId,
+      table.updatedAt,
+    ),
   }),
 );
 
@@ -441,6 +456,7 @@ export const webhookEvents = sqliteTable(
   "webhook_events",
   {
     id: text("id").primaryKey(),
+    domainId: text("domain_id"),
     providerConnectionId: text("provider_connection_id").notNull(),
     providerKey: text("provider_key").notNull(),
     eventType: text("event_type").notNull(),
@@ -455,6 +471,10 @@ export const webhookEvents = sqliteTable(
   (table) => ({
     providerTimeIndex: index("idx_webhook_events_provider_time").on(
       table.providerConnectionId,
+      table.createdAt,
+    ),
+    domainTimeIndex: index("idx_webhook_events_domain_time").on(
+      table.domainId,
       table.createdAt,
     ),
   }),

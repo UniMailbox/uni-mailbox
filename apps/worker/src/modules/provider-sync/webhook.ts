@@ -20,6 +20,21 @@ interface ConnectionRow {
   encrypted_payload: string;
 }
 
+interface ResolvedMessage {
+  messageId: string;
+  domainId: string;
+}
+
+function domainName(address: string): string | null {
+  const separator = address.lastIndexOf("@");
+  return separator > 0 && separator < address.length - 1
+    ? address
+        .slice(separator + 1)
+        .trim()
+        .toLowerCase()
+    : null;
+}
+
 async function digest(value: string): Promise<string> {
   const bytes = new Uint8Array(
     await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)),
@@ -102,26 +117,27 @@ export class WebhookApplicationService {
       return { accepted: true, duplicate: true };
     }
     try {
-      const messageId = await this.findOrImport(
+      const resolved = await this.findOrImport(
         connectionId,
         event,
         plugin.sync,
       );
-      await this.applyStatus(event, messageId);
+      await this.applyStatus(event, resolved);
       await this.context.env.DB.batch([
         this.context.env.DB.prepare(
           `INSERT INTO webhook_events (
-             id, provider_connection_id, provider_key, event_type,
+             id, domain_id, provider_connection_id, provider_key, event_type,
              provider_message_id, message_id, recipient, mapped_status,
              reason, payload_json
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(
           crypto.randomUUID(),
+          resolved.domainId,
           connectionId,
           providerKey,
-          event.eventKey.split(":")[1] ?? "unknown",
+          event.eventType,
           event.providerMessageId,
-          messageId,
+          resolved.messageId,
           event.recipient ?? null,
           event.status,
           event.error?.message ?? null,
@@ -132,10 +148,10 @@ export class WebhookApplicationService {
         ),
         this.context.env.DB.prepare(
           `UPDATE webhook_deliveries
-           SET processing_status = 'succeeded', lock_token = NULL,
+           SET domain_id = ?, processing_status = 'succeeded', lock_token = NULL,
                lock_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
            WHERE provider_connection_id = ? AND event_key = ?`,
-        ).bind(connectionId, event.eventKey),
+        ).bind(resolved.domainId, connectionId, event.eventKey),
       ]);
       return { accepted: true, duplicate: false };
     } catch (error) {
@@ -240,14 +256,29 @@ export class WebhookApplicationService {
           ): Promise<ProviderMessageDetail>;
         }
       | undefined,
-  ): Promise<string> {
+  ): Promise<ResolvedMessage> {
     const known = await this.context.env.DB.prepare(
-      `SELECT id FROM messages
-       WHERE provider_connection_id = ? AND provider_message_id = ?`,
+      `SELECT m.id, COALESCE(m.domain_id, mb.domain_id) AS domain_id,
+              m.from_address
+       FROM messages m
+       LEFT JOIN mailbox_messages mm ON mm.message_id = m.id
+       LEFT JOIN mailboxes mb ON mb.id = mm.mailbox_id
+       WHERE provider_connection_id = ? AND provider_message_id = ?
+       ORDER BY CASE mm.folder WHEN 'sent' THEN 0 ELSE 1 END`,
     )
       .bind(connectionId, event.providerMessageId)
-      .first<{ id: string }>();
-    if (known) return known.id;
+      .first<{ id: string; domain_id: string | null; from_address: string }>();
+    if (known) {
+      const domainId =
+        known.domain_id ??
+        (await this.resolveDomain(connectionId, known.from_address, false));
+      await this.context.env.DB.prepare(
+        "UPDATE messages SET domain_id = ? WHERE id = ? AND domain_id IS NULL",
+      )
+        .bind(domainId, known.id)
+        .run();
+      return { messageId: known.id, domainId };
+    }
     if (!sync) {
       throw new DomainError(
         "PROVIDER_MESSAGE_NOT_FOUND",
@@ -293,7 +324,19 @@ export class WebhookApplicationService {
       )
         .bind(connectionId, event.providerMessageId)
         .first<{ message_id: string | null }>();
-      if (resolved?.message_id) return resolved.message_id;
+      if (resolved?.message_id) {
+        const message = await this.context.env.DB.prepare(
+          "SELECT domain_id FROM messages WHERE id = ?",
+        )
+          .bind(resolved.message_id)
+          .first<{ domain_id: string | null }>();
+        if (message?.domain_id) {
+          return {
+            messageId: resolved.message_id,
+            domainId: message.domain_id,
+          };
+        }
+      }
       throw new DomainError(
         "PROVIDER_IMPORT_BUSY",
         "The provider message is being imported",
@@ -325,17 +368,23 @@ export class WebhookApplicationService {
       },
       event.providerMessageId,
     );
+    const domainId = await this.resolveDomain(
+      connectionId,
+      detail.from.address,
+      true,
+    );
     const messageId = crypto.randomUUID();
     try {
       await this.context.env.DB.batch([
         this.context.env.DB.prepare(
           `INSERT INTO messages (
-             id, thread_id, from_address, from_name, subject, html_body,
+             id, domain_id, thread_id, from_address, from_name, subject, html_body,
              text_body, provider_key, provider_connection_id,
              provider_message_id, status, sent_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(
           messageId,
+          domainId,
           messageId,
           detail.from.address,
           detail.from.name ?? "",
@@ -350,13 +399,19 @@ export class WebhookApplicationService {
         ),
         this.context.env.DB.prepare(
           `UPDATE provider_message_state
-           SET message_id = ?, import_lock_token = NULL,
+           SET message_id = ?, domain_id = ?, import_lock_token = NULL,
                import_lock_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
            WHERE provider_connection_id = ? AND provider_message_id = ?
              AND import_lock_token = ?`,
-        ).bind(messageId, connectionId, event.providerMessageId, stateLock),
+        ).bind(
+          messageId,
+          domainId,
+          connectionId,
+          event.providerMessageId,
+          stateLock,
+        ),
       ]);
-      return messageId;
+      return { messageId, domainId };
     } catch {
       const raced = await this.context.env.DB.prepare(
         `SELECT id FROM messages
@@ -364,7 +419,9 @@ export class WebhookApplicationService {
       )
         .bind(connectionId, event.providerMessageId)
         .first<{ id: string }>();
-      if (raced) return raced.id;
+      if (raced) {
+        return { messageId: raced.id, domainId };
+      }
       throw new DomainError(
         "PROVIDER_IMPORT_FAILED",
         "The provider message could not be imported",
@@ -373,9 +430,35 @@ export class WebhookApplicationService {
     }
   }
 
+  private async resolveDomain(
+    connectionId: string,
+    fromAddress: string,
+    requireCurrentBinding: boolean,
+  ): Promise<string> {
+    const name = domainName(fromAddress);
+    const domain = name
+      ? await this.context.env.DB.prepare(
+          `SELECT id FROM domains
+           WHERE name = ? COLLATE NOCASE
+             ${requireCurrentBinding ? "AND outbound_connection_id = ?" : ""}
+           LIMIT 1`,
+        )
+          .bind(...(requireCurrentBinding ? [name, connectionId] : [name]))
+          .first<{ id: string }>()
+      : null;
+    if (!domain) {
+      throw new DomainError(
+        "WEBHOOK_DOMAIN_NOT_FOUND",
+        "The provider message does not belong to a domain bound to this connection",
+        409,
+      );
+    }
+    return domain.id;
+  }
+
   private async applyStatus(
     event: ProviderEvent,
-    messageId: string,
+    resolved: ResolvedMessage,
   ): Promise<void> {
     const rank = statusRank[event.status];
     // The ON CONFLICT guard keeps events monotonic: a later event_time always
@@ -387,10 +470,11 @@ export class WebhookApplicationService {
       this.context.env.DB.prepare(
         `INSERT INTO provider_message_state (
            provider_connection_id, provider_key, provider_message_id,
-           message_id, status_event_time, status_rank
-         ) VALUES (?, ?, ?, ?, ?, ?)
+           message_id, domain_id, status_event_time, status_rank
+         ) VALUES (?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(provider_connection_id, provider_message_id) DO UPDATE SET
            message_id = COALESCE(provider_message_state.message_id, excluded.message_id),
+           domain_id = COALESCE(provider_message_state.domain_id, excluded.domain_id),
            status_event_time = excluded.status_event_time,
            status_rank = excluded.status_rank,
            updated_at = CURRENT_TIMESTAMP
@@ -404,7 +488,8 @@ export class WebhookApplicationService {
         event.connectionId,
         event.providerKey,
         event.providerMessageId,
-        messageId,
+        resolved.messageId,
+        resolved.domainId,
         event.occurredAt.getTime(),
         rank,
       ),
@@ -423,7 +508,7 @@ export class WebhookApplicationService {
         event.status,
         event.error?.code ?? null,
         event.error?.message ?? null,
-        messageId,
+        resolved.messageId,
         event.connectionId,
         event.providerMessageId,
         event.occurredAt.getTime(),

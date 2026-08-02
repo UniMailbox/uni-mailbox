@@ -614,7 +614,7 @@ export class CloudflareSettingsService {
       if (providerKey !== BREVO_PROVIDER_KEY) {
         throw new DomainError(
           "PROVIDER_NOT_SUPPORTED",
-          "Only Brevo is available in the first release",
+          "This guided setup endpoint configures Brevo only; use provider administration for other adapters",
         );
       }
       const plugin = this.providers.get(providerKey);

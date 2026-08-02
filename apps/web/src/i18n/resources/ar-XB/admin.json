@@ -33,6 +33,7 @@
     "saveSettings": "[‮Šàṽë šëţţïñĝš‬]",
     "saveSignature": "[‮Šàṽë šïĝñàţûřë‬]",
     "reconcile": "[‮Řëçøñçïľë‬]",
+    "sendProviderTest": "[‮Šëñđ ţëšţ ëmàïľ‬]",
     "add": "[‮Àđđ {{resource}}‬]",
     "manage": "[‮Màñàĝë {{resource}}‬]"
   },
@@ -49,7 +50,17 @@
     "emptyBody": "[‮Çřëàţë à řëçøřđ ţø šëë ïţ ħëřë.‬]",
     "signatureSaved": "[‮Šïĝñàţûřë šàṽëđ.‬]",
     "settingsSaved": "[‮Šëţţïñĝš šàṽëđ.‬]",
-    "syncComplete": "[‮Šÿñç çømþľëţë.‬]"
+    "syncComplete": "[‮Šÿñç çømþľëţë.‬]",
+    "providerTestSent": "[‮{{provider}} àççëþţëđ ţħë ţëšţ ţø {{email}}.‬]"
+  },
+  "providerTest": {
+    "heading": "[‮Ţëšţ đømàïñ þřøṽïđëř‬]",
+    "description": "[‮Šëñđš ûšïñĝ ţħë šàṽëđ đømàïñ þřøṽïđëř.‬]",
+    "placeholder": "you@example.com"
+  },
+  "providers": {
+    "brevo": "Brevo",
+    "resend": "Resend"
   },
   "search": { "label": "[‮Šëàřçħ àûđïţ‬]", "placeholder": "[‮řëɋûëšţ ÏÐ‬]" },
   "fields": {
@@ -62,11 +73,14 @@
     "description": "[‮Ðëšçřïþţïøñ‬]",
     "permissions": "[‮Þëřmïššïøñš‬]",
     "label": "[‮Ľàɓëľ‬]",
-    "apiKey": "[‮ÀÞÏ ķëÿ‬]",
+    "provider": "[‮Þřøṽïđëř‬]",
+    "apiKey": "[‮Þřøṽïđëř ÀÞÏ ķëÿ‬]",
     "webhookSecret": "[‮Ŵëɓħøøķ šëçřëţ‬]",
     "status": "[‮Šţàţûš‬]",
     "action": "[‮Àçţïøñ‬]",
     "outboundConnectionId": "[‮Çøññëçţïøñ ÏÐ‬]",
+    "outboundProvider": "[‮Øûţɓøûñđ þřøṽïđëř‬]",
+    "testRecipient": "[‮Ţëšţ řëçïþïëñţ‬]",
     "domain": "[‮Ðømàïñ‬]",
     "plainSignature": "[‮Þľàïñ šïĝñàţûřë‬]",
     "htmlSignature": "[‮ĦŢMĽ šïĝñàţûřë‬]",
@@ -103,7 +117,8 @@
     "store": "[‮Šţøřë‬]",
     "true": "[‮Ýëš‬]",
     "false": "[‮Ñø‬]",
-    "empty": "—"
+    "empty": "—",
+    "noProvider": "[‮Ñø øûţɓøûñđ þřøṽïđëř‬]"
   },
   "columns": {
     "id": "[‮ÏÐ‬]",
@@ -117,9 +132,11 @@
     "is_system": "[‮Šÿšţëm‬]",
     "permissions": "[‮Þëřmïššïøñš‬]",
     "outbound_connection_id": "[‮Çøññëçţïøñ ÏÐ‬]",
+    "domain_id": "[‮Ðømàïñ ÏÐ‬]",
     "provider_key": "[‮Þřøṽïđëř‬]",
     "provider_label": "[‮Þřøṽïđëř ľàɓëľ‬]",
     "label": "[‮Ľàɓëľ‬]",
+    "webhook_path": "[‮Ŵëɓħøøķ þàţħ‬]",
     "event_type": "[‮Ëṽëñţ‬]",
     "provider_message_id": "[‮Þřøṽïđëř ÏÐ‬]",
     "message_id": "[‮Mëššàĝë ÏÐ‬]",

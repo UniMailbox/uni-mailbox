@@ -12,6 +12,7 @@ interface InboundSettings {
 
 interface MailboxRow {
   id: string;
+  domain_id: string;
   owner_user_id: string;
 }
 
@@ -94,7 +95,7 @@ export class InboundMailService {
 
     const recipient = message.to.trim().toLowerCase();
     const mailbox = await this.context.env.DB.prepare(
-      `SELECT id, owner_user_id
+      `SELECT id, domain_id, owner_user_id
        FROM mailboxes
        WHERE address = ? COLLATE NOCASE AND status = 'active'`,
     )
@@ -171,12 +172,13 @@ export class InboundMailService {
       const statements: D1PreparedStatement[] = [
         this.context.env.DB.prepare(
           `INSERT INTO messages (
-             id, thread_id, from_address, from_name, subject, html_body,
+             id, domain_id, thread_id, from_address, from_name, subject, html_body,
              text_body, message_id_header, in_reply_to_header,
              references_header, status, raw_object_key, received_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received', ?, CURRENT_TIMESTAMP)`,
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received', ?, CURRENT_TIMESTAMP)`,
         ).bind(
           messageId,
+          mailbox?.domain_id ?? null,
           parsed.inReplyTo ?? parsed.messageId ?? messageId,
           sender.address,
           sender.name,

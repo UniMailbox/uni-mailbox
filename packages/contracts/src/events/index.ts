@@ -49,6 +49,7 @@ export interface ProviderEvent {
   providerKey: ProviderKey;
   connectionId: string;
   eventKey: string;
+  eventType: string;
   providerMessageId: string;
   status: MessageStatus;
   occurredAt: Date;

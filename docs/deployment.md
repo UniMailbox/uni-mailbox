@@ -328,7 +328,7 @@ declared resources. Once those gates pass, it performs this sequence:
 7. Verify the uploaded candidate only after the database and administrator are
    ready, then promote it. If candidate metadata is absent, deploy directly.
 8. Verify `/health`, `/login`, authenticated mail access, Queue and Cron
-   activity, inbound routing, and Brevo health.
+   activity, inbound routing, and configured outbound provider health.
 
 ```bash
 pnpm release:production
@@ -336,7 +336,15 @@ pnpm release:verify https://mail.example.com
 ```
 
 `release:verify` covers public HTTP checks. The authenticated Settings control
-plane owns Cloudflare Email Routing, Brevo, and inbound/outbound smoke tests.
+plane owns Cloudflare Email Routing and initial Brevo setup. Administrators can
+add Brevo or Resend connections under **Providers**, then select an active
+connection from each domain's **Outbound provider** selector.
+
+After saving a domain provider, use **Test this domain provider** to send a
+transactional test to an address you control. Configure the provider webhook
+to the `webhook_path` shown for its connection, prefixed by the deployed Worker
+origin. Webhook events record the resolved managed `domain_id`; events whose
+message does not belong to a domain bound to that connection are rejected.
 
 Merging an upstream upgrade PR does not deploy it. Verify the merged commit on
 `main`, manually start **Production release**, and approve the Environment only

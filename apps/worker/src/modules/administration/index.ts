@@ -285,6 +285,36 @@ export class AdminApplicationService {
     },
   ) {
     assertPermission(principal, "domain.manage");
+    const domain = await this.context.env.DB.prepare(
+      "SELECT id FROM domains WHERE id = ?",
+    )
+      .bind(domainId)
+      .first<{ id: string }>();
+    if (!domain) {
+      throw new DomainError("DOMAIN_NOT_FOUND", "Domain not found", 404);
+    }
+    if (input.outboundConnectionId) {
+      const connection = await this.context.env.DB.prepare(
+        "SELECT provider_key, status FROM provider_connections WHERE id = ?",
+      )
+        .bind(input.outboundConnectionId)
+        .first<{ provider_key: string; status: string }>();
+      if (!connection) {
+        throw new DomainError(
+          "PROVIDER_CONNECTION_NOT_FOUND",
+          "Provider connection not found",
+          404,
+        );
+      }
+      if (connection.status !== "active") {
+        throw new DomainError(
+          "PROVIDER_CONNECTION_INACTIVE",
+          "The outbound provider connection is not active",
+          409,
+        );
+      }
+      this.context.providers.get(parseProviderKey(connection.provider_key));
+    }
     await this.context.env.DB.prepare(
       `UPDATE domains
        SET status = COALESCE(?, status),
@@ -303,6 +333,103 @@ export class AdminApplicationService {
       )
       .run();
     return { id: domainId, ...input };
+  }
+
+  async testDomainProvider(
+    principal: Principal,
+    domainId: string,
+    to: string,
+    idempotencyKey: string,
+  ) {
+    assertPermission(principal, "domain.manage");
+    const domain = await this.context.env.DB.prepare(
+      `SELECT d.id, d.name, d.outbound_connection_id,
+              pc.provider_key, pc.status AS connection_status,
+              pc.config_json, ec.encrypted_payload
+       FROM domains d
+       LEFT JOIN provider_connections pc ON pc.id = d.outbound_connection_id
+       LEFT JOIN encrypted_credentials ec ON ec.id = pc.credential_id
+       WHERE d.id = ? AND d.status = 'active'`,
+    )
+      .bind(domainId)
+      .first<{
+        id: string;
+        name: string;
+        outbound_connection_id: string | null;
+        provider_key: string | null;
+        connection_status: string | null;
+        config_json: string | null;
+        encrypted_payload: string | null;
+      }>();
+    if (!domain) {
+      throw new DomainError("DOMAIN_NOT_FOUND", "Active domain not found", 404);
+    }
+    if (!domain.outbound_connection_id || !domain.provider_key) {
+      throw new DomainError(
+        "OUTBOUND_PROVIDER_NOT_CONFIGURED",
+        "The domain has no outbound provider connection",
+        409,
+      );
+    }
+    if (
+      domain.connection_status !== "active" ||
+      !domain.config_json ||
+      !domain.encrypted_payload
+    ) {
+      throw new DomainError(
+        "PROVIDER_CONNECTION_INACTIVE",
+        "The outbound provider connection is not active",
+        409,
+      );
+    }
+    const providerKey = parseProviderKey(domain.provider_key);
+    const result = await this.context.providers.get(providerKey).outbound.send(
+      {
+        connectionId: domain.outbound_connection_id,
+        config: JSON.parse(domain.config_json) as Record<string, unknown>,
+        secrets: await this.context.credentials.decrypt(
+          domain.encrypted_payload,
+        ),
+      },
+      {
+        idempotencyKey,
+        from: { address: `postmaster@${domain.name}`, name: "UniMailbox" },
+        to: [{ address: normalizeEmail(to) }],
+        cc: [],
+        bcc: [],
+        subject: `UniMailbox provider test for ${domain.name}`,
+        html: `<p>Your ${domain.name} outbound provider is configured correctly.</p>`,
+        text: `Your ${domain.name} outbound provider is configured correctly.`,
+        attachments: [],
+      },
+    );
+    await this.context.env.DB.prepare(
+      `INSERT INTO audit_events (
+         id, actor_user_id, action, resource_type, resource_id,
+         request_id, metadata_json
+       ) VALUES (?, ?, 'domain.provider.test_sent', 'domain', ?, ?, ?)`,
+    )
+      .bind(
+        crypto.randomUUID(),
+        principal.userId,
+        domain.id,
+        idempotencyKey,
+        JSON.stringify({
+          providerKey,
+          connectionId: domain.outbound_connection_id,
+          providerMessageId: result.providerMessageId,
+          to: normalizeEmail(to),
+        }),
+      )
+      .run();
+    return {
+      status: "sent" as const,
+      domainId: domain.id,
+      providerKey,
+      connectionId: domain.outbound_connection_id,
+      providerMessageId: result.providerMessageId,
+      acceptedAt: result.acceptedAt,
+    };
   }
 
   async deleteDomain(principal: Principal, domainId: string): Promise<void> {
@@ -422,10 +549,23 @@ export class AdminApplicationService {
     assertPermission(principal, "domain.read");
     const result = await this.context.env.DB.prepare(
       `SELECT id, provider_key, label, status, config_json,
-              last_health_check_at, last_health_error, created_at, updated_at
+              last_health_check_at, last_health_error, created_at, updated_at,
+              '/api/v1/webhooks/' || provider_key || '/' || id AS webhook_path
        FROM provider_connections ORDER BY provider_key, label`,
     ).all();
     return result.results;
+  }
+
+  listProviderCatalog(principal: Principal) {
+    assertPermission(principal, "domain.read");
+    return [...this.context.providers.keys()].sort().map((key) => {
+      const plugin = this.context.providers.get(key);
+      return {
+        key,
+        supportsWebhook: plugin.webhook !== undefined,
+        supportsSync: plugin.sync !== undefined,
+      };
+    });
   }
 
   async createProviderConnection(
@@ -603,7 +743,7 @@ export class AdminApplicationService {
   async listWebhookEvents(principal: Principal, limit = 100) {
     assertPermission(principal, "webhook_event.read");
     const result = await this.context.env.DB.prepare(
-      `SELECT id, provider_connection_id, provider_key, event_type,
+      `SELECT id, domain_id, provider_connection_id, provider_key, event_type,
               provider_message_id, message_id, recipient, mapped_status,
               reason, created_at
        FROM webhook_events
@@ -730,19 +870,31 @@ export class AdminApplicationService {
     }
     const messageId = crypto.randomUUID();
     const senderMailbox = await this.context.env.DB.prepare(
-      "SELECT id FROM mailboxes WHERE address = ? COLLATE NOCASE AND status = 'active'",
+      `SELECT m.id, m.domain_id
+       FROM mailboxes m
+       JOIN domains d ON d.id = m.domain_id
+       WHERE m.address = ? COLLATE NOCASE AND m.status = 'active'
+         AND d.outbound_connection_id = ?`,
     )
-      .bind(detail.from.address)
-      .first<{ id: string }>();
+      .bind(detail.from.address, connectionId)
+      .first<{ id: string; domain_id: string }>();
+    if (!senderMailbox) {
+      throw new DomainError(
+        "PROVIDER_MESSAGE_DOMAIN_NOT_FOUND",
+        "The provider message sender is not a mailbox on a bound domain",
+        409,
+      );
+    }
     await this.context.env.DB.batch([
       this.context.env.DB.prepare(
         `INSERT INTO messages (
-           id, thread_id, from_address, from_name, subject, html_body, text_body,
+           id, domain_id, thread_id, from_address, from_name, subject, html_body, text_body,
            provider_key, provider_connection_id, provider_message_id, status,
            sent_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         messageId,
+        senderMailbox.domain_id,
         messageId,
         detail.from.address,
         detail.from.name ?? "",
@@ -758,24 +910,21 @@ export class AdminApplicationService {
       this.context.env.DB.prepare(
         `INSERT INTO provider_message_state (
            provider_connection_id, provider_key, provider_message_id,
-           message_id, status_event_time, status_rank
-         ) VALUES (?, ?, ?, ?, ?, ?)`,
+           message_id, domain_id, status_event_time, status_rank
+         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         connectionId,
         providerKey,
         detail.providerMessageId,
         messageId,
+        senderMailbox.domain_id,
         eventTime,
         rank,
       ),
-      ...(senderMailbox
-        ? [
-            this.context.env.DB.prepare(
-              `INSERT INTO mailbox_messages (id, mailbox_id, message_id, folder)
-               VALUES (?, ?, ?, 'sent')`,
-            ).bind(crypto.randomUUID(), senderMailbox.id, messageId),
-          ]
-        : []),
+      this.context.env.DB.prepare(
+        `INSERT INTO mailbox_messages (id, mailbox_id, message_id, folder)
+         VALUES (?, ?, ?, 'sent')`,
+      ).bind(crypto.randomUUID(), senderMailbox.id, messageId),
     ]);
     return "inserted";
   }

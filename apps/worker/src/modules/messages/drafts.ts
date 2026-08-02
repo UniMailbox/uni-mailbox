@@ -131,12 +131,13 @@ export class DraftApplicationService {
     const statements: D1PreparedStatement[] = [
       this.context.env.DB.prepare(
         `INSERT INTO messages (
-           id, thread_id, from_address, from_name, subject, html_body, text_body,
+           id, domain_id, thread_id, from_address, from_name, subject, html_body, text_body,
            status, created_by_user_id, updated_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?,
                    strftime('%Y-%m-%d %H:%M:%f', 'now'))`,
       ).bind(
         messageId,
+        sender.domain_id,
         messageId,
         sender.address,
         sender.display_name,

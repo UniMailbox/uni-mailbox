@@ -9,7 +9,7 @@ import { createI18nInstance } from "../../i18n";
 import en from "../../i18n/resources/en/admin.json";
 import zhCN from "../../i18n/resources/zh-CN/admin.json";
 import arXB from "../../i18n/resources/ar-XB/admin.json";
-import { CreateDomainPanel } from "./AdminPage";
+import { CreateDomainPanel, ManageDomainPanel } from "./AdminPage";
 
 type TranslationTree = string | { [key: string]: TranslationTree };
 
@@ -122,5 +122,83 @@ describe("Administration", () => {
       "href",
       "https://dash.cloudflare.com/?to=%2Faccount-1%2Femail-service%2Frouting",
     );
+  });
+
+  it("selects a domain provider by label and sends a test to a chosen address", async () => {
+    const connectionId = "22222222-2222-4222-8222-222222222222";
+    const domainId = "33333333-3333-4333-8333-333333333333";
+    const fetchMock = vi
+      .spyOn(window, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url.endsWith("/api/v1/admin/provider-connections")) {
+          return Response.json({
+            data: [
+              {
+                id: connectionId,
+                provider_key: "resend",
+                label: "Transactional",
+                status: "active",
+                config_json: "{}",
+                last_health_check_at: null,
+                last_health_error: null,
+                created_at: "2026-08-02 12:00:00",
+                updated_at: "2026-08-02 12:00:00",
+                webhook_path: `/api/v1/webhooks/resend/${connectionId}`,
+              },
+            ],
+          });
+        }
+        if (url.endsWith(`/api/v1/admin/domains/${domainId}/provider-test`)) {
+          expect(JSON.parse(String(init?.body))).toEqual({
+            to: "owner@example.net",
+          });
+          return Response.json({
+            data: {
+              status: "sent",
+              domainId,
+              providerKey: "resend",
+              connectionId,
+              providerMessageId: "provider-message-id",
+              acceptedAt: "2026-08-02T12:00:00.000Z",
+            },
+          });
+        }
+        throw new Error(`Unexpected request: ${url}`);
+      });
+    render(
+      <I18nextProvider i18n={createI18nInstance("en")}>
+        <QueryClientProvider client={createTestQueryClient()}>
+          <ManageDomainPanel
+            onClose={() => undefined}
+            row={{
+              id: domainId,
+              name: "mail.example.com",
+              status: "active",
+              outbound_connection_id: connectionId,
+            }}
+          />
+        </QueryClientProvider>
+      </I18nextProvider>,
+    );
+
+    const selector = await screen.findByRole("combobox", {
+      name: "Outbound provider",
+    });
+    expect(
+      await screen.findByRole("option", { name: "resend — Transactional" }),
+    ).toBeVisible();
+    expect(selector).toHaveValue(connectionId);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Test recipient" }), {
+      target: { value: "owner@example.net" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send test email" }));
+    expect(
+      await screen.findByText(
+        "resend accepted the test email to owner@example.net.",
+      ),
+    ).toBeVisible();
+    expect(fetchMock).toHaveBeenCalled();
   });
 });

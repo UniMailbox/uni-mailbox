@@ -11,6 +11,7 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Send,
   ScrollText,
   Settings2,
   Shield,
@@ -44,9 +45,12 @@ import {
   adminQueryOptions,
   canAdminWrite,
   providerSyncMutationOptions,
+  providerCatalogQueryOptions,
+  providerConnectionsQueryOptions,
   saveSettingsMutationOptions,
   saveSignatureMutationOptions,
   signatureQueryOptions,
+  testDomainProviderMutationOptions,
 } from "./api";
 
 const navigation: Array<
@@ -84,9 +88,11 @@ const columnKeys = [
   "is_system",
   "permissions",
   "outbound_connection_id",
+  "domain_id",
   "provider_key",
   "provider_label",
   "label",
+  "webhook_path",
   "event_type",
   "provider_message_id",
   "message_id",
@@ -735,6 +741,7 @@ function CreateProviderPanel({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation("admin");
   const client = useQueryClient();
   const mutation = useMutation(adminMutationOptions(client).create);
+  const catalog = useQuery(providerCatalogQueryOptions());
   const form = useAppForm({
     defaultValues: {
       providerKey: "brevo",
@@ -761,6 +768,17 @@ function CreateProviderPanel({ onClose }: { onClose: () => void }) {
         void form.handleSubmit();
       }}
     >
+      <form.AppField name="providerKey">
+        {() => (
+          <AdminSelectField label="provider">
+            {(catalog.data ?? [{ key: "brevo" }]).map((provider) => (
+              <option key={provider.key} value={provider.key}>
+                {t(`providers.${provider.key}`, { defaultValue: provider.key })}
+              </option>
+            ))}
+          </AdminSelectField>
+        )}
+      </form.AppField>
       <form.AppField name="label">
         {() => <AdminTextField label="label" />}
       </form.AppField>
@@ -971,7 +989,7 @@ function ManageRolePanel({
   );
 }
 
-function ManageDomainPanel({
+export function ManageDomainPanel({
   onClose,
   row,
 }: {
@@ -981,6 +999,7 @@ function ManageDomainPanel({
   const { t } = useTranslation("admin");
   const client = useQueryClient();
   const update = useMutation(adminMutationOptions(client).update);
+  const connections = useQuery(providerConnectionsQueryOptions());
   const form = useAppForm({
     defaultValues: {
       action: "update" as const,
@@ -997,46 +1016,102 @@ function ManageDomainPanel({
           resource: "domains",
           id: input.id,
           ...(input.status ? { status: input.status } : {}),
-          ...(input.outboundConnectionId
-            ? { outboundConnectionId: input.outboundConnectionId }
-            : {}),
+          outboundConnectionId: input.outboundConnectionId || null,
         });
         onClose();
       }
     },
   });
   return (
-    <form
-      className="admin-action-form"
-      noValidate
-      onSubmit={(event) => {
-        event.preventDefault();
-        void form.handleSubmit();
-      }}
-    >
-      <form.AppField name="status">
-        {() => (
-          <AdminSelectField label="status">
-            <option value="">{t("values.unchanged")}</option>
-            <option value="active">{t("values.active")}</option>
-            <option value="disabled">{t("values.disabled")}</option>
-          </AdminSelectField>
-        )}
-      </form.AppField>
-      <form.AppField name="outboundConnectionId">
-        {() => <AdminTextField label="outboundConnectionId" />}
-      </form.AppField>
-      {update.error ? <ErrorState error={update.error} /> : null}
-      <form.Subscribe selector={(state) => state.isSubmitting}>
-        {(isSubmitting) => (
-          <DialogFormActions
-            isPending={isSubmitting || update.isPending}
-            onClose={onClose}
-            submitLabel={t("actions.update")}
-          />
-        )}
-      </form.Subscribe>
-    </form>
+    <>
+      <form
+        className="admin-action-form"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          void form.handleSubmit();
+        }}
+      >
+        <form.AppField name="status">
+          {() => (
+            <AdminSelectField label="status">
+              <option value="">{t("values.unchanged")}</option>
+              <option value="active">{t("values.active")}</option>
+              <option value="disabled">{t("values.disabled")}</option>
+            </AdminSelectField>
+          )}
+        </form.AppField>
+        <form.AppField name="outboundConnectionId">
+          {() => (
+            <AdminSelectField label="outboundProvider">
+              <option value="">{t("values.noProvider")}</option>
+              {(connections.data ?? [])
+                .filter(
+                  (connection) =>
+                    connection.status === "active" ||
+                    connection.id === row.outbound_connection_id,
+                )
+                .map((connection) => (
+                  <option key={connection.id} value={connection.id}>
+                    {connection.provider_key} — {connection.label}
+                  </option>
+                ))}
+            </AdminSelectField>
+          )}
+        </form.AppField>
+        {update.error ? <ErrorState error={update.error} /> : null}
+        <form.Subscribe selector={(state) => state.isSubmitting}>
+          {(isSubmitting) => (
+            <DialogFormActions
+              isPending={isSubmitting || update.isPending}
+              onClose={onClose}
+              submitLabel={t("actions.update")}
+            />
+          )}
+        </form.Subscribe>
+      </form>
+      <DomainProviderTest domainId={textCell(row, "id")} />
+    </>
+  );
+}
+
+function DomainProviderTest({ domainId }: { domainId: string }) {
+  const { t } = useTranslation("admin");
+  const [email, setEmail] = useState("");
+  const test = useMutation(testDomainProviderMutationOptions(domainId));
+  return (
+    <section className="domain-provider-test">
+      <h3>{t("providerTest.heading")}</h3>
+      <p>{t("providerTest.description")}</p>
+      <label className="field">
+        <span>{t("fields.testRecipient")}</span>
+        <input
+          dir="ltr"
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder={t("providerTest.placeholder")}
+          type="email"
+          value={email}
+        />
+      </label>
+      <button
+        className="button secondary"
+        disabled={!email.trim() || test.isPending}
+        onClick={() => test.mutate(email)}
+        type="button"
+      >
+        <Send aria-hidden="true" />
+        {t("actions.sendProviderTest")}
+      </button>
+      {test.error ? <ErrorState error={test.error} /> : null}
+      {test.isSuccess ? (
+        <SuccessNote>
+          {t("states.providerTestSent", {
+            provider: test.data.providerKey,
+            email,
+          })}
+        </SuccessNote>
+      ) : null}
+    </section>
   );
 }
 
