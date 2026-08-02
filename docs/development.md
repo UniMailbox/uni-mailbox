@@ -44,8 +44,9 @@ contract so a drift fails CI instead of breaking the login form.
 
 The two values in `.dev.vars` are local runtime secrets. Production releases
 generate them automatically when they do not already exist.
-`INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` are build-only inputs: the
-release hashes the password into D1, then the values can be removed. Brevo and
+`INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` are one-time bootstrap
+inputs: the bootstrap hashes the password into D1, then the values can be
+removed. Brevo and
 Cloudflare settings are configured after login; credentials are encrypted with
 AES-GCM and stored in D1. **Never commit `.dev.vars` or initial credentials.**
 
@@ -130,13 +131,18 @@ instead. `pnpm scaffold doctor` enforces that rule.
 ### Releases
 
 ```bash
+pnpm deploy             # credential-free first deploy: provision Cloudflare only
+pnpm deployment:bootstrap # then migrate, create admin, and attach runtime secrets
 pnpm release:preview    # dry-run + a preview Worker deployment
 pnpm release:production # the operator-gated promotion; refuses without CLOUDFLARE_* secrets
 pnpm release:rollback   # re-points DNS to the previous release (Cloudflare-only)
 pnpm release:verify     # post-promotion smoke tests against the deployed URL
 ```
 
-Production releases are intentionally operator-gated — the GitHub release
+`pnpm deploy` requires no administrator credentials. Run
+`pnpm deployment:bootstrap` explicitly with the one-time administrator inputs
+after Cloudflare provisioning. Production releases are intentionally
+operator-gated — the GitHub release
 workflow ([`.github/workflows/release.yml`](../.github/workflows/release.yml))
 requires a `workflow_dispatch` with a verified deployment URL and rolls back
 automatically on smoke-test failure. Local `pnpm release:production` skips

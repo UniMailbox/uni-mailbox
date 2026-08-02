@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { hashRefreshToken, TokenService } from "../../src/modules/identity";
 
 const signingKey = "a".repeat(64);
@@ -166,6 +166,28 @@ describe("hashRefreshToken", () => {
 });
 
 describe("PasswordService edge cases", () => {
+  it("rejects a password record above the Workers limit without invoking PBKDF2", async () => {
+    const deriveBits = vi
+      .spyOn(crypto.subtle, "deriveBits")
+      .mockRejectedValueOnce(
+        new DOMException("unsupported", "NotSupportedError"),
+      );
+    const service = new (
+      await import("../../src/modules/identity")
+    ).PasswordService({ iterations: 100_000 });
+
+    await expect(
+      service.verify("password", {
+        hash: btoa("AAAA"),
+        salt: btoa("BBBB"),
+        algorithm: "pbkdf2-sha256",
+        iterations: 100_001,
+      }),
+    ).resolves.toEqual({ valid: false, needsRehash: false });
+    expect(deriveBits).not.toHaveBeenCalled();
+    deriveBits.mockRestore();
+  });
+
   it("rejects password records with an unknown algorithm", async () => {
     const service = new (
       await import("../../src/modules/identity")

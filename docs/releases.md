@@ -75,6 +75,12 @@ Cloudflare Workers Builds owns the first Deploy Button installation only. After
 The sole long-term production authority is the manually dispatched GitHub
 Actions workflow protected by the `production` Environment.
 
+The first-install `pnpm deploy` command performs only a credential-free direct
+deployment and does not query remote resources. The installer then runs
+`pnpm deployment:bootstrap` explicitly to apply migrations, create the
+administrator, and attach missing runtime secrets. The protected workflow owns
+release-candidate and health verification gates only after adoption.
+
 The workflow retains the D1 bookmark and release manifest as artifacts. A failed
 post-deployment HTTP smoke test may automatically restore the previous Worker
 version. It must not automatically restore D1; migrations remain fix-forward

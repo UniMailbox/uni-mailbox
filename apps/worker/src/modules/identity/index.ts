@@ -62,7 +62,8 @@ export class PasswordService {
     if (
       record.algorithm !== "pbkdf2-sha256" ||
       !Number.isSafeInteger(record.iterations) ||
-      record.iterations <= 0
+      record.iterations <= 0 ||
+      record.iterations > this.policy.iterations
     ) {
       return { valid: false, needsRehash: false };
     }
