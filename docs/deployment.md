@@ -25,6 +25,18 @@ commands. This repository is not a GitHub fork. Do not replace it wholesale
 with files from the canonical source repository, because doing so can discard
 its generated resource configuration.
 
+The `pnpm deploy` command is reserved for this initial installation. Its first
+remote operation is a plain `wrangler deploy`, which gives Cloudflare the
+opportunity to provision the Worker, D1 database, KV namespace, and Queues and
+write their identifiers into the generated repository. The command stops after
+that deployment and requires no administrator credentials.
+
+The initial command deliberately does not inspect secrets, apply migrations,
+create the administrator, upload a release candidate, capture a D1 Time Travel
+bookmark, execute migration verification SQL, or run HTTP smoke tests. A
+brand-new installation has no remote resources or healthy application to verify
+yet.
+
 ### Private repository
 
 Use **Workers & Pages → Create → Import a repository**. Select the repository
@@ -35,17 +47,44 @@ root and configure:
 - Node version: 22
 - Root directory: repository root
 
-For either bootstrap path, configure exactly two Workers Builds variables:
+After the minimal deployment succeeds and Cloudflare writes the resource IDs,
+complete application bootstrap from a trusted, Cloudflare-authenticated shell:
+
+```bash
+pnpm install --frozen-lockfile
+INITIAL_ADMIN_EMAIL=admin@example.com \
+  INITIAL_ADMIN_PASSWORD='<new unique password>' \
+  pnpm deployment:bootstrap
+```
+
+The command requires exactly two one-time environment values:
 
 - `INITIAL_ADMIN_EMAIL`: the first administrator's login identity. It is not a
   mailbox, sender, or managed-domain address.
 - `INITIAL_ADMIN_PASSWORD`: 12 to 1024 characters. Use a generated unique
   password and rotate it after the first login.
 
-These are one-time build inputs, not Worker runtime variables. The release
-hashes the password into D1 and never logs either value. Remove them from the
-build configuration after the first successful deployment. A later release
-detects the existing administrator and does not replace it.
+These are bootstrap inputs, not Worker runtime variables. The command hashes
+the password into D1 and never logs either value. It also creates any missing
+runtime secrets and attaches them with one final direct deploy. A later
+bootstrap or release detects the existing administrator and does not replace
+it, except to repair a legacy PBKDF2 record whose iteration count exceeds the
+Cloudflare Workers runtime ceiling. That repair requires the same administrator
+email and an explicit `INITIAL_ADMIN_PASSWORD` value.
+
+To intentionally replace the password of an existing administrator, use the
+explicit force flag from a trusted shell:
+
+```bash
+INITIAL_ADMIN_EMAIL=admin@example.com \
+  INITIAL_ADMIN_PASSWORD='<new unique password>' \
+  pnpm deployment:bootstrap -- --force-admin-password-reset
+```
+
+The email must match the existing administrator. The command writes only the
+derived password record to D1, verifies that the new hash was stored, and
+revokes every existing session for that administrator. Without the force flag,
+a supported existing password record is never changed.
 
 Cloudflare owns the generated D1, KV, and Queue deployment metadata. R2 is
 optional and added only through `wrangler.r2.jsonc`. Do not copy account IDs
@@ -56,10 +95,11 @@ into application settings.
 Workers Builds is authorized only for the first installation. Before using the
 long-term production workflow:
 
-1. Confirm that the first deployment is healthy and that the initial
+1. Confirm that `pnpm deployment:bootstrap` completed, the deployment is
+   healthy, and the initial
    administrator can sign in.
-2. Remove `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` from the Workers
-   Builds variables.
+2. Remove `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` from the trusted
+   shell or CI configuration used for bootstrap.
 3. Create a GitHub Environment named `production`. Restrict deployment branches
    to `main`, add at least one required reviewer, enable prevent self-review,
    and disallow administrator bypass.
@@ -107,8 +147,9 @@ from the canonical UniMailbox repository.
 
 ### Initial D1 schema
 
-Remote first deployments inspect `sqlite_schema` and Wrangler's
-`d1_migrations` ledger before applying migrations. When D1 is empty and
+After the minimal provisioning deploy, `pnpm deployment:bootstrap` inspects
+`sqlite_schema` and Wrangler's `d1_migrations` ledger before applying
+migrations. When D1 is empty and
 `0001_initial.sql` is not recorded, the release imports the initial schema and
 its ledger entry together through Wrangler's atomic SQL-file import path. It
 then returns to `wrangler d1 migrations apply` for the remaining migrations.
@@ -208,15 +249,16 @@ make an otherwise healthy HTTP Worker eligible for automatic rollback.
 
 ## Automatic runtime secrets
 
-The release inspects the Worker secret names and securely generates any missing
-values for:
+The explicit application bootstrap inspects Worker secret names only after
+Cloudflare has provisioned the Worker. It and later adopted releases securely
+generate any missing values for:
 
 - `AUTH_SIGNING_KEY`: HMAC signing key, at least 32 random bytes.
 - `CREDENTIAL_ENCRYPTION_KEY`: AES-GCM key material, at least 32 random bytes.
 
 Generated values are attached with Wrangler's temporary `--secrets-file`
 input; the file is mode `0600` and is deleted after upload/deploy. Values never
-appear in release logs. Existing secret names are preserved. If an existing
+appear in deployment logs. Existing secret names are preserved. If an existing
 installation has encrypted credentials but the encryption secret is missing,
 the release stops with `release.legacy_secret_migration_required` rather than
 silently generating an incompatible key.

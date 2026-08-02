@@ -12,7 +12,10 @@ export const runtimePolicy = {
   accessTokenTtlSeconds: 15 * 60,
   refreshTokenTtlSeconds: 30 * 24 * 60 * 60,
   oauthStateTtlSeconds: 10 * 60,
-  passwordIterations: 310_000,
+  // workerd intentionally rejects PBKDF2 requests above this hosted-runtime
+  // ceiling. Keep bootstrap-generated records at the same value so they can
+  // always be verified inside a Worker.
+  passwordIterations: 100_000,
   outboundAttemptLimit: 5,
   webhookLockTtlMs: 2 * 60 * 1000,
   outboundLockTtlMs: 5 * 60 * 1000,

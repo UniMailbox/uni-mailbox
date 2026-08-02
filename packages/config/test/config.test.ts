@@ -51,7 +51,10 @@ describe("runtime policy", () => {
     expect(runtimePolicy.accessTokenTtlSeconds).toBe(900);
     expect(runtimePolicy.refreshTokenTtlSeconds).toBe(30 * 24 * 60 * 60);
     expect(runtimePolicy.oauthStateTtlSeconds).toBe(600);
-    expect(runtimePolicy.passwordIterations).toBe(310_000);
+    // Cloudflare Workers rejects PBKDF2 requests above 100,000 iterations.
+    // Keeping the policy at the hosted-runtime ceiling prevents valid password
+    // records from turning every login attempt into an internal error.
+    expect(runtimePolicy.passwordIterations).toBe(100_000);
     expect(runtimePolicy.outboundAttemptLimit).toBe(5);
     expect(runtimePolicy.webhookLockTtlMs).toBe(120_000);
     expect(runtimePolicy.outboundLockTtlMs).toBe(300_000);

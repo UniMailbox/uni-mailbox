@@ -27,6 +27,7 @@
   "assets": {
     "binding": "ASSETS",
     "directory": "apps/web/dist",
+    "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*", "/health", "/setup*"],
   },
   "d1_databases": [

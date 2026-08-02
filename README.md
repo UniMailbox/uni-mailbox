@@ -69,8 +69,9 @@ that `wrangler.jsonc` pins.
 
 The two values in `.dev.vars` are local runtime secrets. Production releases
 generate these values automatically when they do not already exist.
-`INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` are build-only inputs: the
-release hashes the password into D1, then the values can be removed. Brevo and
+`INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` are one-time bootstrap
+inputs: the bootstrap hashes the password into D1, then the values can be
+removed. Brevo and
 Cloudflare settings are configured after login; credentials are encrypted with
 AES-GCM and stored in D1. Never commit `.dev.vars` or initial credentials.
 
@@ -100,9 +101,28 @@ verified before any migration or release command.
 
 The root [`wrangler.jsonc`](wrangler.jsonc) intentionally has no canonical
 account IDs or resource IDs. During the first Deploy Button build, Cloudflare
-automatically provisions the declared D1, KV, and Queue resources. Configure
-only `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` as Workers Builds
-variables, then remove both after the administrator is created.
+automatically provisions the declared D1, KV, and Queue resources. This first
+deployment does not require `INITIAL_ADMIN_EMAIL` or
+`INITIAL_ADMIN_PASSWORD`.
+
+`pnpm deploy` is intentionally the first-install path. It builds and performs a
+plain Wrangler deployment before making any remote setup query, allowing
+Cloudflare to create the Worker and its bindings first. It stops there: no
+secrets, migrations, administrator credentials, or verification are required.
+
+After Cloudflare writes the generated resource IDs, complete application setup
+explicitly from a trusted shell:
+
+```bash
+INITIAL_ADMIN_EMAIL=admin@example.com \
+  INITIAL_ADMIN_PASSWORD='<new unique password>' \
+  pnpm deployment:bootstrap
+```
+
+That follow-up applies migrations, creates the administrator, and attaches
+missing generated runtime secrets. Candidate uploads, D1 bookmarks, migration
+verification queries, and HTTP health gates remain deferred to
+`pnpm release:production` after adoption.
 
 After the first healthy deployment, verify that the Environment disallows
 administrator bypass, then run

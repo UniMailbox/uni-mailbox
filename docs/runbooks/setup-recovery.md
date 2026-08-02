@@ -1,28 +1,40 @@
 # Bootstrap and administrator recovery
 
-UniMailbox has no public installation session or claim token. Deployment owns
-schema migration, runtime-secret reconciliation, and first-administrator
-creation. A successful fresh deployment opens at `/login`; Cloudflare Mail and
-storage configuration happens afterward in authenticated Settings.
+UniMailbox has no public installation session or claim token. `pnpm deploy`
+only provisions the Worker and Cloudflare bindings. The explicit
+`pnpm deployment:bootstrap` follow-up owns schema migration, runtime-secret
+reconciliation, and first-administrator creation. After that command succeeds,
+the deployment opens at `/login`; Cloudflare Mail and storage configuration
+happens afterward in authenticated Settings.
 
 ## Deployment did not create the administrator
 
 Inspect structured release events first:
 
-- `release.runtime_secret_state_invalid`: Wrangler could not list remote secret
+- `deployment.bootstrap.secret_state_invalid`: Wrangler could not list remote secret
   names or returned invalid JSON. Confirm the build has Worker edit/secrets
-  permissions and rerun the release.
+  permissions and rerun `pnpm deployment:bootstrap`.
 - `release.legacy_secret_migration_required`: an existing deployment has
   encrypted credentials but no compatible `CREDENTIAL_ENCRYPTION_KEY`. Restore
   the original key or perform an explicit credential-key migration; do not let
   the release generate a replacement.
-- `bootstrap.initial_credentials_invalid`: add valid `INITIAL_ADMIN_EMAIL` and
-  `INITIAL_ADMIN_PASSWORD` Workers Builds variables. The password must contain
-  12 to 1024 characters.
+- `bootstrap.initial_credentials_invalid`: pass valid `INITIAL_ADMIN_EMAIL` and
+  `INITIAL_ADMIN_PASSWORD` values to the explicit bootstrap command. The
+  password must contain 12 to 1024 characters.
 - `bootstrap.d1_command_failed` or `bootstrap.d1_output_invalid`: inspect D1
   permissions, apply migrations, and verify the schema before retrying.
 - `bootstrap.postcondition_failed`: stop. Confirm exactly one administrator
   role assignment and `installation_state.current_step = 'complete'`.
+- `bootstrap.administrator.password_repair_required`: the existing password
+  record exceeds Cloudflare Workers' PBKDF2 limit. Set `INITIAL_ADMIN_EMAIL` to
+  the reported administrator and `INITIAL_ADMIN_PASSWORD` to the intended new
+  password, then rerun `pnpm deployment:bootstrap`.
+- `bootstrap.administrator.password_reset_credentials_required`: the force flag
+  was supplied without valid administrator inputs. Set both values and retry;
+  do not put either value in `wrangler.jsonc`.
+- `bootstrap.administrator.email_mismatch`: the repair email does not match the
+  existing administrator. Correct the environment value; do not modify D1 by
+  hand.
 
 Run read-only checks:
 
@@ -36,18 +48,18 @@ pnpm exec wrangler d1 execute DB --remote --json \
 ```
 
 If the administrator count is zero, supply the one-time values in a trusted
-shell and rerun only the idempotent bootstrap:
+shell and rerun the idempotent deployment bootstrap:
 
 ```bash
 INITIAL_ADMIN_EMAIL=admin@example.com \
   INITIAL_ADMIN_PASSWORD='<new unique password>' \
-  pnpm bootstrap:admin -- --target production
+  pnpm deployment:bootstrap
 ```
 
-The command writes a mode-`0600` temporary SQL file containing only the derived
-password record, deletes it after execution, and verifies the administrator
-count and complete installation state. It never prints the email, password,
-hash, salt, or generated runtime-secret values.
+The command applies pending migrations, writes a mode-`0600` temporary SQL file
+containing only the derived password record, deletes it after execution, and
+attaches missing runtime secrets. It never prints the email, password, hash,
+salt, or generated runtime-secret values.
 
 ## Candidate metadata is absent
 
@@ -78,11 +90,23 @@ need them after an administrator exists.
   **Settings → Account security**. Either change revokes every refresh session.
 - The login email is identity-only and never changes domains, mailboxes, sender
   addresses, Cloudflare Email Routing, or Brevo configuration.
-- Re-adding initial build inputs does not overwrite an existing administrator.
-- If every administrator is locked out, preserve the current D1 database and
-  use the recorded D1 Time Travel bookmark or another existing administrator.
-  Do not delete users, reset `installation_state`, or generate a new encryption
-  key as an account-recovery shortcut.
+- Re-adding initial build inputs does not overwrite a supported existing
+  administrator. Bootstrap only replaces a legacy password record that the
+  Workers runtime cannot verify, and only when the supplied email matches.
+- If the administrator password must be replaced, use the explicit recovery
+  flag from a trusted shell:
+
+  ```bash
+  INITIAL_ADMIN_EMAIL=admin@example.com \
+    INITIAL_ADMIN_PASSWORD='<new unique password>' \
+    pnpm deployment:bootstrap -- --force-admin-password-reset
+  ```
+
+  The email must match the existing administrator. The reset revokes every
+  existing session and verifies the stored derived hash. It never prints or
+  forwards the plaintext password to Wrangler. Do not delete users, reset
+  `installation_state`, restore an older database merely to change a password,
+  or generate a new encryption key as an account-recovery shortcut.
 
 ## Post-login Cloudflare or provider checks fail
 

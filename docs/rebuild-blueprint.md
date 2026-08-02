@@ -105,10 +105,11 @@ The supported installation entrypoint is a **Deploy to Cloudflare** button, not 
 Project README
   -> Deploy to Cloudflare
   -> Cloudflare account and repository selection
-  -> Operator supplies initial administrator email and password
+  -> Credential-free minimal deployment
   -> Cloudflare provisions and binds D1, KV, and Queue
-  -> Workers Builds generates missing runtime secrets and runs migrations
-  -> Deployment hashes the initial password into D1
+  -> Operator explicitly runs deployment:bootstrap with initial credentials
+  -> Bootstrap generates missing runtime secrets and runs migrations
+  -> Bootstrap hashes the initial password into D1
   -> Worker opens at /login
 ```
 
@@ -116,10 +117,10 @@ Requirements:
 
 - Declare required D1, KV, and Queue bindings in `wrangler.jsonc` without account-specific resource IDs. R2 is an optional overlay.
 - Treat the repository root as one Worker deployment unit; the root build compiles shared packages, the Worker, and static web assets. Do not point the deploy button at a dependent monorepo subdirectory.
-- Workers Builds collects only `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` as one-time build inputs. They are not Worker runtime bindings.
-- The release generates missing `AUTH_SIGNING_KEY` and `CREDENTIAL_ENCRYPTION_KEY` values securely, persists them as Worker secrets, and never logs their values.
+- The minimal deploy does not require `INITIAL_ADMIN_EMAIL` or `INITIAL_ADMIN_PASSWORD`; the explicit follow-up accepts them as one-time bootstrap inputs. They are not Worker runtime bindings.
+- The bootstrap generates missing `AUTH_SIGNING_KEY` and `CREDENTIAL_ENCRYPTION_KEY` values securely, persists them as Worker secrets, and never logs their values.
 - Resource IDs created by Cloudflare are deployment metadata, not application settings.
-- The deploy command runs pending D1 migrations and idempotent administrator bootstrap before publishing application traffic.
+- The deploy command only publishes the minimal Worker and provisions bindings. The explicit bootstrap command then runs pending D1 migrations and idempotent administrator creation.
 - The repository README contains the official button format:
 
 ```markdown
@@ -1428,7 +1429,7 @@ export interface Env {
 }
 ```
 
-These are deployment bindings provisioned or generated during release, not a user-edited `.env` contract. Initial administrator credentials are build-only inputs and do not belong to `Env`. Brevo credentials and application settings do not belong here.
+These are deployment bindings provisioned or generated during release, not a user-edited `.env` contract. Initial administrator credentials are one-time bootstrap inputs and do not belong to `Env`. Brevo credentials and application settings do not belong here.
 
 Parse and validate secret bindings once:
 

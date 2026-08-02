@@ -12,6 +12,10 @@ const deployment = readFileSync(
   new URL("../docs/deployment.md", import.meta.url),
   "utf8",
 );
+const setupRecovery = readFileSync(
+  new URL("../docs/runbooks/setup-recovery.md", import.meta.url),
+  "utf8",
+);
 const defaultWrangler = readFileSync(
   new URL("../wrangler.jsonc", import.meta.url),
   "utf8",
@@ -39,6 +43,16 @@ const devVars = readFileSync(
 const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
 
 describe("R2 operational commands", () => {
+  it("keeps initial Cloudflare deployment separate from verified releases", () => {
+    expect(packageJson.scripts.deploy).toBe("node scripts/initial-deploy.mjs");
+    expect(packageJson.scripts["deployment:bootstrap"]).toBe(
+      "node scripts/deployment-bootstrap.mjs",
+    );
+    expect(packageJson.scripts["release:production"]).toBe(
+      "node scripts/release.mjs production",
+    );
+  });
+
   it("deploys production and preview explicitly", () => {
     expect(packageJson.scripts["deploy:r2"]).toBe(
       "pnpm deploy:r2:production && pnpm deploy:r2:preview",
@@ -72,7 +86,15 @@ describe("R2 operational commands", () => {
     }
   });
 
-  it("uses only build-time administrator inputs for first deployment", () => {
+  it("serves client-side routes through the SPA shell", () => {
+    for (const config of [defaultWrangler, r2Wrangler]) {
+      expect(config).toContain(
+        '"not_found_handling": "single-page-application"',
+      );
+    }
+  });
+
+  it("uses administrator inputs only during explicit bootstrap", () => {
     expect(packageJson.scripts["bootstrap:admin"]).toBe(
       "node scripts/bootstrap-admin.mjs",
     );
@@ -84,6 +106,8 @@ describe("R2 operational commands", () => {
     );
     expect(readme).toContain("INITIAL_ADMIN_EMAIL");
     expect(readme).toContain("INITIAL_ADMIN_PASSWORD");
+    expect(deployment).toContain("--force-admin-password-reset");
+    expect(setupRecovery).toContain("--force-admin-password-reset");
     expect(
       [defaultWrangler, r2Wrangler, runtimeConfig, devVars].join("\n"),
     ).not.toContain("INSTALLATION_TOKEN");

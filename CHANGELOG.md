@@ -13,4 +13,11 @@ Please updates released sections from Conventional Commits.
 - Stable distribution, installation adoption, protected production deployment,
   and daily upstream upgrade documentation.
 
+### Fixed
+
+- First-time Deploy Button installations now provision Cloudflare resources
+  with a credential-free minimal deployment. Migrations, administrator setup,
+  and runtime secrets use a separate explicit bootstrap command, while release
+  verification remains deferred until adoption.
+
 [Unreleased]: https://github.com/UniMailbox/uni-mailbox/commits/main

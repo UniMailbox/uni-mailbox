@@ -4,7 +4,9 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { PasswordService } from "../apps/worker/src/modules/identity";
 import {
+  WORKERS_PBKDF2_MAX_ITERATIONS,
   createAdministratorBootstrapSql,
+  createAdministratorPasswordRepairSql,
   createPasswordRecord,
   reconcileRuntimeSecretNames,
   sqlLiteral,
@@ -70,6 +72,20 @@ describe("zero-touch bootstrap helpers", () => {
     ).resolves.toEqual({ valid: true, needsRehash: false });
   });
 
+  it("keeps generated password records within the Workers PBKDF2 ceiling", async () => {
+    const record = await createPasswordRecord("a-strong-password", {
+      randomBytes: (length) => new Uint8Array(length).fill(7),
+    });
+
+    expect(WORKERS_PBKDF2_MAX_ITERATIONS).toBe(100_000);
+    expect(record.iterations).toBe(WORKERS_PBKDF2_MAX_ITERATIONS);
+    await expect(
+      new PasswordService({
+        iterations: WORKERS_PBKDF2_MAX_ITERATIONS,
+      }).verify("a-strong-password", record),
+    ).resolves.toEqual({ valid: true, needsRehash: false });
+  });
+
   it("encodes SQL literals without exposing an injection boundary", () => {
     expect(sqlLiteral("admin.o'hare@example.com")).toBe(
       "'admin.o''hare@example.com'",
@@ -95,6 +111,42 @@ describe("zero-touch bootstrap helpers", () => {
     expect(sql).toContain("WHERE NOT EXISTS");
     expect(sql).toContain("derived-password-hash");
     expect(sql).not.toContain("a-strong-password");
+  });
+
+  it("repairs only an administrator password record above the Workers ceiling", () => {
+    const sql = createAdministratorPasswordRepairSql({
+      email: "admin@example.com",
+      passwordRecord: {
+        algorithm: "pbkdf2-sha256",
+        hash: "replacement-password-hash",
+        iterations: 100_000,
+        salt: "replacement-password-salt",
+      },
+    });
+
+    expect(sql).toContain("replacement-password-hash");
+    expect(sql).toContain("password_iterations > 100000");
+    expect(sql).toContain("administrator_role.role_id");
+    expect(sql).toContain("UPDATE sessions");
+    expect(sql).toContain("admin@example.com");
+    expect(sql).not.toContain("a-strong-password");
+  });
+
+  it("builds an explicit forced administrator password reset", () => {
+    const sql = createAdministratorPasswordRepairSql({
+      email: "admin@example.com",
+      force: true,
+      passwordRecord: {
+        algorithm: "pbkdf2-sha256",
+        hash: "forced-password-hash",
+        iterations: 100_000,
+        salt: "forced-password-salt",
+      },
+    });
+
+    expect(sql).toContain("forced-password-hash");
+    expect(sql).toContain("UPDATE sessions");
+    expect(sql).not.toContain("password_iterations > 100000");
   });
 });
 

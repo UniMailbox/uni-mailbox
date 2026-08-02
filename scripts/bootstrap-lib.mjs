@@ -3,6 +3,8 @@ import { promisify } from "node:util";
 
 const derivePassword = promisify(pbkdf2);
 
+export const WORKERS_PBKDF2_MAX_ITERATIONS = 100_000;
+
 export const runtimeSecretNames = [
   "AUTH_SIGNING_KEY",
   "CREDENTIAL_ENCRYPTION_KEY",
@@ -48,7 +50,7 @@ export async function createPasswordRecord(
   password,
   {
     randomBytes = (length) => nodeRandomBytes(length),
-    iterations = 310_000,
+    iterations = WORKERS_PBKDF2_MAX_ITERATIONS,
   } = {},
 ) {
   const salt = randomBytes(16);
@@ -59,6 +61,47 @@ export async function createPasswordRecord(
     algorithm: "pbkdf2-sha256",
     iterations,
   };
+}
+
+export function createAdministratorPasswordRepairSql({
+  email,
+  force = false,
+  passwordRecord,
+}) {
+  const administratorRoleId = "00000000-0000-4000-8000-000000000001";
+  const repairGuard = force
+    ? ""
+    : `
+  AND (
+    password_algorithm <> 'pbkdf2-sha256'
+    OR password_iterations <= 0
+    OR password_iterations > ${WORKERS_PBKDF2_MAX_ITERATIONS}
+  )`;
+  return `UPDATE users
+SET password_hash = ${sqlLiteral(passwordRecord.hash)},
+    password_algorithm = ${sqlLiteral(passwordRecord.algorithm)},
+    password_salt = ${sqlLiteral(passwordRecord.salt)},
+    password_iterations = ${Number(passwordRecord.iterations)},
+    updated_at = CURRENT_TIMESTAMP
+WHERE email = ${sqlLiteral(email)} COLLATE NOCASE
+  AND EXISTS (
+    SELECT 1
+    FROM user_roles administrator_role
+    WHERE administrator_role.user_id = users.id
+      AND administrator_role.role_id = '${administratorRoleId}'
+  )${repairGuard};
+
+UPDATE sessions
+SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP)
+WHERE user_id IN (
+  SELECT administrator.id
+  FROM users administrator
+  JOIN user_roles administrator_role
+    ON administrator_role.user_id = administrator.id
+  WHERE administrator.email = ${sqlLiteral(email)} COLLATE NOCASE
+    AND administrator_role.role_id = '${administratorRoleId}'
+);
+`;
 }
 
 export function sqlLiteral(value) {
