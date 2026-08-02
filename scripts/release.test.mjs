@@ -17,6 +17,7 @@ import {
   productionBranchFromEnvironment,
   productionReleaseSteps,
   selectProductionReleaseMode,
+  selectReleaseWranglerConfig,
 } from "./release-lib.mjs";
 
 const versionId = "123e4567-e89b-12d3-a456-426614174000";
@@ -105,6 +106,17 @@ describe("release output parsing", () => {
 });
 
 describe("production release fallback", () => {
+  it("selects only a supported Wrangler configuration", () => {
+    expect(selectReleaseWranglerConfig({})).toBe("wrangler.jsonc");
+    expect(
+      selectReleaseWranglerConfig({
+        UNIMAILBOX_WRANGLER_CONFIG: "wrangler.r2.jsonc",
+      }),
+    ).toBe("wrangler.r2.jsonc");
+    expect(() =>
+      selectReleaseWranglerConfig({ UNIMAILBOX_WRANGLER_CONFIG: "other.json" }),
+    ).toThrow(/Wrangler configuration/iu);
+  });
   it("uses direct deployment when candidate verification metadata is incomplete", () => {
     expect(
       selectProductionReleaseMode({

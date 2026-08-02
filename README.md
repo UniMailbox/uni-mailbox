@@ -5,11 +5,14 @@ Worker deployment. It receives routed mail, stores canonical message data in D1
 and KV or optional R2, sends external recipients through Brevo, and serves the React
 application from the same origin.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=<PUBLIC_REPOSITORY_URL>)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/UniMailbox/unimailbox-deploy)
 
-Replace `<PUBLIC_REPOSITORY_URL>` with this repository's public GitHub or GitLab
-URL after publishing it. Private repositories use Cloudflare's **Import a
-repository** flow with the same root build and binding declarations.
+The button installs the latest stable snapshot from
+[`UniMailbox/unimailbox-deploy`](https://github.com/UniMailbox/unimailbox-deploy).
+Cloudflare creates an independent repository in your GitHub account and writes
+that installation's Worker, D1, KV, and Queue configuration into it. The result
+is not a fork of this source repository; keep its generated resource identifiers
+when accepting upstream upgrades.
 
 ## What is included
 
@@ -93,24 +96,41 @@ pnpm deploy:r2:dry-run
 `--confirm <deployment-id>`. Released migration checksums are committed and
 verified before any migration or release command.
 
-## Deployment and operations
+## Install, adopt, and operate
 
-The root [`wrangler.jsonc`](wrangler.jsonc) intentionally has no account IDs or
-resource IDs. Cloudflare automatically provisions the declared D1, KV, and
-Queue resources during the deployment flow. Configure only
-`INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` as Workers Builds variables;
-the release creates missing signing/encryption secrets without prompting. R2 is
-**not** declared in the default config —
-it is opt-in via [`wrangler.r2.jsonc`](wrangler.r2.jsonc) so cold-start
-deployments do not require a paid plan. See the
+The root [`wrangler.jsonc`](wrangler.jsonc) intentionally has no canonical
+account IDs or resource IDs. During the first Deploy Button build, Cloudflare
+automatically provisions the declared D1, KV, and Queue resources. Configure
+only `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` as Workers Builds
+variables, then remove both after the administrator is created.
+
+After the first healthy deployment, verify that the Environment disallows
+administrator bypass, then run
+`pnpm deployment:adopt -- --confirm-admin-bypass-disabled` in the generated
+installation repository. Adoption records the non-secret installation manifest,
+checks the GitHub `production` Environment, and must succeed before the manual
+production workflow can deploy. Then turn off Workers Builds production branch
+auto-deployment: after adoption, the only production authority is the manual
+GitHub Actions workflow protected by `production` Environment approval.
+
+R2 is **not** declared in the default config. It is opt-in via
+[`wrangler.r2.jsonc`](wrangler.r2.jsonc) so cold-start deployments do not require
+a paid plan. See the [deployment guide](docs/deployment.md) for the complete
+install/adoption checklist, the
 [storage backends section](docs/deployment.md#storage-backends) for the
-trade-offs and the [migration runbook](docs/runbooks/attachment-storage-migration.md)
-for switching backends later.
+trade-offs, and the
+[migration runbook](docs/runbooks/attachment-storage-migration.md) for switching
+backends later.
 
 See:
 
 - [Local development guide](docs/development.md)
 - [Deployment guide](docs/deployment.md)
+- [Release and distribution policy](docs/releases.md)
+- [Compatibility and maintenance policy](docs/compatibility.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [Changelog](CHANGELOG.md)
 - [Failed migration recovery](docs/runbooks/migration-recovery.md)
 - [Outbound and webhook recovery](docs/runbooks/mail-delivery-recovery.md)
 - [Storage backend migration](docs/runbooks/attachment-storage-migration.md)
@@ -123,3 +143,10 @@ Production release is intentionally operator-gated. Real inbound routing,
 Queue, Cron, and Brevo exit criteria cannot be proven by local mocks; run the
 documented smoke tests against the deployed installation before promotion is
 considered complete.
+
+## License
+
+UniMailbox is licensed under the
+[GNU Affero General Public License v3.0 only](LICENSE) (`AGPL-3.0-only`). If you
+run a modified version for users over a network, review the license's
+corresponding-source obligations.

@@ -2,16 +2,28 @@
 
 UniMailbox deploys from the repository root as one Worker. The Worker serves
 the built web assets and owns HTTP, inbound email, Queue, and scheduled
-entrypoints. There is no separate Pages project and no account-specific
-resource ID in source control.
+entrypoints. There is no separate Pages project. The canonical source repository
+never stores a production credential or installation-specific resource ID;
+Cloudflare writes those identifiers only into each generated installation
+repository.
 
 ## Bootstrap paths
 
-### Public repository
+### Recommended: Deploy Button
 
-Put the repository's public URL into the Deploy to Cloudflare button in the
-README. Cloudflare imports the repository, provisions resources from
-`wrangler.jsonc`, and runs the root build/deploy commands.
+Use the button in the README, which always points to the stable distribution
+repository:
+
+```text
+https://deploy.workers.cloudflare.com/?url=https://github.com/UniMailbox/unimailbox-deploy
+```
+
+Cloudflare creates a new, independent repository in the installer's GitHub
+account, provisions resources from `wrangler.jsonc`, records the generated D1,
+KV, and Queue identifiers in that repository, and runs the root build/deploy
+commands. This repository is not a GitHub fork. Do not replace it wholesale
+with files from the canonical source repository, because doing so can discard
+its generated resource configuration.
 
 ### Private repository
 
@@ -23,7 +35,7 @@ root and configure:
 - Node version: 22
 - Root directory: repository root
 
-For both paths, configure exactly two Workers Builds variables:
+For either bootstrap path, configure exactly two Workers Builds variables:
 
 - `INITIAL_ADMIN_EMAIL`: the first administrator's login identity. It is not a
   mailbox, sender, or managed-domain address.
@@ -38,6 +50,60 @@ detects the existing administrator and does not replace it.
 Cloudflare owns the generated D1, KV, and Queue deployment metadata. R2 is
 optional and added only through `wrangler.r2.jsonc`. Do not copy account IDs
 into application settings.
+
+## Adopt the installation
+
+Workers Builds is authorized only for the first installation. Before using the
+long-term production workflow:
+
+1. Confirm that the first deployment is healthy and that the initial
+   administrator can sign in.
+2. Remove `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` from the Workers
+   Builds variables.
+3. Create a GitHub Environment named `production`. Restrict deployment branches
+   to `main`, add at least one required reviewer, enable prevent self-review,
+   and disallow administrator bypass.
+4. Add these Environment secrets (not repository variables or plaintext files):
+   `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+5. Add the Environment variable `DEPLOYMENT_URL` with the installation's public
+   HTTPS origin.
+6. In the generated repository, install the pinned toolchain and dependencies,
+   authenticate the GitHub CLI, confirm in the GitHub UI that administrator
+   bypass is disabled, then run:
+
+   ```bash
+   pnpm install --frozen-lockfile
+   pnpm deployment:adopt -- --confirm-admin-bypass-disabled
+   ```
+
+   GitHub's Environment REST response does not expose the administrator-bypass
+   checkbox. The flag is an explicit operator attestation after checking the UI;
+   it cannot override an API response that reports bypass as enabled.
+   If this installation already deployed the optional R2 overlay, add `--r2`
+   to the same command so the adopted manifest and future release pipeline use
+   `wrangler.r2.jsonc`.
+
+7. Review and commit `.unimailbox/installation.json`. It contains identifiers
+   and repository metadata, not secrets. Never add Cloudflare tokens or initial
+   administrator credentials to it.
+8. In Cloudflare, disable Workers Builds automatic production deployments for
+   the production branch. Preview builds may remain enabled if they use
+   isolated resources.
+9. In GitHub **Settings → Actions → General → Workflow permissions**, enable
+   **Allow GitHub Actions to create and approve pull requests** so the stable
+   updater can open upgrade PRs.
+
+Adoption fails closed when generated binding identifiers are missing, the
+manifest disagrees with `wrangler.jsonc`, the deployment URL is invalid, or the
+required GitHub Environment configuration is unavailable. The production
+workflow also validates the committed manifest; creating the file manually does
+not bypass these checks.
+
+Use a new Cloudflare API token scoped to the single installation account. Start
+from Cloudflare's **Edit Cloudflare Workers** template and add only the D1, KV,
+and Queue permissions required by this repository. Add R2 permissions only
+after opting into `wrangler.r2.jsonc`. Do not reuse a global API key or a token
+from the canonical UniMailbox repository.
 
 ### Initial D1 schema
 
@@ -120,13 +186,25 @@ raise the limit, deploy with R2 (next section).
   "data": {
     "status": "ok",
     "checks": { "kv": "ok", "r2": "missing", ... },
-    "storage": { "backend": "kv", "reason": "ATTACHMENTS binding is absent; ..." }
+    "storage": { "backend": "kv", "reason": "ATTACHMENTS binding is absent; ..." },
+    "release": {
+      "applicationVersion": "0.2.0",
+      "upstreamVersion": "0.2.0",
+      "workerVersionId": "...",
+      "workerVersionTag": "release-...",
+      "deployedAt": "2026-08-02T00:00:00.000Z"
+    },
+    "operationalAlerts": []
   }
 }
 ```
 
 The `r2` field still reports the binding presence for backwards compatibility.
-The `storage` object is the canonical indicator.
+The `storage` object is the canonical indicator. D1, KV, Queue, and Assets are
+required health gates; missing R2 is healthy for the default KV mode. A missing
+Cron heartbeat is `pending` for ten minutes after the Worker version timestamp,
+then becomes a `scheduled_trigger_stale` operational alert. That alert does not
+make an otherwise healthy HTTP Worker eligible for automatic rollback.
 
 ## Automatic runtime secrets
 
@@ -187,9 +265,16 @@ objects. Either command can be retried independently.
 
 ## Production
 
-Production releases run only from the protected `main` or `master` branch.
-Workers Builds is the primary release path; the manual GitHub Actions fallback
-also requires the GitHub `production` environment:
+After adoption, production releases run only through the installation
+repository's manually dispatched GitHub Actions workflow, only from the current
+remote `main` HEAD, and only after the `production` Environment reviewer
+approves the job. Environment secrets are unavailable before that approval.
+Workers Builds must not remain a second production deployment source.
+
+The workflow fails closed if adoption is incomplete, `main` moved after the
+workflow started, an installation resource differs from `wrangler.jsonc`, the
+token belongs to another account, or the Worker/D1 preflight cannot resolve the
+declared resources. Once those gates pass, it performs this sequence:
 
 1. Verify the exact source and immutable dependency lock.
 2. Build once and retain `.wrangler/release/manifest.json`.
@@ -211,11 +296,9 @@ pnpm release:verify https://mail.example.com
 `release:verify` covers public HTTP checks. The authenticated Settings control
 plane owns Cloudflare Email Routing, Brevo, and inbound/outbound smoke tests.
 
-For Cloudflare Workers Builds, set **Settings > Build > Branch control >
-Production branch** to `main`. Use `pnpm run build` as the build command and
-`pnpm run deploy` as the deploy command. Workers Builds injects
-`WORKERS_CI_BRANCH`; the release log emits `release.context` so an operator can
-confirm that the production trigger ran from `main`.
+Merging an upstream upgrade PR does not deploy it. Verify the merged commit on
+`main`, manually start **Production release**, and approve the Environment only
+after reviewing its checks and migration list.
 
 Wrangler candidate metadata is diagnostic rather than a startup dependency. If
 `versions upload` succeeds but does not expose both a version ID and preview
@@ -230,6 +313,27 @@ parsed metadata diagnostics without exposing secrets.
 
 Configure account-owned notification destinations and run the release drill in
 the [observability and alerts runbook](runbooks/observability-alerts.md).
+
+## Stable upgrades
+
+Installation repositories check the latest stable GitHub Release from
+`UniMailbox/unimailbox-deploy` once per day and on manual request. They do not
+track either repository's moving `main` branch. The updater uses the previously
+installed distribution tag as the common ancestor, performs a three-way merge,
+and preserves installation-owned Worker, D1, KV, Queue, optional R2, and
+deployment URL values.
+
+When the merge and validation succeed, the updater opens an
+`automation/upstream-vX.Y.Z` pull request. Its description lists migrations,
+configuration changes, breaking changes, and validation results. Review it like
+any other production change. When source changes conflict, the updater leaves
+`main` untouched and creates or updates an issue with the conflicting files and
+manual recovery commands. It never resolves a real conflict or deploys a new
+version automatically.
+
+See the [release policy](releases.md) for the canonical-to-distribution flow and
+the [compatibility policy](compatibility.md) before skipping versions or
+changing bindings.
 
 ## Failure boundaries
 

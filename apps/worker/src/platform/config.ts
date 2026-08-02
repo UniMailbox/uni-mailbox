@@ -6,6 +6,12 @@ export interface SecretStoreBinding {
 
 export type SecretBinding = string | SecretStoreBinding;
 
+export interface WorkerVersionMetadataBinding {
+  id: string;
+  tag?: string;
+  timestamp: string;
+}
+
 export interface OutboundMailJob {
   kind?: "outbound";
   jobId: string;
@@ -37,6 +43,7 @@ export interface Env {
   CLOUDFLARE_OAUTH_CLIENT_ID?: SecretBinding;
   CLOUDFLARE_OAUTH_CLIENT_SECRET?: SecretBinding;
   CLOUDFLARE_OAUTH_SCOPES?: string;
+  CF_VERSION_METADATA?: WorkerVersionMetadataBinding;
 }
 
 export async function readSecretBinding(

@@ -2,10 +2,19 @@
   "name": "unimailbox",
   "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/UniMailbox/uni-mailbox.git"
+  },
+  "homepage": "https://github.com/UniMailbox/uni-mailbox#readme",
+  "bugs": {
+    "url": "https://github.com/UniMailbox/uni-mailbox/issues"
+  },
   "type": "module",
   "packageManager": "pnpm@10.32.1",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.22.1"
   },
   "scripts": {
     "dev": "wrangler dev",
@@ -16,6 +25,9 @@
     "lint": "eslint .",
     "i18n:check": "node scripts/i18n-check.mjs",
     "frontend:contracts": "node scripts/frontend-contract-check.mjs",
+    "config:check": "node scripts/config-parity.mjs",
+    "workflow:check": "node scripts/workflow-security.mjs",
+    "release:notes": "node scripts/release-notes.mjs",
     "typecheck": "pnpm -r --if-present typecheck",
     "schema:check": "pnpm --filter @unimailbox/worker exec drizzle-kit check --config ../../drizzle.config.ts",
     "test": "pnpm test:unit && pnpm test:worker && pnpm test:integration",
@@ -39,6 +51,9 @@
     "cf:typegen": "wrangler types apps/worker/worker-configuration.d.ts",
     "deploy": "pnpm release:production",
     "deploy:dry-run": "node scripts/dry-run.mjs",
+    "deployment:adopt": "node scripts/deployment-adopt.mjs",
+    "deployment:preflight": "node scripts/production-preflight.mjs",
+    "upstream:sync": "node scripts/upstream-sync.mjs",
     "deploy:r2": "pnpm deploy:r2:production && pnpm deploy:r2:preview",
     "deploy:r2:production": "wrangler deploy -c wrangler.r2.jsonc --env \"\"",
     "deploy:r2:preview": "wrangler deploy -c wrangler.r2.jsonc --env preview",

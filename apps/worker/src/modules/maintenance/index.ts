@@ -1,5 +1,8 @@
 import type { Env } from "../../platform/config";
 import type { StorageBackend } from "../../platform/attachment-store";
+import packageMetadata from "../../../../../package.json";
+
+const SCHEDULED_STARTUP_WINDOW_MS = 10 * 60 * 1000;
 
 export interface HealthResult {
   status: "ok" | "degraded";
@@ -15,6 +18,14 @@ export interface HealthResult {
     backend: StorageBackend;
     reason: string;
   };
+  release: {
+    applicationVersion: string;
+    upstreamVersion: string;
+    workerVersionId: string | null;
+    workerVersionTag: string | null;
+    deployedAt: string | null;
+  };
+  operationalAlerts: string[];
 }
 
 export class HealthService {
@@ -44,13 +55,20 @@ export class HealthService {
         const lastRun = Number(
           (await this.env.KV.get("health:scheduled:last_run")) ?? 0,
         );
+        const deployedAt = Date.parse(
+          this.env.CF_VERSION_METADATA?.timestamp ?? "",
+        );
         checks.scheduled =
           lastRun === 0
-            ? "pending"
+            ? Number.isFinite(deployedAt) &&
+              Date.now() - deployedAt > SCHEDULED_STARTUP_WINDOW_MS
+              ? "stale"
+              : "pending"
             : Date.now() - lastRun <= 5 * 60 * 1000
               ? "ok"
               : "stale";
       } catch {
+        checks.kv = "error";
         checks.scheduled = "error";
       }
     }
@@ -59,13 +77,16 @@ export class HealthService {
       checks.kv,
       checks.queue,
       checks.assets,
-      checks.scheduled,
       ...(this.backend === "r2" ? [checks.r2] : []),
     ];
+    const operationalAlerts = [];
+    if (checks.scheduled === "stale") {
+      operationalAlerts.push("scheduled_trigger_stale");
+    } else if (checks.scheduled === "error") {
+      operationalAlerts.push("scheduled_trigger_check_failed");
+    }
     return {
-      status: requiredChecks.every(
-        (value) => value === "ok" || value === "pending",
-      )
+      status: requiredChecks.every((value) => value === "ok")
         ? "ok"
         : "degraded",
       checks,
@@ -76,6 +97,14 @@ export class HealthService {
             ? "ATTACHMENTS binding is present in the Worker env"
             : "ATTACHMENTS binding is absent; KV is the default storage backend",
       },
+      release: {
+        applicationVersion: packageMetadata.version,
+        upstreamVersion: packageMetadata.version,
+        workerVersionId: this.env.CF_VERSION_METADATA?.id ?? null,
+        workerVersionTag: this.env.CF_VERSION_METADATA?.tag ?? null,
+        deployedAt: this.env.CF_VERSION_METADATA?.timestamp ?? null,
+      },
+      operationalAlerts,
     };
   }
 }

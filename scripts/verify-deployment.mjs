@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 import { fail, output } from "./_shared.mjs";
+import packageMetadata from "../package.json" with { type: "json" };
+import { validateHealthRelease } from "./verify-deployment-lib.mjs";
 
 const rawUrl = process.argv[2];
+const expectedVersion = process.argv[3] ?? packageMetadata.version;
 if (!rawUrl) {
   fail(
     "verify.usage",
@@ -40,13 +43,19 @@ async function check(path, acceptedStatuses = [200]) {
 
 const health = await check("/health");
 const healthBody = await health.json();
-if (healthBody?.data?.status !== "ok") {
-  fail("verify.health_failed", "Health response is not ok", 9);
+try {
+  const { warnings } = validateHealthRelease(healthBody, expectedVersion);
+  for (const warning of warnings) {
+    output("verify.operational_warning", { status: "warning", warning });
+  }
+} catch (error) {
+  fail("verify.health_failed", error.message, 9);
 }
 await check("/login");
 await check("/", [200, 307]);
 output("verify.completed", {
   status: "ok",
   url: baseUrl.origin,
+  version: expectedVersion,
   note: "Authenticated, queue, inbound-routing, and provider smoke tests remain operator-gated",
 });

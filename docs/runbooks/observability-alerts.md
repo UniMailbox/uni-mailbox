@@ -2,7 +2,8 @@
 
 UniMailbox emits structured JSON events through Workers Logs and exposes a
 minimal public `/health` response. The scheduled handler writes
-`health:scheduled:last_run` to KV; `/health` reports the trigger as `pending`,
+`health:scheduled:last_run` to KV; `/health` reports the trigger as `pending`
+for the first ten minutes after the current Worker version was created,
 `ok`, or `stale` without exposing configuration or message data.
 
 ## Required post-deploy alerts

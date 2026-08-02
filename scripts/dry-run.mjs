@@ -2,14 +2,18 @@
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { output, root, run } from "./_shared.mjs";
+import { selectReleaseWranglerConfig } from "./release-lib.mjs";
 
 mkdirSync(resolve(root, ".wrangler", "logs"), { recursive: true });
+const wranglerConfig = selectReleaseWranglerConfig(process.env);
 run("pnpm", ["build"]);
 run(
   "pnpm",
   [
     "exec",
     "wrangler",
+    "--config",
+    wranglerConfig,
     "deploy",
     "--env",
     "",

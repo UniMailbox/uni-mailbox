@@ -93,6 +93,15 @@ describe("scaffold CLI", () => {
     expect(payload.hint).toMatch(/\.dev\.vars/u);
   });
 
+  it("skips only local runtime secrets in CI mode", () => {
+    rmSync(join(workdir, ".dev.vars"));
+    const result = run(["doctor", "--ci"], { cwd: workdir });
+    expect(result.status).toBe(0);
+    const payload = lastJsonLine(result.stdout);
+    expect(payload.localRuntimeSecrets).toBe("skipped");
+    expect(payload.migrations).not.toHaveLength(0);
+  });
+
   it("flags .dev.vars placeholders that have not been replaced", () => {
     writeFileSync(
       join(workdir, ".dev.vars"),

@@ -1,6 +1,15 @@
 const versionIdPattern = /\b[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b/iu;
 const previewUrlPattern = /https:\/\/[^\s]+\.workers\.dev/iu;
 
+export function selectReleaseWranglerConfig(environment) {
+  const config =
+    environment.UNIMAILBOX_WRANGLER_CONFIG?.trim() || "wrangler.jsonc";
+  if (!["wrangler.jsonc", "wrangler.r2.jsonc"].includes(config)) {
+    throw new Error("Unsupported release Wrangler configuration");
+  }
+  return config;
+}
+
 function parseStructuredOutput(outputFile) {
   const lines = outputFile.split(/\r?\n/u).filter(Boolean);
   const entries = [];
