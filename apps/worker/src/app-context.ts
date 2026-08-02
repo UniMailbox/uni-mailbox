@@ -1,5 +1,11 @@
-import { BREVO_PROVIDER_KEY } from "@unimailbox/contracts";
+import {
+  BREVO_PROVIDER_KEY,
+  RESEND_PROVIDER_KEY,
+  type ProviderKey,
+  type ProviderPlugin,
+} from "@unimailbox/contracts";
 import { createBrevoProviderPlugin } from "./integrations/brevo";
+import { createResendProviderPlugin } from "./integrations/resend";
 import { ProviderRegistry } from "./integrations/providers";
 import type { HttpAppContext } from "./http/router";
 import { TokenService } from "./modules/identity";
@@ -52,7 +58,10 @@ export async function createAppContext(
   const partialContext = {
     env,
     providers: new ProviderRegistry(
-      new Map([[BREVO_PROVIDER_KEY, createBrevoProviderPlugin()]]),
+      new Map<ProviderKey, ProviderPlugin>([
+        [BREVO_PROVIDER_KEY, createBrevoProviderPlugin()],
+        [RESEND_PROVIDER_KEY, createResendProviderPlugin()],
+      ]),
     ),
     credentials: new CredentialCipher(runtime.CREDENTIAL_ENCRYPTION_KEY),
     logger: new StructuredLogger(),

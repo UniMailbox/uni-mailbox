@@ -297,13 +297,14 @@ export class MessageApplicationService {
     const statements: D1PreparedStatement[] = [
       this.context.env.DB.prepare(
         `INSERT INTO messages (
-           id, thread_id, from_address, from_name, subject, html_body, text_body,
+           id, domain_id, thread_id, from_address, from_name, subject, html_body, text_body,
            message_id_header, in_reply_to_header, references_header,
            provider_connection_id, status, created_by_user_id, sent_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
            CASE WHEN ? = 'sent' THEN CURRENT_TIMESTAMP ELSE NULL END)`,
       ).bind(
         messageId,
+        sender.domain_id,
         threadId ?? messageId,
         sender.address,
         sender.display_name,

@@ -76,6 +76,7 @@ export type AttachmentDisposition =
 
 export type ProviderKey = string & { readonly __brand: "ProviderKey" };
 export const BREVO_PROVIDER_KEY = "brevo" as ProviderKey;
+export const RESEND_PROVIDER_KEY = "resend" as ProviderKey;
 
 export function parseProviderKey(value: string): ProviderKey {
   if (!/^[a-z][a-z0-9_-]{1,31}$/.test(value)) {

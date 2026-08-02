@@ -880,6 +880,22 @@ export function createHttpApp(createContext: HttpContextFactory) {
         ),
     );
   });
+  app.post("/api/v1/admin/domains/:id/provider-test", async (context) => {
+    const input = z
+      .object({ to: z.string().trim().email() })
+      .strict()
+      .parse(await context.req.json());
+    return success(
+      await context
+        .get("appContext")
+        .admin.testDomainProvider(
+          context.get("principal"),
+          context.req.param("id"),
+          input.to,
+          context.req.header("idempotency-key") ?? crypto.randomUUID(),
+        ),
+    );
+  });
   app.delete("/api/v1/admin/domains/:id", async (context) => {
     await context
       .get("appContext")
@@ -969,6 +985,13 @@ export function createHttpApp(createContext: HttpContextFactory) {
       await context
         .get("appContext")
         .admin.listProviderConnections(context.get("principal")),
+    ),
+  );
+  app.get("/api/v1/admin/providers", async (context) =>
+    success(
+      context
+        .get("appContext")
+        .admin.listProviderCatalog(context.get("principal")),
     ),
   );
   app.post("/api/v1/admin/provider-connections", async (context) => {

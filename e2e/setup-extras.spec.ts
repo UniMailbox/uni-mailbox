@@ -229,3 +229,113 @@ test("administration domain creation uses the same Email Routing guide", async (
     "https://dash.cloudflare.com/?to=%2Faccount-1%2Femail-service%2Frouting",
   );
 });
+
+test("administrator selects a domain provider and sends a provider test", async ({
+  page,
+}) => {
+  const domainId = "11111111-1111-4111-8111-111111111111";
+  const connectionId = "22222222-2222-4222-8222-222222222222";
+  let selectedConnection: string | null = null;
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          userId: "user-admin-1",
+          email: "admin@example.com",
+          permissions: ["domain.read", "domain.manage"],
+        },
+      }),
+    }),
+  );
+  await page.route("**/api/v1/admin/domains", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: [
+          {
+            id: domainId,
+            name: "mail.example.com",
+            status: "active",
+            outbound_connection_id: selectedConnection,
+            provider_key: selectedConnection ? "resend" : null,
+            provider_label: selectedConnection ? "Transactional" : null,
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route(`**/api/v1/admin/domains/${domainId}`, async (route) => {
+    const body = route.request().postDataJSON() as {
+      outboundConnectionId?: string | null;
+    };
+    selectedConnection = body.outboundConnectionId ?? null;
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: { id: domainId, outboundConnectionId: selectedConnection },
+      }),
+    });
+  });
+  await page.route("**/api/v1/admin/provider-connections", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: [
+          {
+            id: connectionId,
+            provider_key: "resend",
+            label: "Transactional",
+            status: "active",
+            config_json: "{}",
+            last_health_check_at: null,
+            last_health_error: null,
+            created_at: "2026-08-02 12:00:00",
+            updated_at: "2026-08-02 12:00:00",
+            webhook_path: `/api/v1/webhooks/resend/${connectionId}`,
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route(
+    `**/api/v1/admin/domains/${domainId}/provider-test`,
+    async (route) => {
+      expect(route.request().postDataJSON()).toEqual({
+        to: "owner@example.net",
+      });
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            status: "sent",
+            domainId,
+            providerKey: "resend",
+            connectionId,
+            providerMessageId: "provider-message-id",
+            acceptedAt: "2026-08-02T12:00:00.000Z",
+          },
+        }),
+      });
+    },
+  );
+
+  await page.goto("/admin/domains");
+  await page.getByRole("button", { name: /Edit|编辑/u }).click();
+  await page
+    .getByRole("combobox", { name: /Outbound provider|出站提供商/u })
+    .selectOption(connectionId);
+  await page.getByRole("button", { name: /Apply change|应用更改/u }).click();
+  await expect(page.getByText("resend")).toBeVisible();
+
+  await page.getByRole("button", { name: /Edit|编辑/u }).click();
+  await page
+    .getByRole("textbox", { name: /Test recipient|测试收件人/u })
+    .fill("owner@example.net");
+  await page
+    .getByRole("button", { name: /Send test email|发送测试邮件/u })
+    .click();
+  await expect(
+    page.getByText(/accepted the test email|已接受发送/u),
+  ).toBeVisible();
+});

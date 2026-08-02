@@ -13,7 +13,7 @@ repo layout, contracts, and architectural decisions are in
 | Node               | 22.22.1        | `nvm install 22.22.1` / `volta pin node@22.22.1`              |
 | pnpm               | 10.32.1        | `corepack enable && corepack prepare pnpm@10.32.1 --activate` |
 | Wrangler           | 4.114.0        | comes from the dev dependency, `pnpm install` provides it     |
-| Cloudflare account | —              | only required for live email routing or Brevo verification    |
+| Cloudflare account | —              | only required for live routing or provider verification       |
 
 `pnpm scaffold doctor` is the single source of truth for "is my machine ready?".
 Run it after every change to the toolchain or `wrangler.jsonc`.

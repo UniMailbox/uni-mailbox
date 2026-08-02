@@ -3,6 +3,7 @@ import {
   chmodSync,
   existsSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -127,7 +128,10 @@ describe("remote migration bootstrap", () => {
         scenario.result.status,
         scenario.result.stderr || scenario.result.stdout,
       ).toBe(0);
-      expect(scenario.commands).toHaveLength(4);
+      const verificationCount = readdirSync(
+        resolve(import.meta.dirname, "..", "migrations", "meta"),
+      ).filter((file) => file.endsWith(".verify.sql")).length;
+      expect(scenario.commands).toHaveLength(verificationCount);
       for (const args of scenario.commands) {
         expect(args).toContain("--command");
         expect(args).not.toContain("--file");

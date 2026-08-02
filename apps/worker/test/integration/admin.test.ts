@@ -20,8 +20,8 @@ const administrator: Principal = {
   permissions: new Set(ADMINISTRATOR_PERMISSIONS),
 };
 
-function service() {
-  const brevoPlugin: ProviderPlugin = createBrevoProviderPlugin(vi.fn());
+function service(fetcher = vi.fn()) {
+  const brevoPlugin: ProviderPlugin = createBrevoProviderPlugin(fetcher);
   const envRecord = env as unknown as Record<string, unknown>;
   const baseEnv = {
     DB: env.DB,
@@ -175,6 +175,93 @@ describe("AdminApplicationService domains and signatures", () => {
     await expect(
       admin.deleteDomain(administrator, created.id),
     ).resolves.toBeUndefined();
+  });
+
+  it("validates a selected provider and sends a domain-scoped test email", async () => {
+    const fetcher = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as {
+          sender: { email: string };
+          to: Array<{ email: string }>;
+        };
+        expect(body.sender.email).toBe("postmaster@provider.example.com");
+        expect(body.to[0]?.email).toBe("owner@example.net");
+        return Response.json(
+          { messageId: "provider-test-id" },
+          { status: 201 },
+        );
+      },
+    );
+    const admin = service(fetcher);
+    const domain = await seedDomain("provider.example.com");
+    const credentialId = crypto.randomUUID();
+    const connectionId = crypto.randomUUID();
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO encrypted_credentials (
+           id, encrypted_payload, encryption_version
+         ) VALUES (?, ?, 1)`,
+      ).bind(
+        credentialId,
+        await cipher.encrypt({
+          apiKey: "xkeysib-test",
+          webhookSecret: "webhook-test",
+        }),
+      ),
+      env.DB.prepare(
+        `INSERT INTO provider_connections (
+           id, provider_key, label, credential_id, status
+         ) VALUES (?, 'brevo', 'Primary', ?, 'active')`,
+      ).bind(connectionId, credentialId),
+    ]);
+
+    await expect(
+      admin.updateDomain(administrator, domain.id, {
+        outboundConnectionId: connectionId,
+      }),
+    ).resolves.toMatchObject({ outboundConnectionId: connectionId });
+    await expect(
+      admin.testDomainProvider(
+        administrator,
+        domain.id,
+        "OWNER@EXAMPLE.NET",
+        "provider-test-request",
+      ),
+    ).resolves.toMatchObject({
+      domainId: domain.id,
+      providerKey: "brevo",
+      connectionId,
+      providerMessageId: "provider-test-id",
+    });
+  });
+
+  it("rejects an inactive provider selection and can clear a saved selection", async () => {
+    const admin = service();
+    const domain = await seedDomain("disabled-provider.example.com");
+    const credentialId = crypto.randomUUID();
+    const connectionId = crypto.randomUUID();
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO encrypted_credentials (
+           id, encrypted_payload, encryption_version
+         ) VALUES (?, 'encrypted', 1)`,
+      ).bind(credentialId),
+      env.DB.prepare(
+        `INSERT INTO provider_connections (
+           id, provider_key, label, credential_id, status
+         ) VALUES (?, 'brevo', 'Disabled', ?, 'disabled')`,
+      ).bind(connectionId, credentialId),
+    ]);
+    await expect(
+      admin.updateDomain(administrator, domain.id, {
+        outboundConnectionId: connectionId,
+      }),
+    ).rejects.toMatchObject({ code: "PROVIDER_CONNECTION_INACTIVE" });
+    await expect(
+      admin.updateDomain(administrator, domain.id, {
+        outboundConnectionId: null,
+      }),
+    ).resolves.toMatchObject({ outboundConnectionId: null });
   });
 
   it("forbids deleting a domain that still has mailboxes", async () => {

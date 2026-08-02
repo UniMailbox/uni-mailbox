@@ -16,7 +16,11 @@ Build a serverless email application that supports:
 - Role-based administration
 - Auditable background processing
 
-The implementation must favor explicit contracts, typed boundaries, idempotent operations, and feature-owned modules. Brevo is the only initial outbound provider, but provider-neutral application contracts must allow another adapter to be added without changing message business logic or core tables.
+The implementation must favor explicit contracts, typed boundaries,
+idempotent operations, and feature-owned modules. Brevo and Resend are the
+built-in outbound providers, and provider-neutral application contracts must
+allow another adapter to be added without changing message business logic or
+core tables.
 
 ## 2. Technology stack
 
@@ -963,7 +967,8 @@ A required, idempotent seed step inserts the permission keys and two system role
 - Mailbox addresses must belong to an active managed domain.
 - Addresses are case-insensitive and globally unique.
 - A domain selects one active `provider_connections` row for outbound delivery.
-- The first release creates only `provider_key = 'brevo'` connections.
+- Provider connections may use any adapter registered by the runtime; the
+  built-in keys are `brevo` and `resend`.
 - Provider selection fails when the connection is disabled, invalid, or has no registered adapter.
 - Provider credentials are entered through the setup or administration UI and encrypted with AES-GCM using the Secrets Store master key.
 
@@ -1123,7 +1128,7 @@ export function selectProviderConnection(input: {
 }
 ```
 
-Provider selection must never silently fall back to a different connection or provider. In the first release, the registry contains only `brevo`.
+Provider selection must never silently fall back to a different connection or provider. The registry contains `brevo` and `resend`; a managed domain selects one active configured connection through the administration selector.
 
 ### 7.13 Message-status ordering
 
@@ -1161,8 +1166,10 @@ Apply a provider status when:
 7. If missing, claim an import lock and fetch provider detail.
 8. Insert the message once.
 9. Apply status ordering.
-10. Write the webhook audit record.
-11. Complete the delivery claim.
+10. Resolve and persist the managed domain from the original message or the
+    provider detail sender, rejecting cross-domain events.
+11. Write the webhook audit record with `domain_id`.
+12. Complete the delivery claim with the same `domain_id`.
 
 Failed claims may be retried after the lock expires.
 
@@ -1381,7 +1388,10 @@ export class ProviderRegistry {
 }
 
 export const providerRegistry = new ProviderRegistry(
-  new Map([[BREVO_PROVIDER_KEY, createBrevoProviderPlugin()]]),
+  new Map([
+    [BREVO_PROVIDER_KEY, createBrevoProviderPlugin()],
+    [RESEND_PROVIDER_KEY, createResendProviderPlugin()],
+  ]),
 );
 ```
 
@@ -1408,6 +1418,16 @@ No message table rewrite, send-use-case branch, or route fork is allowed.
 - Map Brevo event names into the application status enum inside the plugin.
 - Pass the stable message ID as the Brevo idempotency key when the endpoint supports it.
 - Classify Brevo errors as retryable, terminal, authentication, rate-limit, or invalid-payload errors.
+
+### 9.4 Resend adapter
+
+- Send through `POST /emails` with the application idempotency key.
+- Verify the raw webhook body and `svix-id`, `svix-timestamp`, and
+  `svix-signature` headers before parsing events.
+- Use the Resend email ID as the connection-scoped provider identity and fetch
+  `GET /emails/:id` when a verified webhook references an unknown message.
+- Map Resend delivery, delay, bounce, complaint, suppression, and failure
+  events into the application status enum inside the plugin.
 - Keep pagination and message-detail logic inside the Brevo sync capability.
 - Never expose the Brevo API key through API responses, logs, or client-side code.
 
@@ -2018,16 +2038,18 @@ Unused uploads expire and are removed by a scheduled cleanup job.
 
 ### 11.6 Administration
 
-| Method                | Path                           | Permission                                     |
-| --------------------- | ------------------------------ | ---------------------------------------------- |
-| GET/POST/PATCH/DELETE | `/admin/users`                 | `user.read` or `user.manage`                   |
-| GET/POST/PATCH/DELETE | `/admin/roles`                 | `role.read` or `role.manage`                   |
-| GET/POST/PATCH/DELETE | `/admin/domains`               | `domain.read` or `domain.manage`               |
-| GET/PATCH             | `/admin/settings`              | `settings.read` or `settings.manage`           |
-| GET/PUT               | `/admin/domains/:id/signature` | `signature.read` or `signature.manage`         |
-| GET/POST/PATCH        | `/admin/provider-connections`  | `domain.read` or `domain.manage`               |
-| POST                  | `/admin/providers/sync`        | `provider.sync`                                |
-| GET/DELETE            | `/admin/webhook-events`        | `webhook_event.read` or `webhook_event.delete` |
+| Method                | Path                               | Permission                                     |
+| --------------------- | ---------------------------------- | ---------------------------------------------- |
+| GET/POST/PATCH/DELETE | `/admin/users`                     | `user.read` or `user.manage`                   |
+| GET/POST/PATCH/DELETE | `/admin/roles`                     | `role.read` or `role.manage`                   |
+| GET/POST/PATCH/DELETE | `/admin/domains`                   | `domain.read` or `domain.manage`               |
+| GET/PATCH             | `/admin/settings`                  | `settings.read` or `settings.manage`           |
+| GET/PUT               | `/admin/domains/:id/signature`     | `signature.read` or `signature.manage`         |
+| POST                  | `/admin/domains/:id/provider-test` | `domain.manage`                                |
+| GET                   | `/admin/providers`                 | `domain.read`                                  |
+| GET/POST/PATCH        | `/admin/provider-connections`      | `domain.read` or `domain.manage`               |
+| POST                  | `/admin/providers/sync`            | `provider.sync`                                |
+| GET/DELETE            | `/admin/webhook-events`            | `webhook_event.read` or `webhook_event.delete` |
 
 ### 11.7 Provider webhooks
 
@@ -2035,7 +2057,12 @@ Unused uploads expire and are removed by a scheduled cleanup job.
 POST /api/v1/webhooks/:providerKey/:connectionId
 ```
 
-The first release accepts only `providerKey = brevo`. The opaque connection ID selects the encrypted verification secret; it is not authentication by itself. Webhook routes do not use user authentication, so the registry must provide a webhook capability and provider-specific verification must succeed.
+The route accepts only provider keys registered in the runtime (`brevo` and
+`resend`). The opaque connection ID selects the encrypted verification secret;
+it is not authentication by itself. Webhook routes do not use user
+authentication, so provider-specific verification must succeed. Processing
+also resolves a managed domain and stores it on delivery, provider-state, and
+webhook audit records before acknowledging the event.
 
 ### 11.8 Response format
 

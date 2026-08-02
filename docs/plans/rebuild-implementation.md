@@ -40,6 +40,7 @@ verification both exist.
 
 - [x] Provider synchronization and reconciliation
 - [x] User, role, domain, provider connection, settings, and webhook administration
+- [x] Domain-level Brevo/Resend selector, provider test send, and domain-bound webhook audit data
 - [x] Audit search, metrics, cleanup, retention, and tuned rate limits
 - [x] Production release verification, alert specification, runbooks, and recovery exercises
 - [x] Optional Cloudflare OAuth setup mode with PKCE, encrypted refresh, and revocation
@@ -70,6 +71,6 @@ truthfully checked from a source checkout:
 - [ ] Publish the repository and replace the Deploy button placeholder with its
       public URL.
 - [ ] Deploy isolated preview resources in a real Cloudflare account.
-- [ ] Complete real Email Routing inbound and Brevo outbound/webhook smoke tests.
+- [ ] Complete real Email Routing inbound and configured-provider outbound/webhook smoke tests.
 - [ ] Configure the account-owned notification destination and run the
       documented Worker rollback drill.

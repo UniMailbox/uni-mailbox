@@ -33,6 +33,7 @@
     "saveSettings": "Save settings",
     "saveSignature": "Save signature",
     "reconcile": "Reconcile now",
+    "sendProviderTest": "Send test email",
     "add": "Add {{resource}}",
     "manage": "Manage existing {{resource}}"
   },
@@ -49,7 +50,17 @@
     "emptyBody": "The first record created here will appear in this table.",
     "signatureSaved": "Signature saved.",
     "settingsSaved": "Runtime policy saved.",
-    "syncComplete": "Provider reconciliation complete."
+    "syncComplete": "Provider reconciliation complete.",
+    "providerTestSent": "{{provider}} accepted the test email to {{email}}."
+  },
+  "providerTest": {
+    "heading": "Test this domain provider",
+    "description": "Sends through the provider currently saved for this domain.",
+    "placeholder": "you@example.com"
+  },
+  "providers": {
+    "brevo": "Brevo",
+    "resend": "Resend"
   },
   "search": {
     "label": "Search audit action, resource, or request ID",
@@ -65,11 +76,14 @@
     "description": "Description",
     "permissions": "Permission keys (comma-separated)",
     "label": "Connection label",
-    "apiKey": "Brevo API key",
+    "provider": "Provider",
+    "apiKey": "Provider API key",
     "webhookSecret": "Webhook secret",
     "status": "Status",
     "action": "Action",
     "outboundConnectionId": "Outbound connection ID",
+    "outboundProvider": "Outbound provider",
+    "testRecipient": "Test recipient",
     "domain": "Domain",
     "plainSignature": "Plain-text signature",
     "htmlSignature": "HTML signature",
@@ -106,7 +120,8 @@
     "store": "Store without mailbox delivery",
     "true": "Yes",
     "false": "No",
-    "empty": "—"
+    "empty": "—",
+    "noProvider": "No outbound provider"
   },
   "columns": {
     "id": "ID",
@@ -120,9 +135,11 @@
     "is_system": "System role",
     "permissions": "Permissions",
     "outbound_connection_id": "Outbound connection ID",
+    "domain_id": "Domain ID",
     "provider_key": "Provider",
     "provider_label": "Provider label",
     "label": "Label",
+    "webhook_path": "Webhook path",
     "event_type": "Event type",
     "provider_message_id": "Provider message ID",
     "message_id": "Message ID",

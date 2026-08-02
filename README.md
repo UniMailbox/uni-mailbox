@@ -2,8 +2,9 @@
 
 UniMailbox is a self-hosted mail operations workspace built as one Cloudflare
 Worker deployment. It receives routed mail, stores canonical message data in D1
-and KV or optional R2, sends external recipients through Brevo, and serves the React
-application from the same origin.
+and KV or optional R2, sends external recipients through a domain-selected
+Brevo or Resend connection, and serves the React application from the same
+origin.
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/UniMailbox/unimailbox-deploy)
 
@@ -23,7 +24,8 @@ when accepting upstream upgrades.
 - Optional R2 overlay (`wrangler.r2.jsonc`) for installations that need
   attachments larger than 25 MiB.
 - Durable outbound jobs and a Queue consumer with retry and lock recovery.
-- Provider-neutral adapters with Brevo as the first provider.
+- Provider-neutral Brevo and Resend adapters with domain-level selection,
+  test delivery, and domain-bound webhook audit data.
 - A responsive React mail workspace and authenticated administrator control plane
   with typed endpoint contracts, TanStack Router/Query/Form ownership, and
   English/Simplified Chinese localization with RTL test coverage.
@@ -46,7 +48,7 @@ docs/runbooks/         Operator recovery procedures
 ## Local development
 
 Requirements: Node 22.22.1, pnpm 10.32.1, Wrangler 4.114.0, and a Cloudflare
-account for live Email Routing or Brevo verification. The end-to-end
+account for live Email Routing or outbound provider verification. The end-to-end
 contributor walkthrough lives in [`docs/development.md`](docs/development.md);
 the short version is:
 
@@ -71,8 +73,8 @@ The two values in `.dev.vars` are local runtime secrets. Production releases
 generate these values automatically when they do not already exist.
 `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` are one-time bootstrap
 inputs: the bootstrap hashes the password into D1, then the values can be
-removed. Brevo and
-Cloudflare settings are configured after login; credentials are encrypted with
+removed. Provider and Cloudflare settings are configured after login;
+credentials are encrypted with
 AES-GCM and stored in D1. Never commit `.dev.vars` or initial credentials.
 
 ## Verification
@@ -160,7 +162,7 @@ See:
 - [Source blueprint](docs/rebuild-blueprint.md)
 
 Production release is intentionally operator-gated. Real inbound routing,
-Queue, Cron, and Brevo exit criteria cannot be proven by local mocks; run the
+Queue, Cron, and provider exit criteria cannot be proven by local mocks; run the
 documented smoke tests against the deployed installation before promotion is
 considered complete.
 

@@ -193,6 +193,7 @@ function parseWebhook(
     providerKey: BREVO_PROVIDER_KEY,
     connectionId: context.connectionId,
     eventKey: `${deliveryId}:${event}:${messageId}:${eventTime}`,
+    eventType: event,
     providerMessageId: messageId,
     status,
     occurredAt: new Date(eventTime * 1000),

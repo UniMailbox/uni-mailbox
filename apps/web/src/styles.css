@@ -1282,6 +1282,24 @@ svg {
   display: grid;
   gap: 17px;
 }
+.domain-provider-test {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.domain-provider-test h3,
+.domain-provider-test p {
+  margin: 0;
+}
+.domain-provider-test p {
+  color: var(--muted);
+  font-size: 13px;
+}
+.domain-provider-test .button {
+  justify-self: start;
+}
 .admin-dialog-footer {
   display: flex;
   gap: 10px;
