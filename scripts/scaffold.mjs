@@ -119,6 +119,7 @@ function checkViteProxy() {
 }
 
 function doctor() {
+  const ciMode = process.argv.includes("--ci");
   const pkg = readJson("package.json");
   assertExactVersion("Node", process.versions.node, "22.22.1");
   const pnpm = capture("pnpm", ["--version"]);
@@ -208,7 +209,7 @@ function doctor() {
     });
   }
   const devVars = checkDevVars();
-  if (!devVars.exists) {
+  if (!ciMode && !devVars.exists) {
     fail(
       "doctor.dev_vars_missing",
       ".dev.vars is missing; create it before `wrangler dev` will work",
@@ -216,7 +217,7 @@ function doctor() {
       { hint: devVars.hint },
     );
   }
-  if (devVars.placeholder) {
+  if (!ciMode && devVars.placeholder) {
     fail(
       "doctor.dev_vars_placeholder",
       ".dev.vars still contains `replace-with-…` placeholders",
@@ -240,6 +241,7 @@ function doctor() {
     pnpm: pnpm.stdout.trim(),
     wrangler: wranglerVersion,
     migrations,
+    localRuntimeSecrets: ciMode ? "skipped" : "checked",
     bindingChecks,
     storage: {
       backend: storageBackend,

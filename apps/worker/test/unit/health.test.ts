@@ -8,6 +8,7 @@ function envFixture(
     lastRun?: string | null;
     databaseError?: boolean;
     kvError?: boolean;
+    deployedAt?: string;
   } = {},
 ): Env {
   const base: Env = {
@@ -31,6 +32,11 @@ function envFixture(
     ASSETS: {} as Fetcher,
     AUTH_SIGNING_KEY: "x",
     CREDENTIAL_ENCRYPTION_KEY: "x",
+    CF_VERSION_METADATA: {
+      id: "worker-version-id",
+      tag: "release-v0.1.0",
+      timestamp: options.deployedAt ?? new Date().toISOString(),
+    },
   };
   if (withR2) {
     base.ATTACHMENTS = {} as R2Bucket;
@@ -48,6 +54,28 @@ describe("HealthService", () => {
     expect(result.checks.kv).toBe("ok");
     expect(result.checks.scheduled).toBe("pending");
     expect(result.status).toBe("ok");
+    expect(result.release).toEqual({
+      applicationVersion: "0.1.0",
+      upstreamVersion: "0.1.0",
+      workerVersionId: "worker-version-id",
+      workerVersionTag: "release-v0.1.0",
+      deployedAt: expect.any(String),
+    });
+  });
+
+  it("reports null release metadata when Cloudflare does not provide the binding", async () => {
+    const env = envFixture(false);
+    env.CF_VERSION_METADATA = undefined;
+    const result = await new HealthService(env, "kv").check();
+
+    expect(result.checks.scheduled).toBe("pending");
+    expect(result.release).toEqual({
+      applicationVersion: "0.1.0",
+      upstreamVersion: "0.1.0",
+      workerVersionId: null,
+      workerVersionTag: null,
+      deployedAt: null,
+    });
   });
 
   it("reports the R2 backend when ATTACHMENTS is bound", async () => {
@@ -70,7 +98,20 @@ describe("HealthService", () => {
       "kv",
     ).check();
     expect(stale.checks.scheduled).toBe("stale");
-    expect(stale.status).toBe("degraded");
+    expect(stale.status).toBe("ok");
+    expect(stale.operationalAlerts).toContain("scheduled_trigger_stale");
+  });
+
+  it("turns a missing Cron heartbeat into an operational alert after ten minutes", async () => {
+    const result = await new HealthService(
+      envFixture(false, {
+        deployedAt: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
+      }),
+      "kv",
+    ).check();
+    expect(result.checks.scheduled).toBe("stale");
+    expect(result.status).toBe("ok");
+    expect(result.operationalAlerts).toContain("scheduled_trigger_stale");
   });
 
   it("degrades when database or KV checks fail", async () => {

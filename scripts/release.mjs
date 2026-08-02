@@ -8,6 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { resolve } from "node:path";
+import packageMetadata from "../package.json" with { type: "json" };
 import {
   assertMigrationSet,
   capture,
@@ -25,6 +26,7 @@ import {
   parseVersionUploadResult,
   productionBranchFromEnvironment,
   productionReleaseSteps,
+  selectReleaseWranglerConfig,
   selectProductionReleaseMode,
 } from "./release-lib.mjs";
 
@@ -33,6 +35,19 @@ if (!["preview", "production", "rollback"].includes(target)) {
   fail("release.usage", "Usage: release.mjs preview|production|rollback", 2);
 }
 const manifestPath = resolve(root, ".wrangler/release/manifest.json");
+let wranglerConfig;
+try {
+  wranglerConfig = selectReleaseWranglerConfig(process.env);
+} catch (error) {
+  fail(
+    "release.config_invalid",
+    error instanceof Error ? error.message : "Invalid Wrangler configuration",
+    2,
+  );
+}
+function wranglerArgs(args, config = wranglerConfig) {
+  return ["exec", "wrangler", "--config", config, ...args];
+}
 const productionBranch = productionBranchFromEnvironment(process.env);
 output("release.context", {
   target,
@@ -57,17 +72,21 @@ if (target === "rollback") {
       10,
     );
   }
-  run("pnpm", [
-    "exec",
-    "wrangler",
-    "rollback",
-    manifest.previousVersionId,
-    "--env",
-    "",
-    "--yes",
-    "--message",
-    `Automated rollback after failed verification for ${manifest.commit}`,
-  ]);
+  run(
+    "pnpm",
+    wranglerArgs(
+      [
+        "rollback",
+        manifest.previousVersionId,
+        "--env",
+        "",
+        "--yes",
+        "--message",
+        `Automated rollback after failed verification for ${manifest.commit}`,
+      ],
+      manifest.wranglerConfig ?? wranglerConfig,
+    ),
+  );
   output("release.rollback.completed", {
     status: "ok",
     versionId: manifest.previousVersionId,
@@ -77,7 +96,7 @@ if (target === "rollback") {
 if (
   target === "production" &&
   productionBranch &&
-  !["main", "master"].includes(productionBranch)
+  productionBranch !== "main"
 ) {
   fail(
     "release.branch_forbidden",
@@ -88,16 +107,17 @@ if (
 
 const migrations = assertMigrationSet();
 run("pnpm", ["build"]);
-run("pnpm", [
-  "exec",
-  "wrangler",
-  "deploy",
-  "--env",
-  "",
-  "--dry-run",
-  "--outdir",
-  ".wrangler/release",
-]);
+run(
+  "pnpm",
+  wranglerArgs([
+    "deploy",
+    "--env",
+    "",
+    "--dry-run",
+    "--outdir",
+    ".wrangler/release",
+  ]),
+);
 const artifactPath = resolve(root, ".wrangler/release/index.js");
 const digest = createHash("sha256")
   .update(readFileSync(artifactPath))
@@ -106,6 +126,9 @@ const git = capture("git", ["rev-parse", "HEAD"]);
 const manifest = {
   target,
   commit: git.ok ? git.stdout : "unknown",
+  applicationVersion: packageMetadata.version,
+  upstreamVersion: packageMetadata.version,
+  wranglerConfig,
   artifact: "index.js",
   sha256: digest,
   migrations,
@@ -148,17 +171,7 @@ function deployedVersionId(raw) {
 function captureD1Bookmark() {
   const bookmark = captureRequired(
     "pnpm",
-    [
-      "exec",
-      "wrangler",
-      "d1",
-      "time-travel",
-      "info",
-      "DB",
-      "--env",
-      "",
-      "--json",
-    ],
+    wranglerArgs(["d1", "time-travel", "info", "DB", "--env", "", "--json"]),
     "release.bookmark_failed",
   );
   const bookmarkOutput = `${bookmark.stdout}\n${bookmark.stderr}`;
@@ -198,16 +211,10 @@ function verifyProductionMigrations() {
   run("node", ["scripts/migration.mjs", "verify", "--target", "production"]);
 }
 function inspectRuntimeSecrets(environment) {
-  const result = capture("pnpm", [
-    "exec",
-    "wrangler",
-    "secret",
-    "list",
-    "--env",
-    environment,
-    "--format",
-    "json",
-  ]);
+  const result = capture(
+    "pnpm",
+    wranglerArgs(["secret", "list", "--env", environment, "--format", "json"]),
+  );
   if (!result.ok) {
     fail(
       "release.runtime_secret_state_invalid",
@@ -253,17 +260,18 @@ function assertLegacyCredentialCompatibility({
   ) {
     return;
   }
-  const result = capture("pnpm", [
-    "exec",
-    "wrangler",
-    "d1",
-    "execute",
-    "DB",
-    "--remote",
-    "--command",
-    "SELECT COUNT(*) AS encrypted_credential_count FROM encrypted_credentials",
-    "--json",
-  ]);
+  const result = capture(
+    "pnpm",
+    wranglerArgs([
+      "d1",
+      "execute",
+      "DB",
+      "--remote",
+      "--command",
+      "SELECT COUNT(*) AS encrypted_credential_count FROM encrypted_credentials",
+      "--json",
+    ]),
+  );
   if (!result.ok) {
     fail(
       "release.legacy_secret_migration_required",
@@ -296,30 +304,26 @@ output("release.artifact.created", manifest);
 
 if (target === "preview") {
   await withRuntimeSecrets("preview", (secretsPath, created) => {
-    run("pnpm", [
-      "exec",
-      "wrangler",
-      "versions",
-      "upload",
-      "--env",
-      "preview",
-      "--preview-alias",
-      "release-candidate",
-      ...(secretsPath ? ["--secrets-file", secretsPath] : []),
-    ]);
+    run(
+      "pnpm",
+      wranglerArgs([
+        "versions",
+        "upload",
+        "--env",
+        "preview",
+        "--preview-alias",
+        "release-candidate",
+        ...(secretsPath ? ["--secrets-file", secretsPath] : []),
+      ]),
+    );
     Object.assign(manifest, { runtimeSecretsCreated: created });
     writeManifest();
   });
 } else {
-  const current = capture("pnpm", [
-    "exec",
-    "wrangler",
-    "deployments",
-    "status",
-    "--env",
-    "",
-    "--json",
-  ]);
+  const current = capture(
+    "pnpm",
+    wranglerArgs(["deployments", "status", "--env", "", "--json"]),
+  );
   const currentDeployment = current.ok ? current.stdout : "";
   const previousVersionId = deployedVersionId(currentDeployment) ?? null;
   await withRuntimeSecrets("", (secretsPath, created) => {
@@ -335,9 +339,7 @@ if (target === "preview") {
     if (existsSync(versionOutputPath)) unlinkSync(versionOutputPath);
     const candidate = captureRequired(
       "pnpm",
-      [
-        "exec",
-        "wrangler",
+      wranglerArgs([
         "versions",
         "upload",
         "--env",
@@ -349,7 +351,7 @@ if (target === "preview") {
         "--message",
         `UniMailbox release ${manifest.commit}`,
         ...(secretsPath ? ["--secrets-file", secretsPath] : []),
-      ],
+      ]),
       "release.version_upload_failed",
       {
         env: {
@@ -410,27 +412,29 @@ if (target === "preview") {
       } else if (step === "bootstrap-administrator") {
         run("node", ["scripts/bootstrap-admin.mjs", "--target", "production"]);
       } else if (step === "deploy-direct") {
-        run("pnpm", [
-          "exec",
-          "wrangler",
-          "deploy",
-          "--env",
-          "",
-          ...(secretsPath ? ["--secrets-file", secretsPath] : []),
-        ]);
+        run(
+          "pnpm",
+          wranglerArgs([
+            "deploy",
+            "--env",
+            "",
+            ...(secretsPath ? ["--secrets-file", secretsPath] : []),
+          ]),
+        );
       } else if (step === "promote-version") {
-        run("pnpm", [
-          "exec",
-          "wrangler",
-          "versions",
-          "deploy",
-          `${workerVersionId}@100%`,
-          "--env",
-          "",
-          "--yes",
-          "--message",
-          `Promote UniMailbox ${manifest.commit}`,
-        ]);
+        run(
+          "pnpm",
+          wranglerArgs([
+            "versions",
+            "deploy",
+            `${workerVersionId}@100%`,
+            "--env",
+            "",
+            "--yes",
+            "--message",
+            `Promote UniMailbox ${manifest.commit}`,
+          ]),
+        );
       }
     }
     Object.assign(manifest, {

@@ -2,7 +2,10 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import { z } from "zod";
 import {
   ApiErrorEnvelopeSchema,
+  ApiSuccessEnvelopeSchema,
+  CursorPageSchema,
   defineEndpoint,
+  isErrorCode,
   type EndpointRequest,
   type EndpointResponse,
 } from "../src/api";
@@ -38,6 +41,22 @@ describe("endpoint contracts", () => {
         params: { destination: "login" },
       },
     });
+  });
+
+  it("builds shared success, pagination, and error-code contracts", () => {
+    expect(
+      ApiSuccessEnvelopeSchema(z.object({ id: z.string() })).parse({
+        data: { id: "message-1" },
+      }),
+    ).toEqual({ data: { id: "message-1" } });
+    expect(
+      CursorPageSchema(z.string()).parse({
+        items: ["message-1"],
+        nextCursor: null,
+      }),
+    ).toEqual({ items: ["message-1"], nextCursor: null });
+    expect(isErrorCode("AUTH_REQUIRED")).toBe(true);
+    expect(isErrorCode("NOT_A_REAL_ERROR")).toBe(false);
   });
 
   it("infers request and response values from schemas", () => {

@@ -79,8 +79,7 @@ export function readJson(path) {
   return JSON.parse(readFileSync(resolve(root, path), "utf8"));
 }
 
-export function readJsonc(path) {
-  const source = readFileSync(resolve(root, path), "utf8");
+export function parseJsonc(source) {
   let withoutComments = "";
   let inString = false;
   let escaped = false;
@@ -145,6 +144,10 @@ export function readJsonc(path) {
     }
   }
   return JSON.parse(normalized);
+}
+
+export function readJsonc(path) {
+  return parseJsonc(readFileSync(resolve(root, path), "utf8"));
 }
 
 export async function withSecureTemporaryText(

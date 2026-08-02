@@ -21,6 +21,11 @@ export function makeEnv(options: { withoutR2?: boolean } = {}): Env {
     ASSETS: {} as Fetcher,
     AUTH_SIGNING_KEY: "x".repeat(32),
     CREDENTIAL_ENCRYPTION_KEY: "e".repeat(32),
+    CF_VERSION_METADATA: {
+      id: "integration-version",
+      tag: "integration",
+      timestamp: "2026-08-02T00:00:00.000Z",
+    },
   };
   if (!options.withoutR2 && envRecord.ATTACHMENTS) {
     base.ATTACHMENTS = envRecord.ATTACHMENTS as R2Bucket;
