@@ -54,6 +54,7 @@ describe("permission contracts", () => {
       "message.read",
       "message.send",
       "message.delete",
+      "attachment.read",
       "mailbox.create",
       "mailbox.manage",
       "mailbox.share",

@@ -10,6 +10,8 @@
     "description": "Deployment-level mail routing and storage configuration is managed here, outside workspace preferences."
   },
   "navigation": {
+    "messages": "All messages",
+    "attachments": "Attachments",
     "users": "Users",
     "roles": "Roles and access",
     "domains": "Domains",
@@ -35,7 +37,8 @@
     "reconcile": "Reconcile now",
     "sendProviderTest": "Send test email",
     "add": "Add {{resource}}",
-    "manage": "Manage existing {{resource}}"
+    "manage": "Manage existing {{resource}}",
+    "remove": "Remove"
   },
   "dialog": {
     "action": "Record action",
@@ -62,6 +65,56 @@
     "brevo": "Brevo",
     "resend": "Resend"
   },
+  "messages": {
+    "readOnlyNotice": "This is a read-only global view. Opening a message is recorded in the audit trail.",
+    "emptyTitle": "No messages yet",
+    "emptyBody": "Messages received or sent through UniMailbox will appear here.",
+    "loadMore": "Load more",
+    "loadingMore": "Loading…",
+    "viewTitle": "View message",
+    "viewMessage": "View message: {{subject}}",
+    "noSubject": "No subject",
+    "contentTitle": "Message content",
+    "attachments": "Attachments",
+    "unnamedAttachment": "Unnamed attachment",
+    "attachmentMeta": "{{mimeType}}, {{size}} bytes"
+  },
+  "userMailboxes": {
+    "heading": "Mailbox access",
+    "description": "Manage which mailbox addresses this account can read, send from, or administer. The mailbox owner is immutable.",
+    "summary": "{{count}} mailbox record(s)",
+    "empty": "No mailbox access has been granted to this user yet.",
+    "ownerNote": "Owner: {{email}}",
+    "changeRoleFor": "Change role for {{address}}",
+    "addField": "Mailbox address",
+    "roleField": "Access role",
+    "addAction": "Grant mailbox access"
+  },
+  "mailboxRoles": {
+    "owner": "Owner",
+    "viewer": "Viewer",
+    "sender": "Sender",
+    "admin": "Administrator"
+  },
+  "userRoles": {
+    "none": "No roles assigned",
+    "unknown": "Unknown role"
+  },
+  "attachments": {
+    "searchLabel": "Search attachments",
+    "searchPlaceholder": "Filename, MD5, MIME type, subject, or sender",
+    "searchAction": "Search",
+    "emptyTitle": "No attachments found",
+    "emptyBody": "Attachments saved from sent and received messages will appear here.",
+    "viewTitle": "View attachment",
+    "view": "View",
+    "download": "Download",
+    "previewUnavailable": "A safe inline preview is not available for this file type. You can download the file instead.",
+    "unnamedAttachment": "Unnamed attachment",
+    "hashPending": "Hash pending",
+    "loadMore": "Load more",
+    "loadingMore": "Loading…"
+  },
   "search": {
     "label": "Search audit action, resource, or request ID",
     "placeholder": "installation, mailbox, request ID"
@@ -71,7 +124,7 @@
     "displayName": "Display name",
     "email": "Email address",
     "password": "Temporary password",
-    "roleIds": "Role IDs (comma-separated)",
+    "roles": "Assigned roles",
     "name": "Name",
     "description": "Description",
     "permissions": "Permission keys (comma-separated)",
@@ -80,6 +133,11 @@
     "apiKey": "Provider API key",
     "webhookSecret": "Webhook secret",
     "status": "Status",
+    "filename": "Filename",
+    "mime_type": "MIME type",
+    "size_bytes": "Bytes",
+    "md5": "MD5",
+    "reference_count": "References",
     "action": "Action",
     "outboundConnectionId": "Outbound connection ID",
     "outboundProvider": "Outbound provider",
@@ -128,6 +186,11 @@
     "email": "Email",
     "display_name": "Display name",
     "status": "Status",
+    "from_address": "From",
+    "recipient_addresses": "Recipients",
+    "subject": "Subject",
+    "domain_name": "Domain",
+    "mailbox_addresses": "Mailboxes",
     "created_at": "Created",
     "roles": "Roles",
     "name": "Name",

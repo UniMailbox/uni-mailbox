@@ -7,6 +7,7 @@ import { normalizeRecipients } from "@unimailbox/email-core";
 import type { AppContext } from "../../app-context";
 import type { MailboxApplicationService } from "../mailboxes";
 import { OutboundJobService } from "../outbound-mail";
+import { deleteAttachmentFileIfUnreferenced } from "../attachments/file-catalog";
 
 interface DraftRow {
   id: string;
@@ -23,6 +24,8 @@ interface DraftRow {
 interface UploadRow {
   id: string;
   object_key: string;
+  file_id: string;
+  md5: string;
   filename: string;
   mime_type: string;
   size_bytes: number;
@@ -218,11 +221,11 @@ export class DraftApplicationService {
     }
     await this.mailboxes.assert(principal.userId, draft.mailbox_id, "send");
     const existingAttachments = await this.context.env.DB.prepare(
-      `SELECT id, object_key
+      `SELECT id, object_key, file_id
        FROM message_attachments WHERE message_id = ?`,
     )
       .bind(draftId)
-      .all<{ id: string; object_key: string }>();
+      .all<{ id: string; object_key: string; file_id: string | null }>();
     const desired = new Set(input.attachmentIds);
     const keep = new Set(
       existingAttachments.results
@@ -307,14 +310,10 @@ export class DraftApplicationService {
       );
     }
     for (const attachment of removed) {
-      const referenced = await this.context.env.DB.prepare(
-        "SELECT 1 FROM message_attachments WHERE object_key = ? LIMIT 1",
-      )
-        .bind(attachment.object_key)
-        .first();
-      if (!referenced) {
-        await this.context.attachmentStore.delete(attachment.object_key);
-      }
+      await deleteAttachmentFileIfUnreferenced(
+        this.context,
+        attachment.file_id,
+      );
     }
     return this.get(principal, draftId);
   }
@@ -322,17 +321,21 @@ export class DraftApplicationService {
   async remove(principal: Principal, draftId: string): Promise<void> {
     await this.requireDraft(principal.userId, draftId);
     const attachments = await this.context.env.DB.prepare(
-      "SELECT object_key FROM message_attachments WHERE message_id = ?",
+      `SELECT object_key, file_id
+       FROM message_attachments WHERE message_id = ?`,
     )
       .bind(draftId)
-      .all<{ object_key: string }>();
+      .all<{ object_key: string; file_id: string | null }>();
     await this.context.env.DB.prepare(
       "DELETE FROM messages WHERE id = ? AND created_by_user_id = ? AND status = 'draft'",
     )
       .bind(draftId, principal.userId)
       .run();
     for (const attachment of attachments.results) {
-      await this.context.attachmentStore.delete(attachment.object_key);
+      await deleteAttachmentFileIfUnreferenced(
+        this.context,
+        attachment.file_id,
+      );
     }
   }
 
@@ -543,11 +546,14 @@ export class DraftApplicationService {
   ): Promise<UploadRow[]> {
     if (uploadIds.length === 0) return [];
     const result = await this.context.env.DB.prepare(
-      `SELECT id, object_key, filename, mime_type, size_bytes, disposition
-       FROM attachment_uploads
-       WHERE user_id = ? AND status = 'uploaded'
-         AND expires_at > CURRENT_TIMESTAMP
-         AND id IN (${placeholders(uploadIds.length)})`,
+      `SELECT au.id, af.object_key, au.file_id, au.md5, au.filename,
+              au.mime_type, au.size_bytes, au.disposition
+       FROM attachment_uploads au
+       JOIN attachment_files af ON af.id = au.file_id
+       WHERE au.user_id = ? AND au.status = 'uploaded'
+         AND au.md5 IS NOT NULL
+         AND au.expires_at > CURRENT_TIMESTAMP
+         AND au.id IN (${placeholders(uploadIds.length)})`,
     )
       .bind(userId, ...uploadIds)
       .all<UploadRow>();
@@ -611,8 +617,8 @@ export class DraftApplicationService {
       this.context.env.DB.prepare(
         `INSERT INTO message_attachments (
            id, message_id, upload_id, object_key, filename, mime_type,
-           size_bytes, disposition
-         ) VALUES ${tuples(uploads.length, 8)}`,
+           size_bytes, disposition, file_id, md5
+         ) VALUES ${tuples(uploads.length, 10)}`,
       ).bind(
         ...uploads.flatMap((upload) => [
           crypto.randomUUID(),
@@ -623,6 +629,8 @@ export class DraftApplicationService {
           upload.mime_type,
           upload.size_bytes,
           upload.disposition,
+          upload.file_id,
+          upload.md5,
         ]),
       ),
     ];
@@ -637,9 +645,9 @@ export class DraftApplicationService {
       this.context.env.DB.prepare(
         `INSERT INTO message_attachments (
            id, message_id, upload_id, object_key, filename, mime_type,
-           size_bytes, disposition
+           size_bytes, disposition, file_id, md5
          )
-         SELECT ?, ?, ?, ?, ?, ?, ?, ?
+         SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
          WHERE EXISTS (
            SELECT 1 FROM messages
            WHERE id = ? AND status = 'draft' AND updated_at = ?
@@ -653,6 +661,8 @@ export class DraftApplicationService {
         upload.mime_type,
         upload.size_bytes,
         upload.disposition,
+        upload.file_id,
+        upload.md5,
         messageId,
         version,
       ),

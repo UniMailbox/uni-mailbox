@@ -4,6 +4,7 @@ import {
   ADMINISTRATOR_PERMISSIONS,
   MEMBER_PERMISSIONS,
   PERMISSION_KEYS,
+  adminConsoleEntryResource,
   canOpenAdminConsole,
   type AdminResourceKey,
 } from "../src";
@@ -14,8 +15,10 @@ describe("administration console permission map", () => {
     // so a new console page without an entry here is a routing hole.
     expect(Object.keys(ADMIN_RESOURCE_PERMISSIONS).sort()).toEqual([
       "analytics",
+      "attachments",
       "audit-events",
       "domains",
+      "messages",
       "provider-connections",
       "roles",
       "settings",
@@ -33,13 +36,16 @@ describe("administration console permission map", () => {
 
   it("lets an administrator open the console", () => {
     expect(canOpenAdminConsole(ADMINISTRATOR_PERMISSIONS)).toBe(true);
+    expect(adminConsoleEntryResource(ADMINISTRATOR_PERMISSIONS)).toBe(
+      "users",
+    );
   });
 
-  it("keeps a plain member out of the console", () => {
-    // MEMBER_PERMISSIONS is mailbox/message scoped only. If this ever starts
-    // returning true, a member gained an administration read permission and the
-    // console gate needs re-reviewing.
-    expect(canOpenAdminConsole(MEMBER_PERMISSIONS)).toBe(false);
+  it("opens the mailbox-scoped attachment catalog for a plain member", () => {
+    expect(canOpenAdminConsole(MEMBER_PERMISSIONS)).toBe(true);
+    expect(adminConsoleEntryResource(MEMBER_PERMISSIONS)).toBe("attachments");
+    expect(MEMBER_PERMISSIONS).toContain("attachment.read");
+    expect(MEMBER_PERMISSIONS).not.toContain("message.read_all");
   });
 
   it("grants the console to a principal holding a single console permission", () => {
@@ -51,5 +57,6 @@ describe("administration console permission map", () => {
 
   it("denies the console when no permissions are held at all", () => {
     expect(canOpenAdminConsole([])).toBe(false);
+    expect(adminConsoleEntryResource([])).toBeNull();
   });
 });

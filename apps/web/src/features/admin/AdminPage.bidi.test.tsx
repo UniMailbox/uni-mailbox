@@ -14,7 +14,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 describe("AdminPage bidi inputs", () => {
-  it("keeps generic technical fields LTR without forcing display names LTR", () => {
+  it("keeps email LTR without forcing display names or role labels LTR", async () => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
@@ -22,6 +22,16 @@ describe("AdminPage bidi inputs", () => {
       user: { id: "1", email: "admin@example.com" },
       permissions: ["user.read", "user.manage"],
     });
+    client.setQueryData(
+      ["admin", "users", "role-options"],
+      [
+        {
+          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          name: "Administrators",
+          is_system: 1,
+        },
+      ],
+    );
     const { container } = render(
       <I18nextProvider i18n={createTestI18n("ar-XB")}>
         <QueryClientProvider client={client}>
@@ -37,10 +47,9 @@ describe("AdminPage bidi inputs", () => {
       "dir",
       "ltr",
     );
-    expect(container.querySelector("input#roleIds")).toHaveAttribute(
-      "dir",
-      "ltr",
-    );
+    expect(
+      await screen.findByRole("checkbox", { name: "Administrators" }),
+    ).not.toHaveAttribute("dir");
     expect(container.querySelector("input#displayName")).not.toHaveAttribute(
       "dir",
     );

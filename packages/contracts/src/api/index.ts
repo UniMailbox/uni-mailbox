@@ -119,6 +119,8 @@ export interface CursorPage<T> {
  * `packages/contracts/test/session.test.ts` pins the key set.
  */
 export const ADMIN_RESOURCE_PERMISSIONS = {
+  messages: "message.read_all",
+  attachments: "attachment.read",
   users: "user.read",
   roles: "role.read",
   domains: "domain.read",
@@ -132,6 +134,31 @@ export const ADMIN_RESOURCE_PERMISSIONS = {
 
 export type AdminResourceKey = keyof typeof ADMIN_RESOURCE_PERMISSIONS;
 
+const ADMIN_CONSOLE_ENTRY_ORDER: readonly AdminResourceKey[] = [
+  "users",
+  "messages",
+  "attachments",
+  "roles",
+  "domains",
+  "signatures",
+  "settings",
+  "provider-connections",
+  "webhook-events",
+  "audit-events",
+  "analytics",
+];
+
+export function adminConsoleEntryResource(
+  permissions: readonly PermissionKey[],
+): AdminResourceKey | null {
+  const granted = new Set<string>(permissions);
+  return (
+    ADMIN_CONSOLE_ENTRY_ORDER.find((resource) =>
+      granted.has(ADMIN_RESOURCE_PERMISSIONS[resource]),
+    ) ?? null
+  );
+}
+
 /**
  * True when the principal can open at least one administration console page.
  * Used to decide whether the "Administration" entry point is reachable at all.
@@ -139,8 +166,5 @@ export type AdminResourceKey = keyof typeof ADMIN_RESOURCE_PERMISSIONS;
 export function canOpenAdminConsole(
   permissions: readonly PermissionKey[],
 ): boolean {
-  const granted = new Set<string>(permissions);
-  return Object.values(ADMIN_RESOURCE_PERMISSIONS).some((permission) =>
-    granted.has(permission),
-  );
+  return adminConsoleEntryResource(permissions) !== null;
 }

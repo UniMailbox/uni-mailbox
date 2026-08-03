@@ -80,6 +80,7 @@ describe("typed API client", () => {
         fetch: vi.fn().mockResolvedValue(
           new Response("contents", {
             headers: {
+              "content-type": "text/plain",
               "content-disposition": "attachment; filename*=UTF-8''runbook.txt",
             },
           }),
@@ -87,14 +88,14 @@ describe("typed API client", () => {
       }),
     );
 
-    await expect(
-      client.request(attachmentEndpoints.download, {
-        params: { attachmentId: "d9fbf784-e709-4ec4-a2ca-3385e5ff1aa6" },
-      }),
-    ).resolves.toMatchObject({
+    const result = await client.request(attachmentEndpoints.download, {
+      params: { attachmentId: "d9fbf784-e709-4ec4-a2ca-3385e5ff1aa6" },
+    });
+    expect(result).toMatchObject({
       blob: expect.any(Blob),
       contentDisposition: "attachment; filename*=UTF-8''runbook.txt",
     });
+    expect(result.blob.type).toBe("text/plain");
   });
 
   it("uploads signed Worker attachment content as a typed empty-response operation", async () => {

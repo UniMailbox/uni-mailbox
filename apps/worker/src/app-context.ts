@@ -68,10 +68,11 @@ export async function createAppContext(
     attachmentStore,
     storageBackend,
   };
+  const cursors = new CursorCodec(runtime.AUTH_SIGNING_KEY);
   const messages = new MessageApplicationService(
     partialContext,
     mailboxes,
-    new CursorCodec(runtime.AUTH_SIGNING_KEY),
+    cursors,
   );
   const attachments = new AttachmentApplicationService(
     env,
@@ -80,7 +81,7 @@ export async function createAppContext(
   );
   const drafts = new DraftApplicationService(partialContext, mailboxes);
   const webhooks = new WebhookApplicationService(partialContext);
-  const admin = new AdminApplicationService(partialContext);
+  const admin = new AdminApplicationService(partialContext, cursors);
   return {
     ...partialContext,
     installation,

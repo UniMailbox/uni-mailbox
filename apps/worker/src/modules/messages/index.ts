@@ -33,6 +33,8 @@ interface InternalRecipientRow {
 interface UploadRow {
   id: string;
   object_key: string;
+  file_id: string;
+  md5: string;
   filename: string;
   mime_type: string;
   size_bytes: number;
@@ -190,11 +192,14 @@ export class MessageApplicationService {
       input.attachmentIds.length === 0
         ? { results: [] as UploadRow[] }
         : await this.context.env.DB.prepare(
-            `SELECT id, object_key, filename, mime_type, size_bytes, disposition
-             FROM attachment_uploads
-             WHERE user_id = ? AND status = 'uploaded'
-               AND expires_at > CURRENT_TIMESTAMP
-               AND id IN (${placeholders(input.attachmentIds.length)})`,
+            `SELECT au.id, af.object_key, au.file_id, au.md5, au.filename,
+                    au.mime_type, au.size_bytes, au.disposition
+             FROM attachment_uploads au
+             JOIN attachment_files af ON af.id = au.file_id
+             WHERE au.user_id = ? AND au.status = 'uploaded'
+               AND au.md5 IS NOT NULL
+               AND au.expires_at > CURRENT_TIMESTAMP
+               AND au.id IN (${placeholders(input.attachmentIds.length)})`,
           )
             .bind(principal.userId, ...input.attachmentIds)
             .all<UploadRow>();
@@ -357,8 +362,8 @@ export class MessageApplicationService {
             this.context.env.DB.prepare(
               `INSERT INTO message_attachments (
                  id, message_id, upload_id, object_key, filename, mime_type,
-                 size_bytes, disposition
-               ) VALUES ${values(uploads.results.length, 8)}`,
+                 size_bytes, disposition, file_id, md5
+               ) VALUES ${values(uploads.results.length, 10)}`,
             ).bind(
               ...uploads.results.flatMap((upload) => [
                 crypto.randomUUID(),
@@ -369,6 +374,8 @@ export class MessageApplicationService {
                 upload.mime_type,
                 upload.size_bytes,
                 upload.disposition,
+                upload.file_id,
+                upload.md5,
               ]),
             ),
           ]

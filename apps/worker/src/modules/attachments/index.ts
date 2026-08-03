@@ -11,6 +11,10 @@ import {
 } from "../../platform/attachment-store";
 import type { UploadTokenCodec } from "./upload-token";
 import { createAttachmentDownloadResponse } from "./download-response";
+import {
+  deleteAttachmentFileIfUnreferenced,
+  storeAttachmentFile,
+} from "./file-catalog";
 
 interface UploadRow {
   id: string;
@@ -22,17 +26,13 @@ interface UploadRow {
   disposition: "attachment" | "inline";
   status: "pending" | "uploaded" | "consumed" | "expired";
   expires_at: string;
+  file_id: string | null;
+  md5: string | null;
+  stored_object_key: string;
 }
 
 interface SettingsRow {
   max_attachment_bytes: number;
-}
-
-function customMetadataValue(
-  metadata: Record<string, string>,
-  key: string,
-): string | undefined {
-  return metadata[key] ?? metadata[key.toLowerCase()];
 }
 
 function safeExtension(filename: string): string {
@@ -180,16 +180,21 @@ export class AttachmentApplicationService {
       );
     }
     const row = await this.env.DB.prepare(
-      `SELECT id, user_id, object_key, filename, mime_type, size_bytes,
-              disposition, status, expires_at
-       FROM attachment_uploads WHERE id = ?`,
+      `SELECT au.id, au.user_id, au.object_key, au.filename, au.mime_type,
+              au.size_bytes, au.disposition, au.status, au.expires_at,
+              au.file_id, au.md5,
+              COALESCE(af.object_key, au.object_key) AS stored_object_key
+       FROM attachment_uploads au
+       LEFT JOIN attachment_files af ON af.id = au.file_id
+       WHERE au.id = ?`,
     )
       .bind(uploadId)
       .first<UploadRow>();
     if (
       !row ||
       row.status !== "pending" ||
-      row.object_key !== claims.objectKey
+      row.object_key !== claims.objectKey ||
+      row.file_id !== null
     ) {
       throw new DomainError(
         "ATTACHMENT_UPLOAD_UNAVAILABLE",
@@ -197,18 +202,44 @@ export class AttachmentApplicationService {
         409,
       );
     }
-    await this.store.put(row.object_key, request.body, {
-      httpMetadata: {
-        contentType: row.mime_type,
-        contentDisposition: expectedDisposition,
+    const file = await storeAttachmentFile(
+      { env: this.env, attachmentStore: this.store },
+      {
+        objectKey: row.object_key,
+        body: request.body,
+        sizeBytes: row.size_bytes,
+        metadata: {
+          httpMetadata: {
+            contentType: row.mime_type,
+            contentDisposition: expectedDisposition,
+          },
+          customMetadata: {
+            uploadId: row.id,
+            filename: row.filename,
+            disposition: row.disposition,
+            expectedSize: String(row.size_bytes),
+          },
+        },
       },
-      customMetadata: {
-        uploadId: row.id,
-        filename: row.filename,
-        disposition: row.disposition,
-        expectedSize: String(row.size_bytes),
-      },
-    });
+    );
+    const updated = await this.env.DB.prepare(
+      `UPDATE attachment_uploads
+       SET file_id = ?, md5 = ?
+       WHERE id = ? AND status = 'pending' AND file_id IS NULL`,
+    )
+      .bind(file.fileId, file.md5, row.id)
+      .run();
+    if (updated.meta.changes !== 1) {
+      await deleteAttachmentFileIfUnreferenced(
+        { env: this.env, attachmentStore: this.store },
+        file.fileId,
+      );
+      throw new DomainError(
+        "ATTACHMENT_UPLOAD_UNAVAILABLE",
+        "The attachment upload is unavailable",
+        409,
+      );
+    }
   }
 
   async complete(principal: Principal, uploadId: string) {
@@ -230,18 +261,8 @@ export class AttachmentApplicationService {
         409,
       );
     }
-    const object = await this.store.head(row.object_key);
-    if (
-      !object ||
-      object.size !== row.size_bytes ||
-      object.httpMetadata?.contentType !== row.mime_type ||
-      customMetadataValue(object.customMetadata, "uploadId") !== row.id ||
-      customMetadataValue(object.customMetadata, "filename") !== row.filename ||
-      customMetadataValue(object.customMetadata, "disposition") !==
-        row.disposition ||
-      customMetadataValue(object.customMetadata, "expectedSize") !==
-        String(row.size_bytes)
-    ) {
+    const object = await this.store.head(row.stored_object_key);
+    if (!object || object.size !== row.size_bytes || !row.file_id || !row.md5) {
       throw new DomainError(
         "ATTACHMENT_OBJECT_MISMATCH",
         "The uploaded object does not match its signed metadata",
@@ -275,13 +296,22 @@ export class AttachmentApplicationService {
         409,
       );
     }
-    await this.store.delete(row.object_key);
-    await this.env.DB.prepare(
+    const deleted = await this.env.DB.prepare(
       `DELETE FROM attachment_uploads
        WHERE id = ? AND user_id = ? AND status != 'consumed'`,
     )
       .bind(uploadId, principal.userId)
       .run();
+    if (deleted.meta.changes === 1) {
+      if (row.file_id) {
+        await deleteAttachmentFileIfUnreferenced(
+          { env: this.env, attachmentStore: this.store },
+          row.file_id,
+        );
+      } else {
+        await this.store.delete(row.object_key);
+      }
+    }
   }
 
   async download(
@@ -332,9 +362,13 @@ export class AttachmentApplicationService {
     uploadId: string,
   ): Promise<UploadRow> {
     const row = await this.env.DB.prepare(
-      `SELECT id, user_id, object_key, filename, mime_type, size_bytes,
-              disposition, status, expires_at
-       FROM attachment_uploads WHERE id = ? AND user_id = ?`,
+      `SELECT au.id, au.user_id, au.object_key, au.filename, au.mime_type,
+              au.size_bytes, au.disposition, au.status, au.expires_at,
+              au.file_id, au.md5,
+              COALESCE(af.object_key, au.object_key) AS stored_object_key
+       FROM attachment_uploads au
+       LEFT JOIN attachment_files af ON af.id = au.file_id
+       WHERE au.id = ? AND au.user_id = ?`,
     )
       .bind(uploadId, userId)
       .first<UploadRow>();

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { administrationEndpoints } from "../src/api/administration";
 
 const id = "11111111-1111-4111-8111-111111111111";
+const mailboxId = "22222222-2222-4222-8222-222222222222";
 const headers = { "idempotency-key": "admin-request-1" };
 
 describe("administration endpoint contracts", () => {
@@ -44,6 +45,18 @@ describe("administration endpoint contracts", () => {
     expect(
       administrationEndpoints.auditEvents.responses[200].parse([]),
     ).toEqual([]);
+    expect(
+      administrationEndpoints.messages.responses[200].parse({
+        items: [],
+        nextCursor: null,
+      }),
+    ).toEqual({ items: [], nextCursor: null });
+    expect(
+      administrationEndpoints.attachments.responses[200].parse({
+        items: [],
+        nextCursor: null,
+      }),
+    ).toEqual({ items: [], nextCursor: null });
     expect(
       administrationEndpoints.analytics.responses[200].parse({
         active_users: 1,
@@ -130,6 +143,69 @@ describe("administration endpoint contracts", () => {
     ).toEqual(headers);
   });
 
+  it("models the per-user mailbox access endpoints with human email addresses", () => {
+    const items = administrationEndpoints.userMailboxes.responses[200].parse({
+      items: [
+        {
+          mailboxId,
+          address: "support@example.com",
+          displayName: "Support",
+          status: "active",
+          domainId: id,
+          role: "viewer",
+          ownerUserId: id,
+          ownerEmail: "owner@example.com",
+          ownerDisplayName: "Owner",
+        },
+      ],
+      available: [
+        {
+          mailboxId: "33333333-3333-4333-8333-333333333333",
+          address: "sales@example.com",
+          displayName: "Sales",
+          status: "active",
+          ownerEmail: "owner@example.com",
+        },
+      ],
+    });
+    expect(items.items[0]).toMatchObject({
+      address: "support@example.com",
+      role: "viewer",
+      ownerEmail: "owner@example.com",
+    });
+    expect(items.available[0]?.address).toBe("sales@example.com");
+    expect(
+      administrationEndpoints.userRoleOptions.responses[200].parse([
+        { id, name: "Administrators", is_system: 1 },
+      ]),
+    ).toEqual([{ id, name: "Administrators", is_system: 1 }]);
+    expect(
+      administrationEndpoints.userMailboxes.request?.params?.safeParse({
+        id: "not-a-uuid",
+      }).success,
+    ).toBe(false);
+
+    expect(
+      administrationEndpoints.addUserMailbox.request?.body?.parse({
+        mailboxId,
+        role: "admin",
+      }),
+    ).toMatchObject({ mailboxId, role: "admin" });
+    expect(
+      administrationEndpoints.addUserMailbox.request?.body?.safeParse({
+        mailboxId,
+        role: "owner",
+      }).success,
+    ).toBe(false);
+
+    expect(
+      administrationEndpoints.updateUserMailbox.request?.body?.parse({
+        role: "sender",
+      }),
+    ).toEqual({ role: "sender" });
+    expect(administrationEndpoints.removeUserMailbox.responses[204]).toBeNull();
+  });
+
   it("uses normalized bounded query parameters for audit and webhook reads", () => {
     expect(
       administrationEndpoints.auditEvents.request?.query?.parse({
@@ -142,5 +218,19 @@ describe("administration endpoint contracts", () => {
         limit: 600,
       }),
     ).toEqual({ limit: 500 });
+    expect(
+      administrationEndpoints.messages.request?.query?.parse({ limit: 600 }),
+    ).toEqual({ limit: 100 });
+    expect(
+      administrationEndpoints.attachments.request?.query?.parse({
+        limit: 600,
+        q: "  report.pdf  ",
+      }),
+    ).toEqual({ limit: 100, q: "report.pdf" });
+    expect(
+      administrationEndpoints.message.request?.params?.safeParse({
+        id: "not-a-uuid",
+      }).success,
+    ).toBe(false);
   });
 });

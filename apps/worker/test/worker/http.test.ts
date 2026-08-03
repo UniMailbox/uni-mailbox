@@ -373,4 +373,155 @@ describe("Worker HTTP boundary", () => {
       });
     });
   });
+
+  describe("administrator message HTTP boundary", () => {
+    function completed(overrides: Partial<HttpAppContext> = {}) {
+      return context({
+        installation: {
+          getStatus: async () => ({
+            installationVersion: 2,
+            stateVersion: 8,
+            currentStep: InstallationStep.COMPLETE,
+            completedSteps: [],
+          }),
+        },
+        ...overrides,
+      });
+    }
+
+    it("requires authentication before listing global messages", async () => {
+      const listMessages = vi.fn();
+      const app = createHttpApp(async () =>
+        completed({
+          admin: { listMessages } as unknown as HttpAppContext["admin"],
+        }),
+      );
+
+      const response = await app.request(
+        "https://mail.example/api/v1/admin/messages",
+        {},
+        env,
+      );
+
+      expect(response.status).toBe(401);
+      await expect(response.json()).resolves.toMatchObject({
+        error: { code: "AUTH_REQUIRED" },
+      });
+      expect(listMessages).not.toHaveBeenCalled();
+    });
+
+    it("passes the verified principal and bounded query to the service", async () => {
+      const principal = {
+        userId: "user-1",
+        email: "admin@example.com",
+        permissions: new Set(["message.read_all"]),
+      };
+      const listMessages = vi.fn(async () => ({
+        items: [],
+        nextCursor: null,
+      }));
+      const app = createHttpApp(async () =>
+        completed({
+          auth: {
+            verifyAccessToken: async () => principal,
+          } as unknown as HttpAppContext["auth"],
+          admin: { listMessages } as unknown as HttpAppContext["admin"],
+        }),
+      );
+
+      const response = await app.request(
+        "https://mail.example/api/v1/admin/messages?limit=1000",
+        { headers: { authorization: "Bearer access-token" } },
+        env,
+      );
+
+      expect(response.status).toBe(200);
+      expect(listMessages).toHaveBeenCalledWith(principal, { limit: 100 });
+    });
+
+    it("rejects an invalid detail ID before reading message content", async () => {
+      const getMessage = vi.fn();
+      const app = createHttpApp(async () =>
+        completed({
+          auth: {
+            verifyAccessToken: async () => ({
+              userId: "user-1",
+              email: "admin@example.com",
+              permissions: new Set(["message.read_all"]),
+            }),
+          } as unknown as HttpAppContext["auth"],
+          admin: { getMessage } as unknown as HttpAppContext["admin"],
+        }),
+      );
+
+      const response = await app.request(
+        "https://mail.example/api/v1/admin/messages/not-a-uuid",
+        { headers: { authorization: "Bearer access-token" } },
+        env,
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        error: { code: "VALIDATION_FAILED" },
+      });
+      expect(getMessage).not.toHaveBeenCalled();
+    });
+
+    it("passes normalized attachment search to the global catalog", async () => {
+      const principal = {
+        userId: "user-1",
+        email: "admin@example.com",
+        permissions: new Set(["message.read_all"]),
+      };
+      const listAttachments = vi.fn(async () => ({
+        items: [],
+        nextCursor: null,
+      }));
+      const app = createHttpApp(async () =>
+        completed({
+          auth: {
+            verifyAccessToken: async () => principal,
+          } as unknown as HttpAppContext["auth"],
+          admin: { listAttachments } as unknown as HttpAppContext["admin"],
+        }),
+      );
+
+      const response = await app.request(
+        "https://mail.example/api/v1/admin/attachments?limit=1000&q=%20report.pdf%20",
+        { headers: { authorization: "Bearer access-token" } },
+        env,
+      );
+
+      expect(response.status).toBe(200);
+      expect(listAttachments).toHaveBeenCalledWith(principal, {
+        limit: 100,
+        q: "report.pdf",
+      });
+    });
+
+    it("rejects an invalid global attachment ID before downloading bytes", async () => {
+      const downloadAttachment = vi.fn();
+      const app = createHttpApp(async () =>
+        completed({
+          auth: {
+            verifyAccessToken: async () => ({
+              userId: "user-1",
+              email: "admin@example.com",
+              permissions: new Set(["message.read_all"]),
+            }),
+          } as unknown as HttpAppContext["auth"],
+          admin: { downloadAttachment } as unknown as HttpAppContext["admin"],
+        }),
+      );
+
+      const response = await app.request(
+        "https://mail.example/api/v1/admin/attachments/not-a-uuid/download",
+        { headers: { authorization: "Bearer access-token" } },
+        env,
+      );
+
+      expect(response.status).toBe(400);
+      expect(downloadAttachment).not.toHaveBeenCalled();
+    });
+  });
 });

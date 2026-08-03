@@ -10,6 +10,8 @@
     "description": "[‮Ðëþľöÿmëñţ màïľ àñď šţöřàğë çöñƒïğüřàţïöñ‬]"
   },
   "navigation": {
+    "messages": "[‮Àľľ mëššàĝëš‬]",
+    "attachments": "[‮Àţţàçħmëñţš‬]",
     "users": "[‮Ûšëřš‬]",
     "roles": "[‮Řøľëš‬]",
     "domains": "[‮Ðømàïñš‬]",
@@ -35,7 +37,8 @@
     "reconcile": "[‮Řëçøñçïľë‬]",
     "sendProviderTest": "[‮Šëñđ ţëšţ ëmàïľ‬]",
     "add": "[‮Àđđ {{resource}}‬]",
-    "manage": "[‮Màñàĝë {{resource}}‬]"
+    "manage": "[‮Màñàĝë {{resource}}‬]",
+    "remove": "[‮Řëmøṽë‬]"
   },
   "dialog": {
     "action": "[‮Řëçøřđ àçţïøñ‬]",
@@ -62,13 +65,63 @@
     "brevo": "Brevo",
     "resend": "Resend"
   },
+  "messages": {
+    "readOnlyNotice": "[‮Řëàđ-øñľÿ ĝľøɓàľ ṽïëŵ. Vïëŵš àřë àûđïţëđ.‬]",
+    "emptyTitle": "[‮Ñø mëššàĝëš‬]",
+    "emptyBody": "[‮Mëššàĝëš ŵïľľ àþþëàř ħëřë.‬]",
+    "loadMore": "[‮Ľøàđ møřë‬]",
+    "loadingMore": "[‮Ľøàđïñĝ…‬]",
+    "viewTitle": "[‮Vïëŵ mëššàĝë‬]",
+    "viewMessage": "[‮Vïëŵ mëššàĝë: {{subject}}‬]",
+    "noSubject": "[‮Ñø šûɓĵëçţ‬]",
+    "contentTitle": "[‮Mëššàĝë çøñţëñţ‬]",
+    "attachments": "[‮Àţţàçħmëñţš‬]",
+    "unnamedAttachment": "[‮Ûññàmëđ àţţàçħmëñţ‬]",
+    "attachmentMeta": "[‮{{mimeType}}, {{size}} ɓÿţëš‬]"
+  },
+  "userMailboxes": {
+    "heading": "[‮Màïľɓøχ àççëšš‬]",
+    "description": "[‮Màñàĝë màïľɓøχ àççëšš. Øŵñëřš çàññøţ ɓë çħàñĝëđ.‬]",
+    "summary": "[‮{{count}} màïľɓøχ řëçøřđš‬]",
+    "empty": "[‮Ñø màïľɓøχ àççëšš ÿëţ.‬]",
+    "ownerNote": "[‮Øŵñëř: {{email}}‬]",
+    "changeRoleFor": "[‮Çħàñĝë řøľë ƒøř {{address}}‬]",
+    "addField": "[‮Màïľɓøχ àđđřëšš‬]",
+    "roleField": "[‮Àççëšš řøľë‬]",
+    "addAction": "[‮Ĝřàñţ àççëšš‬]"
+  },
+  "mailboxRoles": {
+    "owner": "[‮Øŵñëř‬]",
+    "viewer": "[‮Vïëŵëř‬]",
+    "sender": "[‮Šëñđëř‬]",
+    "admin": "[‮Àđmïñïšţřàţøř‬]"
+  },
+  "userRoles": {
+    "none": "[‮Ñø řøľëš àššïĝñëđ‬]",
+    "unknown": "[‮Ûñķñøŵñ řøľë‬]"
+  },
+  "attachments": {
+    "searchLabel": "[‮Šëàřçħ àţţàçħmëñţš‬]",
+    "searchPlaceholder": "[‮Fïľëñàmë, MÐ5, ţÿþë, šûɓĵëçţ, øř šëñđëř‬]",
+    "searchAction": "[‮Šëàřçħ‬]",
+    "emptyTitle": "[‮Ñø àţţàçħmëñţš‬]",
+    "emptyBody": "[‮Šàṽëđ àţţàçħmëñţš ŵïľľ àþþëàř ħëřë.‬]",
+    "viewTitle": "[‮Vïëŵ àţţàçħmëñţ‬]",
+    "view": "[‮Vïëŵ‬]",
+    "download": "[‮Ðøŵñľøàđ‬]",
+    "previewUnavailable": "[‮Šàƒë þřëṽïëŵ ûñàṽàïľàɓľë. Ðøŵñľøàđ ţħë ƒïľë.‬]",
+    "unnamedAttachment": "[‮Ûññàmëđ àţţàçħmëñţ‬]",
+    "hashPending": "[‮Ħàšħ þëñđïñĝ‬]",
+    "loadMore": "[‮Ľøàđ møřë‬]",
+    "loadingMore": "[‮Ľøàđïñĝ…‬]"
+  },
   "search": { "label": "[‮Šëàřçħ àûđïţ‬]", "placeholder": "[‮řëɋûëšţ ÏÐ‬]" },
   "fields": {
     "id": "[‮Řëçøřđ ÏÐ‬]",
     "displayName": "[‮Ðïšþľàÿ ñàmë‬]",
     "email": "[‮Ëmàïľ‬]",
     "password": "[‮Þàššŵøřđ‬]",
-    "roleIds": "[‮Řøľë ÏÐš‬]",
+    "roles": "[‮Řøľëš‬]",
     "name": "[‮Ñàmë‬]",
     "description": "[‮Ðëšçřïþţïøñ‬]",
     "permissions": "[‮Þëřmïššïøñš‬]",
@@ -77,6 +130,11 @@
     "apiKey": "[‮Þřøṽïđëř ÀÞÏ ķëÿ‬]",
     "webhookSecret": "[‮Ŵëɓħøøķ šëçřëţ‬]",
     "status": "[‮Šţàţûš‬]",
+    "filename": "[‮Fïľëñàmë‬]",
+    "mime_type": "[‮MÏMË ţÿþë‬]",
+    "size_bytes": "[‮ßÿţëš‬]",
+    "md5": "MD5",
+    "reference_count": "[‮Řëƒëřëñçëš‬]",
     "action": "[‮Àçţïøñ‬]",
     "outboundConnectionId": "[‮Çøññëçţïøñ ÏÐ‬]",
     "outboundProvider": "[‮Øûţɓøûñđ þřøṽïđëř‬]",
@@ -125,6 +183,11 @@
     "email": "[‮Ëmàïľ‬]",
     "display_name": "[‮Ðïšþľàÿ ñàmë‬]",
     "status": "[‮Šţàţûš‬]",
+    "from_address": "[‮Fřøm‬]",
+    "recipient_addresses": "[‮Řëçïþïëñţš‬]",
+    "subject": "[‮Šûɓĵëçţ‬]",
+    "domain_name": "[‮Ðømàïñ‬]",
+    "mailbox_addresses": "[‮Màïľɓøχëš‬]",
     "created_at": "[‮Çřëàţëđ‬]",
     "roles": "[‮Řøľëš‬]",
     "name": "[‮Ñàmë‬]",

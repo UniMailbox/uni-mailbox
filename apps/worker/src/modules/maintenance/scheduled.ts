@@ -1,6 +1,11 @@
 import type { AppContext } from "../../app-context";
 import { OutboundJobService } from "../outbound-mail";
 import { isOrphanCleanupEligible } from "./orphan-policy";
+import {
+  backfillAttachmentFileMd5,
+  deleteAttachmentFileIfUnreferenced,
+  type AttachmentFileRow,
+} from "../attachments/file-catalog";
 
 // Mirrors the cron schedule in wrangler.jsonc: every minute the worker may
 // run, with a denser tick at the top of every hour and a single daily
@@ -68,20 +73,26 @@ async function cleanupExpiredUploads(context: AppContext): Promise<void> {
   // rows roll into the next hourly tick. The two-step delete (object store
   // then row) mirrors upload lifetime guarantees from the contract.
   const uploads = await context.env.DB.prepare(
-    `SELECT id, object_key
+    `SELECT id, object_key, file_id
      FROM attachment_uploads
      WHERE status IN ('pending', 'uploaded') AND expires_at <= CURRENT_TIMESTAMP
      LIMIT 100`,
-  ).all<{ id: string; object_key: string }>();
+  ).all<{ id: string; object_key: string; file_id: string | null }>();
   for (const upload of uploads.results) {
-    await context.attachmentStore.delete(upload.object_key);
-    await context.env.DB.prepare(
+    const expired = await context.env.DB.prepare(
       `UPDATE attachment_uploads
        SET status = 'expired'
        WHERE id = ? AND status IN ('pending', 'uploaded')`,
     )
       .bind(upload.id)
       .run();
+    if (expired.meta.changes === 1) {
+      if (upload.file_id) {
+        await deleteAttachmentFileIfUnreferenced(context, upload.file_id);
+      } else {
+        await context.attachmentStore.delete(upload.object_key);
+      }
+    }
   }
   context.logger.info("maintenance.uploads.cleaned", {
     count: uploads.results.length,
@@ -142,19 +153,24 @@ async function cleanupTrashAndMessages(context: AppContext): Promise<void> {
   ).all<{ id: string; raw_object_key: string | null }>();
   for (const message of messages.results) {
     const attachments = await context.env.DB.prepare(
-      "SELECT object_key FROM message_attachments WHERE message_id = ?",
+      `SELECT object_key, file_id
+       FROM message_attachments WHERE message_id = ?`,
     )
       .bind(message.id)
-      .all<{ object_key: string }>();
-    for (const attachment of attachments.results) {
-      await context.attachmentStore.delete(attachment.object_key);
-    }
+      .all<{ object_key: string; file_id: string | null }>();
     if (message.raw_object_key) {
       await context.attachmentStore.delete(message.raw_object_key);
     }
     await context.env.DB.prepare("DELETE FROM messages WHERE id = ?")
       .bind(message.id)
       .run();
+    for (const attachment of attachments.results) {
+      if (attachment.file_id) {
+        await deleteAttachmentFileIfUnreferenced(context, attachment.file_id);
+      } else {
+        await context.attachmentStore.delete(attachment.object_key);
+      }
+    }
   }
   context.logger.info("maintenance.messages.retained", {
     removed: messages.results.length,
@@ -190,9 +206,11 @@ async function cleanupOrphanObjects(context: AppContext): Promise<void> {
        UNION ALL
        SELECT 1 FROM attachment_uploads
        WHERE object_key = ? AND status IN ('pending', 'uploaded', 'consumed')
+       UNION ALL
+       SELECT 1 FROM attachment_files WHERE object_key = ?
        LIMIT 1`,
     )
-      .bind(object.key, object.key, object.key)
+      .bind(object.key, object.key, object.key, object.key)
       .first();
     if (!reference) {
       await context.attachmentStore.delete(object.key);
@@ -237,7 +255,38 @@ const maintenanceHandlers: Record<
     cursor: unknown;
     processed: number;
   }>
-> = {};
+> = {
+  "attachment-md5-backfill": async (context, rawCursor) => {
+    const cursor =
+      rawCursor && typeof rawCursor === "object" && "objectKey" in rawCursor
+        ? String((rawCursor as { objectKey?: unknown }).objectKey ?? "")
+        : "";
+    const files = await context.env.DB.prepare(
+      `SELECT id, object_key, md5, size_bytes
+       FROM attachment_files
+       WHERE md5 IS NULL AND object_key > ?
+       ORDER BY object_key
+       LIMIT 1`,
+    )
+      .bind(cursor)
+      .all<AttachmentFileRow>();
+    for (const file of files.results) {
+      await backfillAttachmentFileMd5(context, file);
+    }
+    const last = files.results.at(-1)?.object_key ?? cursor;
+    const remaining = await context.env.DB.prepare(
+      `SELECT 1 FROM attachment_files
+       WHERE md5 IS NULL AND object_key > ? LIMIT 1`,
+    )
+      .bind(last)
+      .first();
+    return {
+      complete: !remaining,
+      cursor: { objectKey: last },
+      processed: files.results.length,
+    };
+  },
+};
 
 async function processMaintenanceJobs(context: AppContext): Promise<void> {
   const jobs = await context.env.DB.prepare(

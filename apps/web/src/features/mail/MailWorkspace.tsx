@@ -16,6 +16,7 @@ import {
   LogOut,
   Mail,
   Menu,
+  Paperclip,
   PenLine,
   Search,
   Send,
@@ -24,7 +25,7 @@ import {
   Star,
   Trash2,
 } from "lucide-react";
-import { canOpenAdminConsole } from "@unimailbox/contracts";
+import { adminConsoleEntryResource } from "@unimailbox/contracts";
 import { endSession, useSession } from "../../lib/session";
 import { logoutMutationOptions } from "../auth/api";
 import { useUiStore } from "../../lib/ui-store";
@@ -87,7 +88,7 @@ export function MailWorkspace({
   // The authenticated Router parent has already resolved this query before the workspace
   // mounts, so this reads from cache rather than issuing a second request.
   const session = useSession();
-  const adminConsoleAvailable = canOpenAdminConsole(
+  const adminConsoleEntry = adminConsoleEntryResource(
     session.data?.permissions ?? [],
   );
   const activeMailboxId =
@@ -199,11 +200,20 @@ export function MailWorkspace({
           <Link to="/settings/mailboxes">
             <Settings /> <span>{t("navigation.settings")}</span>
           </Link>
-          {/* Hidden rather than disabled: a member has no console permissions
-              at all, so the entry point would only ever lead to a denial. */}
-          {adminConsoleAvailable ? (
-            <Link to="/admin/users">
-              <Shield /> <span>{t("navigation.administration")}</span>
+          {adminConsoleEntry ? (
+            <Link to={`/admin/${adminConsoleEntry}`}>
+              {adminConsoleEntry === "attachments" ? (
+                <Paperclip />
+              ) : (
+                <Shield />
+              )}
+              <span>
+                {t(
+                  adminConsoleEntry === "attachments"
+                    ? "navigation.attachments"
+                    : "navigation.administration",
+                )}
+              </span>
             </Link>
           ) : null}
         </nav>

@@ -168,6 +168,13 @@ R2. R2 requires a paid Cloudflare plan; KV ships with the free tier. The
 runtime selects the backend automatically based on whether the `ATTACHMENTS`
 binding is present — no configuration flag or environment variable is needed.
 
+D1 stores the searchable attachment catalog (`attachment_files`) and per-message
+references, while KV/R2 stores only the bytes. New uploads and inbound messages
+receive a Worker-computed MD5; matching MD5 and size values are verified by a
+byte comparison before one canonical object is reused. After migration 0007,
+the scheduled `attachment-md5-backfill` job hashes legacy objects in bounded
+batches, so the schema migration itself never reads large objects.
+
 | Backend | Binding       | Default? | Best for                                    |
 | ------- | ------------- | -------- | ------------------------------------------- |
 | KV      | `KV`          | Yes      | Cold-start installs, low-to-medium traffic  |

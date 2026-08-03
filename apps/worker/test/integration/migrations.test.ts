@@ -11,6 +11,7 @@ describe("D1 migration chain", () => {
          'users', 'sessions', 'roles', 'permissions', 'domains', 'mailboxes',
          'messages', 'message_recipients', 'mailbox_messages',
          'message_user_state', 'attachment_uploads', 'message_attachments',
+         'attachment_files',
          'outbound_jobs', 'provider_connections', 'webhook_deliveries',
          'installation_state', 'configuration_checkpoints'
        )`,
@@ -20,7 +21,7 @@ describe("D1 migration chain", () => {
       "SELECT current_step FROM installation_state WHERE id = 1",
     ).first<{ current_step: string }>();
 
-    expect(required).toBe(17);
+    expect(required).toBe(18);
     expect(foreignKeys.results).toEqual([]);
     expect(installation?.current_step).toBe("admin_bootstrap");
     const checkpoints = await env.DB.prepare(
@@ -48,9 +49,24 @@ describe("D1 migration chain", () => {
        WHERE role_id = '00000000-0000-4000-8000-000000000001'`,
     ).first<number>("count");
 
-    expect(permissions).toBe(20);
+    expect(permissions).toBe(22);
     expect(roles).toBe(2);
-    expect(administratorPermissions).toBe(20);
+    expect(administratorPermissions).toBe(22);
+    const globalMessageReaders = await env.DB.prepare(
+      `SELECT role_id FROM role_permissions
+       WHERE permission_key = 'message.read_all' ORDER BY role_id`,
+    ).all<{ role_id: string }>();
+    expect(globalMessageReaders.results).toEqual([
+      { role_id: "00000000-0000-4000-8000-000000000001" },
+    ]);
+    const attachmentReaders = await env.DB.prepare(
+      `SELECT role_id FROM role_permissions
+       WHERE permission_key = 'attachment.read' ORDER BY role_id`,
+    ).all<{ role_id: string }>();
+    expect(attachmentReaders.results).toEqual([
+      { role_id: "00000000-0000-4000-8000-000000000001" },
+      { role_id: "00000000-0000-4000-8000-000000000002" },
+    ]);
   });
 
   it("enforces attachment linkage triggers", async () => {
@@ -124,5 +140,53 @@ describe("D1 migration chain", () => {
     await expect(
       env.DB.prepare("PRAGMA foreign_key_check").all(),
     ).resolves.toMatchObject({ results: [] });
+  });
+
+  it("catalogs legacy attachment objects for scheduled MD5 backfill", async () => {
+    await applyD1Migrations(env.DB, env.TEST_MIGRATIONS.slice(0, 6));
+    await env.DB.prepare(
+      `INSERT INTO users (
+         id, email, password_hash, password_salt, password_iterations,
+         display_name
+       ) VALUES (?, 'legacy@example.com', 'hash', 'salt', 1, 'Legacy')`,
+    )
+      .bind("11111111-1111-4111-8111-111111111111")
+      .run();
+    await env.DB.prepare(
+      `INSERT INTO attachment_uploads (
+         id, user_id, object_key, filename, mime_type, size_bytes,
+         disposition, status, expires_at
+       ) VALUES (?, ?, 'attachments/legacy', 'legacy.txt', 'text/plain', 6,
+                 'attachment', 'uploaded', datetime('now', '+1 hour'))`,
+    )
+      .bind(
+        "22222222-2222-4222-8222-222222222222",
+        "11111111-1111-4111-8111-111111111111",
+      )
+      .run();
+
+    await applyD1Migrations(env.DB, env.TEST_MIGRATIONS.slice(6));
+
+    await expect(
+      env.DB.prepare(
+        `SELECT au.file_id, au.md5, af.object_key, af.md5 AS file_md5
+         FROM attachment_uploads au
+         JOIN attachment_files af ON af.id = au.file_id
+         WHERE au.id = ?`,
+      )
+        .bind("22222222-2222-4222-8222-222222222222")
+        .first(),
+    ).resolves.toEqual({
+      file_id: "legacy:attachments/legacy",
+      md5: null,
+      object_key: "attachments/legacy",
+      file_md5: null,
+    });
+    await expect(
+      env.DB.prepare(
+        `SELECT status FROM maintenance_jobs
+         WHERE job_key = 'attachment-md5-backfill'`,
+      ).first(),
+    ).resolves.toEqual({ status: "pending" });
   });
 });

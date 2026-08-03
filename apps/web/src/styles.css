@@ -1164,6 +1164,17 @@ svg {
   font: 13px var(--sans);
   text-transform: none;
 }
+.admin-search-controls {
+  display: flex;
+  gap: 8px;
+}
+.admin-search-controls input {
+  flex: 1;
+}
+.admin-load-more {
+  display: flex;
+  margin: 18px auto;
+}
 .data-table-wrap {
   overflow-x: auto;
 }
@@ -1307,6 +1318,65 @@ svg {
   justify-content: flex-end;
   padding-top: 6px;
 }
+.admin-messages-notice {
+  padding: 14px 20px;
+  margin: 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+.admin-pagination {
+  display: flex;
+  justify-content: center;
+  padding: 18px;
+}
+.admin-message-subject {
+  margin: 8px 0 22px;
+  font-size: 24px;
+}
+.admin-message-frame {
+  width: 100%;
+  min-height: 340px;
+  border: 1px solid var(--line);
+  background: white;
+}
+.admin-attachment-preview-image,
+.admin-attachment-preview-frame {
+  display: block;
+  width: 100%;
+  max-height: 62vh;
+  margin-bottom: 18px;
+  border: 1px solid var(--line);
+  background: white;
+  object-fit: contain;
+}
+.admin-attachment-preview-frame {
+  min-height: 480px;
+}
+.admin-message-attachments {
+  padding-top: 20px;
+  margin-top: 22px;
+  border-top: 1px solid var(--line);
+}
+.admin-message-attachments h3 {
+  margin-bottom: 10px;
+  font-size: 15px;
+}
+.admin-message-attachments ul {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.admin-message-attachments li {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  background: white;
+}
+.admin-message-attachments small {
+  color: var(--muted);
+}
 .record-details {
   display: grid;
   gap: 0;
@@ -1382,6 +1452,116 @@ svg {
   gap: 9px;
   align-items: center;
   font-size: 13px;
+}
+.view-record-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.admin-section-header h3 {
+  font-size: 14px;
+  margin: 0;
+}
+.admin-section-header p {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.admin-section-meta,
+.admin-section-empty {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.admin-mailbox-access {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.admin-mailbox-access-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.admin-mailbox-access-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.admin-mailbox-access-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.admin-mailbox-access-meta {
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.admin-mailbox-access-owner {
+  font-size: 12px;
+}
+.admin-mailbox-access-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.admin-mailbox-access-actions select {
+  min-width: 110px;
+}
+.admin-mailbox-access-form {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+.admin-mailbox-access-form .field {
+  margin: 0;
+}
+.field-multi {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field-multi legend {
+  font-size: 13px;
+  padding: 0 6px;
+}
+.field-multi-summary {
+  font-size: 12px;
+  color: var(--muted);
+}
+.field-multi-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 6px;
+}
+.role-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-strong);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  width: max-content;
 }
 .settings-number-grid,
 .settings-check-grid {
@@ -1991,6 +2171,15 @@ svg {
   }
   .card-heading {
     align-items: start;
+  }
+  .admin-mailbox-access-row {
+    grid-template-columns: 1fr;
+  }
+  .admin-mailbox-access-actions {
+    justify-content: flex-start;
+  }
+  .admin-mailbox-access-form {
+    grid-template-columns: 1fr;
   }
 }
 
