@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { defineEndpoint } from "./common/endpoint";
+import { AttachmentDownloadSchema } from "./attachments";
 
 const UuidSchema = z.string().trim().uuid();
 const IdempotencyHeadersSchema = z.object({
@@ -147,6 +148,12 @@ const UserSchema = z.object({
   status: z.enum(["active", "suspended", "deleted"]),
   created_at: z.string(),
   roles: z.string().nullable(),
+  role_ids: z.string().nullable().default(null),
+});
+const AdminUserRoleOptionSchema = z.object({
+  id: UuidSchema,
+  name: z.string(),
+  is_system: z.number(),
 });
 const RoleSchema = z.object({
   id: UuidSchema,
@@ -231,6 +238,128 @@ const AnalyticsSchema = z.object({
   sent_messages: z.number(),
   failed_jobs: z.number(),
   failed_webhooks: z.number(),
+});
+export const AdminMessageListQuerySchema = z.object({
+  cursor: z.string().trim().min(1).max(2_048).optional(),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .default(50)
+    .transform((value) => Math.min(100, value)),
+});
+export const AdminAttachmentListQuerySchema =
+  AdminMessageListQuerySchema.extend({
+    q: z.string().trim().max(200).optional(),
+  });
+export const AdminMessageParamsSchema = z.object({ id: UuidSchema });
+export const AdminAttachmentParamsSchema = z.object({ id: UuidSchema });
+const AdminUserMailboxRoleSchema = z.enum(["viewer", "sender", "admin"]);
+const AdminUserMailboxAccessBodySchema = z.object({
+  mailboxId: UuidSchema,
+  role: AdminUserMailboxRoleSchema,
+});
+const AdminUserMailboxRoleBodySchema = z.object({
+  role: AdminUserMailboxRoleSchema,
+});
+const AdminUserMailboxSchema = z.object({
+  mailboxId: UuidSchema,
+  address: z.string().email(),
+  displayName: z.string(),
+  status: z.enum(["active", "disabled", "deleted"]),
+  domainId: UuidSchema,
+  role: z.enum(["owner", "viewer", "sender", "admin"]),
+  ownerUserId: UuidSchema,
+  ownerEmail: z.string().email(),
+  ownerDisplayName: z.string(),
+});
+const AdminUserMailboxOptionSchema = AdminUserMailboxSchema.pick({
+  mailboxId: true,
+  address: true,
+  displayName: true,
+  status: true,
+  ownerEmail: true,
+});
+const AdminMessageSummarySchema = z.object({
+  id: UuidSchema,
+  domain_id: UuidSchema.nullable(),
+  domain_name: z.string().nullable(),
+  from_address: z.string(),
+  from_name: z.string().nullable(),
+  subject: z.string(),
+  status: z.string(),
+  recipient_addresses: z.string().nullable(),
+  mailbox_addresses: z.string().nullable(),
+  created_at: z.string(),
+  sent_at: z.string().nullable(),
+  received_at: z.string().nullable(),
+});
+const AdminMessageDetailSchema = z.object({
+  id: UuidSchema,
+  domain_id: UuidSchema.nullable(),
+  domain_name: z.string().nullable(),
+  thread_id: UuidSchema.nullable(),
+  from_address: z.string(),
+  from_name: z.string().nullable(),
+  subject: z.string(),
+  html_body: z.string(),
+  text_body: z.string(),
+  message_id_header: z.string().nullable(),
+  in_reply_to_header: z.string().nullable(),
+  references_header: z.string(),
+  provider_key: z.string().nullable(),
+  provider_message_id: z.string().nullable(),
+  status: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  sent_at: z.string().nullable(),
+  received_at: z.string().nullable(),
+  recipients: z.array(
+    z.object({
+      type: z.enum(["to", "cc", "bcc"]),
+      address: z.string(),
+      display_name: z.string().nullable(),
+    }),
+  ),
+  mailboxes: z.array(
+    z.object({
+      id: UuidSchema,
+      address: z.string(),
+      folder: z.enum(["inbox", "sent", "drafts", "archive", "trash"]),
+    }),
+  ),
+  attachments: z.array(
+    z.object({
+      id: UuidSchema,
+      filename: z.string().nullable(),
+      mime_type: z.string(),
+      size_bytes: z.number().int().nonnegative(),
+      disposition: z.enum(["attachment", "inline"]),
+      content_id: z.string().nullable(),
+      md5: z
+        .string()
+        .regex(/^[a-f0-9]{32}$/u)
+        .nullable(),
+    }),
+  ),
+});
+const AdminAttachmentSummarySchema = z.object({
+  id: UuidSchema,
+  message_id: UuidSchema,
+  filename: z.string().nullable(),
+  mime_type: z.string(),
+  size_bytes: z.number().int().nonnegative(),
+  disposition: z.enum(["attachment", "inline"]),
+  content_id: z.string().nullable(),
+  md5: z
+    .string()
+    .regex(/^[a-f0-9]{32}$/u)
+    .nullable(),
+  subject: z.string(),
+  from_address: z.string(),
+  message_created_at: z.string(),
+  created_at: z.string(),
+  reference_count: z.number().int().positive(),
 });
 const limitQuery = z.object({
   limit: z.coerce
@@ -321,6 +450,54 @@ const InboundSmokeResponseSchema = z.discriminatedUnion("status", [
 ]);
 
 export const administrationEndpoints = {
+  messages: defineEndpoint({
+    method: "GET",
+    path: "/admin/messages",
+    request: { query: AdminMessageListQuerySchema },
+    responses: {
+      200: z.object({
+        items: z.array(AdminMessageSummarySchema),
+        nextCursor: z.string().nullable(),
+      }),
+    },
+    errors: [...adminReadErrors, "CURSOR_INVALID"],
+    mediaType: "json",
+  }),
+  message: defineEndpoint({
+    method: "GET",
+    path: "/admin/messages/:id",
+    request: { params: AdminMessageParamsSchema },
+    responses: { 200: AdminMessageDetailSchema },
+    errors: [...adminReadErrors, "MESSAGE_NOT_FOUND", "VALIDATION_FAILED"],
+    mediaType: "json",
+  }),
+  attachments: defineEndpoint({
+    method: "GET",
+    path: "/admin/attachments",
+    request: { query: AdminAttachmentListQuerySchema },
+    responses: {
+      200: z.object({
+        items: z.array(AdminAttachmentSummarySchema),
+        nextCursor: z.string().nullable(),
+      }),
+    },
+    errors: [...adminReadErrors, "CURSOR_INVALID"],
+    mediaType: "json",
+  }),
+  attachmentDownload: defineEndpoint({
+    method: "GET",
+    path: "/admin/attachments/:id/download",
+    request: { params: AdminAttachmentParamsSchema },
+    responses: { 200: AttachmentDownloadSchema },
+    errors: [
+      ...adminReadErrors,
+      "ATTACHMENT_NOT_FOUND",
+      "ATTACHMENT_OBJECT_MISSING",
+      "VALIDATION_FAILED",
+    ],
+    mediaType: "binary",
+    binaryResponse: "blob-with-content-disposition",
+  }),
   cloudflareStatus: defineEndpoint({
     method: "GET",
     path: "/admin/cloudflare/status",
@@ -458,6 +635,13 @@ export const administrationEndpoints = {
     method: "GET",
     path: "/admin/users",
     responses: { 200: z.array(UserSchema) },
+    errors: adminReadErrors,
+    mediaType: "json",
+  }),
+  userRoleOptions: defineEndpoint({
+    method: "GET",
+    path: "/admin/users/role-options",
+    responses: { 200: z.array(AdminUserRoleOptionSchema) },
     errors: adminReadErrors,
     mediaType: "json",
   }),
@@ -784,5 +968,73 @@ export const administrationEndpoints = {
     responses: { 200: AnalyticsSchema },
     errors: adminReadErrors,
     mediaType: "json",
+  }),
+  userMailboxes: defineEndpoint({
+    method: "GET",
+    path: "/admin/users/:id/mailboxes",
+    request: { params: z.object({ id: UuidSchema }) },
+    responses: {
+      200: z.object({
+        items: z.array(AdminUserMailboxSchema),
+        available: z.array(AdminUserMailboxOptionSchema),
+      }),
+    },
+    errors: [...adminReadErrors, "USER_NOT_FOUND"],
+    mediaType: "json",
+  }),
+  addUserMailbox: defineEndpoint({
+    method: "POST",
+    path: "/admin/users/:id/mailboxes",
+    request: {
+      params: z.object({ id: UuidSchema }),
+      headers: IdempotencyHeadersSchema,
+      body: AdminUserMailboxAccessBodySchema,
+    },
+    responses: { 201: AdminUserMailboxSchema },
+    errors: [
+      ...adminMutationErrors,
+      "USER_NOT_FOUND",
+      "MAILBOX_NOT_FOUND",
+      "MAILBOX_ACCESS_TARGET_NOT_FOUND",
+      "MAILBOX_OWNER_MEMBERSHIP_INVALID",
+      "MAILBOX_ROLE_INVALID",
+    ],
+    mediaType: "json",
+  }),
+  updateUserMailbox: defineEndpoint({
+    method: "PATCH",
+    path: "/admin/users/:id/mailboxes/:mailboxId",
+    request: {
+      params: z.object({ id: UuidSchema, mailboxId: UuidSchema }),
+      headers: IdempotencyHeadersSchema,
+      body: AdminUserMailboxRoleBodySchema,
+    },
+    responses: { 200: AdminUserMailboxSchema },
+    errors: [
+      ...adminMutationErrors,
+      "USER_NOT_FOUND",
+      "MAILBOX_NOT_FOUND",
+      "MAILBOX_ACCESS_TARGET_NOT_FOUND",
+      "MAILBOX_OWNER_MEMBERSHIP_INVALID",
+      "MAILBOX_ROLE_INVALID",
+    ],
+    mediaType: "json",
+  }),
+  removeUserMailbox: defineEndpoint({
+    method: "DELETE",
+    path: "/admin/users/:id/mailboxes/:mailboxId",
+    request: {
+      params: z.object({ id: UuidSchema, mailboxId: UuidSchema }),
+      headers: IdempotencyHeadersSchema,
+    },
+    responses: { 204: null },
+    errors: [
+      ...adminMutationErrors,
+      "USER_NOT_FOUND",
+      "MAILBOX_NOT_FOUND",
+      "MAILBOX_ACCESS_TARGET_NOT_FOUND",
+      "MAILBOX_OWNER_MEMBERSHIP_INVALID",
+    ],
+    mediaType: "empty",
   }),
 } as const;

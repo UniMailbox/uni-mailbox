@@ -2,6 +2,9 @@ import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import {
   adminKeys,
+  adminAttachmentsInfiniteQueryOptions,
+  adminMessageQueryOptions,
+  adminMessagesInfiniteQueryOptions,
   adminQueryOptions,
   adminMutationOptions,
   auditEventsQueryOptions,
@@ -50,6 +53,15 @@ describe("administration query ownership", () => {
     expect(adminQueryOptions("analytics").queryKey).toEqual(
       adminKeys.resource("analytics"),
     );
+    expect(adminMessagesInfiniteQueryOptions().queryKey).toEqual(
+      adminKeys.messages(),
+    );
+    expect(adminAttachmentsInfiniteQueryOptions("  report  ").queryKey).toEqual(
+      adminKeys.attachments("report"),
+    );
+    expect(
+      adminMessageQueryOptions("11111111-1111-4111-8111-111111111111").queryKey,
+    ).toEqual(adminKeys.message("11111111-1111-4111-8111-111111111111"));
   });
 
   it("invalidates create and update resource caches with related checkpoints", async () => {
@@ -287,7 +299,7 @@ describe("administration query ownership", () => {
         displayName: "Admin",
         email: "bad",
         password: "short",
-        roleIds: "not-a-uuid",
+        roleIds: ["not-a-uuid"],
       }).success,
     ).toBe(false);
     expect(
@@ -296,7 +308,7 @@ describe("administration query ownership", () => {
         id: "not-a-uuid",
         displayName: "",
         status: "",
-        roleIds: "",
+        roleIds: [],
       }).success,
     ).toBe(false);
     expect(

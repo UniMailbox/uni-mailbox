@@ -11,6 +11,10 @@ describe("administration permission boundary", () => {
     };
 
     expect(() => assertPermission(principal, "message.read")).not.toThrow();
+    expect(() => assertPermission(principal, "attachment.read")).not.toThrow();
+    expect(() => assertPermission(principal, "message.read_all")).toThrowError(
+      /message.read_all/,
+    );
     expect(() => assertPermission(principal, "user.manage")).toThrowError(
       /user.manage/,
     );

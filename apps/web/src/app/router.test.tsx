@@ -130,6 +130,8 @@ describe("router memory history", () => {
     "/trash",
     "/settings/account",
     "/admin/users",
+    "/admin/messages",
+    "/admin/attachments",
     "/messages/message-1",
   ])("keeps an authenticated visitor on protected %s", async (path) => {
     const { router } = routerAt(path);
@@ -185,6 +187,29 @@ describe("router memory history", () => {
     expect(
       screen.getByText("This page requires the user.read permission."),
     ).toBeVisible();
+  });
+
+  it("does not let mailbox-scoped message.read open the global message route", async () => {
+    const { queryClient, router } = routerAt("/admin/messages", {
+      ...ADMIN_SESSION,
+      permissions: ["message.read"],
+    });
+    renderRouter(router, queryClient);
+    expect(
+      await screen.findByText("You do not have access to this area"),
+    ).toBeVisible();
+    expect(
+      screen.getByText("This page requires the message.read_all permission."),
+    ).toBeVisible();
+  });
+
+  it("lets a mailbox member open the attachment catalog without global message access", async () => {
+    const { router } = routerAt("/admin/attachments", {
+      ...ADMIN_SESSION,
+      permissions: ["message.read", "attachment.read"],
+    });
+    await router.load();
+    expect(router.state.location.pathname).toBe("/admin/attachments");
   });
 
   it.each([

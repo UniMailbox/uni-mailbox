@@ -115,7 +115,11 @@ export function createApiClient(
       const data =
         endpoint.binaryResponse === "blob-with-content-disposition"
           ? {
-              blob: new Blob([result.data as ArrayBuffer]),
+              blob: new Blob([result.data as ArrayBuffer], {
+                type:
+                  result.headers?.get("content-type") ??
+                  "application/octet-stream",
+              }),
               contentDisposition:
                 result.headers?.get("content-disposition") ?? null,
             }

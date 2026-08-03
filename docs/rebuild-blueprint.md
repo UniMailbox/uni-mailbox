@@ -936,6 +936,7 @@ Recommended permission keys:
 
 ```text
 message.read
+message.read_all
 message.send
 message.delete
 mailbox.create
@@ -1196,16 +1197,17 @@ export const MAX_ATTACHMENT_BYTES = 64 * 1024 * 1024;
 export const PRESIGN_TTL_SECONDS = 300;
 ```
 
-### 8.2 Direct-upload flow
+### 8.2 Signed Worker upload and content catalog
 
-1. Browser requests a presigned upload.
+1. Browser requests a signed upload URL.
 2. Worker validates filename, MIME type, size, and disposition.
 3. Worker inserts a `pending` upload row with the authenticated user, random object key, and expiry.
-4. Browser uploads bytes directly to R2.
-5. Browser calls the completion endpoint with the upload ID.
-6. Worker uses `R2.head` to verify object existence, canonical size, and signed metadata, then changes the row to `uploaded`.
-7. Compose submits only completed upload IDs.
-8. Message creation inserts `message_attachments`; database triggers validate and atomically consume each upload.
+4. Browser streams bytes to the signed Worker endpoint; the Worker streams them to R2/KV while calculating MD5 itself.
+5. The Worker creates or reuses an `attachment_files` content row. A matching MD5 and size is only a candidate: the stored bytes must also compare equal before an existing object is reused.
+6. Browser calls the completion endpoint with the upload ID.
+7. Worker verifies the canonical stored object and changes the row to `uploaded`.
+8. Compose submits only completed upload IDs.
+9. Message creation inserts `message_attachments`; database triggers validate the `file_id` and atomically consume each upload.
 
 Object-key format:
 
@@ -1213,7 +1215,9 @@ Object-key format:
 attachments/{uuid-v4}[.{safe-extension}]
 ```
 
-The browser never receives R2 credentials.
+The browser never receives R2 credentials. `attachment_files` owns the canonical object key, MD5, and byte size; `message_attachments` retains the per-message filename, MIME type, disposition, and content ID. Multiple message references may therefore share one stored object without losing their original metadata.
+
+Legacy attachment objects are linked to content rows by migration 0007. The bounded `attachment-md5-backfill` maintenance job hashes them from object storage and merges only byte-identical objects. All deletion paths remove the content object only after the final active upload or message reference disappears.
 
 An upload ID is usable only when it belongs to the caller, has status `uploaded`, has not expired, and still matches the R2 object metadata. Completion and message creation are idempotent. Reusing a consumed upload must return `409 ATTACHMENT_ALREADY_CONSUMED`.
 
@@ -1253,15 +1257,19 @@ Attachment download uses an authenticated API:
 
 ```text
 GET /api/v1/attachments/:attachmentId/download
+GET /api/v1/admin/attachments?q=<filename-or-md5>
+GET /api/v1/admin/attachments/:attachmentId/download
 ```
 
 The API:
 
 1. Resolves the attachment and message.
 2. Confirms the caller can read at least one linked mailbox message.
-3. Returns a short-lived signed R2 URL or streams the object.
+3. Streams the object through the Worker; objects are never made public.
 4. Adds `X-Content-Type-Options: nosniff`.
 5. Uses `Content-Disposition: attachment` unless the stored disposition is explicitly inline and the MIME type is allowed.
+
+The administration attachment catalog requires `message.read_all`, supports bounded cursor pagination, and searches filename, MD5, MIME type, message subject, and sender. Global attachment downloads are audited and forced to `Content-Disposition: attachment`; the web client previews only an explicit safe image allow-list and PDF inside a sandboxed frame.
 
 ## 9. Provider interfaces
 
@@ -2050,6 +2058,13 @@ Unused uploads expire and are removed by a scheduled cleanup job.
 | GET/POST/PATCH        | `/admin/provider-connections`      | `domain.read` or `domain.manage`               |
 | POST                  | `/admin/providers/sync`            | `provider.sync`                                |
 | GET/DELETE            | `/admin/webhook-events`            | `webhook_event.read` or `webhook_event.delete` |
+| GET                   | `/admin/messages`                  | `message.read_all`                             |
+| GET                   | `/admin/messages/:id`              | `message.read_all`; detail access is audited   |
+
+The global administrator message view is read-only. `message.read_all` is
+separate from mailbox-scoped `message.read`, is seeded only onto the system
+administrator role, and does not grant message mutation or attachment download
+access.
 
 ### 11.7 Provider webhooks
 

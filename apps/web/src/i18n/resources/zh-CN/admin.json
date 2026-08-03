@@ -10,6 +10,8 @@
     "description": "部署级邮件路由与存储配置在此管理，不属于工作区偏好。"
   },
   "navigation": {
+    "messages": "所有邮件",
+    "attachments": "附件库",
     "users": "用户",
     "roles": "角色与访问权限",
     "domains": "域名",
@@ -35,7 +37,8 @@
     "reconcile": "立即协调",
     "sendProviderTest": "发送测试邮件",
     "add": "添加{{resource}}",
-    "manage": "管理现有{{resource}}"
+    "manage": "管理现有{{resource}}",
+    "remove": "移除"
   },
   "dialog": {
     "action": "记录操作",
@@ -62,6 +65,56 @@
     "brevo": "Brevo",
     "resend": "Resend"
   },
+  "messages": {
+    "readOnlyNotice": "这是全局只读视图。打开邮件详情会记录到审计日志。",
+    "emptyTitle": "暂无邮件",
+    "emptyBody": "通过 UniMailbox 接收或发送的邮件会显示在这里。",
+    "loadMore": "加载更多",
+    "loadingMore": "正在加载…",
+    "viewTitle": "查看邮件",
+    "viewMessage": "查看邮件：{{subject}}",
+    "noSubject": "无主题",
+    "contentTitle": "邮件内容",
+    "attachments": "附件",
+    "unnamedAttachment": "未命名附件",
+    "attachmentMeta": "{{mimeType}}，{{size}} 字节"
+  },
+  "userMailboxes": {
+    "heading": "邮箱访问",
+    "description": "管理该账号可以读取、发送或管理的邮箱地址。邮箱所有者不可更改。",
+    "summary": "{{count}} 条邮箱记录",
+    "empty": "尚未授予该用户任何邮箱访问权限。",
+    "ownerNote": "所有者：{{email}}",
+    "changeRoleFor": "修改 {{address}} 的角色",
+    "addField": "邮箱地址",
+    "roleField": "访问角色",
+    "addAction": "授予邮箱访问"
+  },
+  "mailboxRoles": {
+    "owner": "所有者",
+    "viewer": "查看者",
+    "sender": "发送者",
+    "admin": "管理员"
+  },
+  "userRoles": {
+    "none": "未分配角色",
+    "unknown": "未知角色"
+  },
+  "attachments": {
+    "searchLabel": "搜索附件",
+    "searchPlaceholder": "文件名、MD5、MIME 类型、邮件主题或发件人",
+    "searchAction": "搜索",
+    "emptyTitle": "未找到附件",
+    "emptyBody": "已发送和已接收邮件中的附件会显示在这里。",
+    "viewTitle": "查看附件",
+    "view": "查看",
+    "download": "下载",
+    "previewUnavailable": "此文件类型不支持安全的在线预览，你仍可下载查看。",
+    "unnamedAttachment": "未命名附件",
+    "hashPending": "哈希计算中",
+    "loadMore": "加载更多",
+    "loadingMore": "正在加载…"
+  },
   "search": {
     "label": "搜索审计操作、资源或请求 ID",
     "placeholder": "安装、邮箱、请求 ID"
@@ -71,7 +124,7 @@
     "displayName": "显示名称",
     "email": "邮箱地址",
     "password": "临时密码",
-    "roleIds": "角色 ID（以逗号分隔）",
+    "roles": "已分配角色",
     "name": "名称",
     "description": "说明",
     "permissions": "权限键（以逗号分隔）",
@@ -80,6 +133,11 @@
     "apiKey": "提供商 API 密钥",
     "webhookSecret": "Webhook 密钥",
     "status": "状态",
+    "filename": "文件名",
+    "mime_type": "MIME 类型",
+    "size_bytes": "字节数",
+    "md5": "MD5",
+    "reference_count": "引用次数",
     "action": "操作",
     "outboundConnectionId": "出站连接 ID",
     "outboundProvider": "出站提供商",
@@ -128,6 +186,11 @@
     "email": "邮箱",
     "display_name": "显示名称",
     "status": "状态",
+    "from_address": "发件人",
+    "recipient_addresses": "收件人",
+    "subject": "主题",
+    "domain_name": "域名",
+    "mailbox_addresses": "邮箱",
     "created_at": "创建时间",
     "roles": "角色",
     "name": "名称",

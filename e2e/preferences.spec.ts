@@ -139,7 +139,12 @@ test("authorized administration uses localized navigation", async ({
   let created = false;
   let updated = false;
   let deleted = false;
+  let mailboxGranted = false;
+  let mailboxRemoved = false;
   const existingUserId = "22222222-2222-4222-8222-222222222222";
+  const roleId = "11111111-1111-4111-8111-111111111111";
+  const mailboxId = "33333333-3333-4333-8333-333333333333";
+  const domainId = "44444444-4444-4444-8444-444444444444";
   await page.route("**/api/v1/**", (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/auth/session")) {
@@ -155,7 +160,8 @@ test("authorized administration uses localized navigation", async ({
       });
     }
     if (path.endsWith("/admin/users") && route.request().method() === "POST") {
-      created = true;
+      const body = route.request().postDataJSON();
+      created = Array.isArray(body.roleIds) && body.roleIds[0] === roleId;
       return route.fulfill({
         status: 201,
         contentType: "application/json",
@@ -163,6 +169,74 @@ test("authorized administration uses localized navigation", async ({
           data: {
             id: "11111111-1111-4111-8111-111111111111",
             email: "operator@example.com",
+          },
+        }),
+      });
+    }
+    if (path.endsWith("/admin/users/role-options")) {
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [{ id: roleId, name: "Administrators", is_system: 1 }],
+        }),
+      });
+    }
+    if (
+      path.endsWith(`/admin/users/${existingUserId}/mailboxes/${mailboxId}`) &&
+      route.request().method() === "DELETE"
+    ) {
+      mailboxGranted = false;
+      mailboxRemoved = true;
+      return route.fulfill({ status: 204 });
+    }
+    if (
+      path.endsWith(`/admin/users/${existingUserId}/mailboxes`) &&
+      route.request().method() === "POST"
+    ) {
+      const body = route.request().postDataJSON();
+      mailboxGranted = body.mailboxId === mailboxId && body.role === "sender";
+      return route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            mailboxId,
+            address: "team@example.com",
+            displayName: "Team",
+            status: "active",
+            domainId,
+            role: "sender",
+            ownerUserId: "55555555-5555-4555-8555-555555555555",
+            ownerEmail: "owner@example.com",
+            ownerDisplayName: "Owner",
+          },
+        }),
+      });
+    }
+    if (path.endsWith(`/admin/users/${existingUserId}/mailboxes`)) {
+      const mailbox = {
+        mailboxId,
+        address: "team@example.com",
+        displayName: "Team",
+        status: "active" as const,
+        ownerEmail: "owner@example.com",
+      };
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            items: mailboxGranted
+              ? [
+                  {
+                    ...mailbox,
+                    domainId,
+                    role: "sender",
+                    ownerUserId: "55555555-5555-4555-8555-555555555555",
+                    ownerDisplayName: "Owner",
+                  },
+                ]
+              : [],
+            available: mailboxGranted ? [] : [mailbox],
           },
         }),
       });
@@ -198,6 +272,7 @@ test("authorized administration uses localized navigation", async ({
               status: "active",
               created_at: "2026-08-01 09:30:00",
               roles: "operator",
+              role_ids: roleId,
             },
           ],
         }),
@@ -215,6 +290,10 @@ test("authorized administration uses localized navigation", async ({
   await expect(
     page.getByText(uiLocale.copy.administration, { exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("columnheader", { name: uiLocale.copy.recordId }),
+  ).toHaveCount(0);
+  await expect(page.getByText(existingUserId)).toHaveCount(0);
   await page.getByRole("button", { name: uiLocale.copy.addUsers }).click();
   const createDialog = page.getByRole("dialog");
   await createDialog.getByLabel(uiLocale.copy.displayName).fill("Operator");
@@ -224,16 +303,32 @@ test("authorized administration uses localized navigation", async ({
   await createDialog
     .getByLabel(uiLocale.copy.passwordField)
     .fill("correct horse battery staple");
-  await createDialog
-    .getByLabel(uiLocale.copy.roleIds)
-    .fill("11111111-1111-4111-8111-111111111111");
+  await createDialog.getByLabel("Administrators").check();
+  await expect(
+    createDialog.getByText(uiLocale.copy.assignedRoles),
+  ).toBeVisible();
   await createDialog
     .getByRole("button", { name: uiLocale.copy.create })
     .click();
   await expect.poll(() => created).toBe(true);
 
   await page.getByRole("button", { name: uiLocale.copy.view }).click();
-  await expect(page.getByRole("dialog")).toContainText("lin@example.com");
+  const viewDialog = page.getByRole("dialog");
+  await expect(viewDialog).toContainText("lin@example.com");
+  await expect(
+    viewDialog.getByRole("heading", { name: uiLocale.copy.mailboxAccess }),
+  ).toBeVisible();
+  await viewDialog
+    .getByLabel(uiLocale.copy.mailboxAddress)
+    .fill("team@example.com");
+  await viewDialog.getByLabel(uiLocale.copy.accessRole).selectOption("sender");
+  await viewDialog
+    .getByRole("button", { name: uiLocale.copy.grantMailboxAccess })
+    .click();
+  await expect.poll(() => mailboxGranted).toBe(true);
+  await expect(viewDialog.getByText("team@example.com")).toBeVisible();
+  await viewDialog.getByRole("button", { name: uiLocale.copy.remove }).click();
+  await expect.poll(() => mailboxRemoved).toBe(true);
   await page.getByRole("button", { name: uiLocale.copy.close }).first().click();
 
   await page.getByRole("button", { name: uiLocale.copy.edit }).click();

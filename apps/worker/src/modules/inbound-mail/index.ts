@@ -1,6 +1,10 @@
 import { DomainError } from "@unimailbox/contracts";
 import PostalMime, { type Address, type Attachment } from "postal-mime";
 import type { AppContext } from "../../app-context";
+import {
+  deleteAttachmentFileIfUnreferenced,
+  storeAttachmentFile,
+} from "../attachments/file-catalog";
 
 interface InboundSettings {
   inbound_enabled: number;
@@ -109,6 +113,7 @@ export class InboundMailService {
     const messageId = crypto.randomUUID();
     const rawObjectKey = `raw/${messageId}.eml`;
     const uploadedKeys: string[] = [rawObjectKey];
+    const attachmentFileIds: string[] = [];
     await this.context.attachmentStore.put(rawObjectKey, raw, {
       httpMetadata: { contentType: "message/rfc822" },
       customMetadata: { source: "inbound", messageId },
@@ -122,29 +127,38 @@ export class InboundMailService {
       size: number;
       disposition: "attachment" | "inline";
       contentId: string | null;
+      fileId: string;
+      md5: string;
     }> = [];
     try {
       for (const attachment of parsed.attachments) {
         const id = crypto.randomUUID();
         const objectKey = `attachments/${id}`;
         const bytes = attachmentBytes(attachment);
-        uploadedKeys.push(objectKey);
-        await this.context.attachmentStore.put(objectKey, bytes, {
-          httpMetadata: { contentType: attachment.mimeType },
-          customMetadata: {
-            filename: attachment.filename ?? "",
-            disposition: attachment.disposition ?? "attachment",
+        const file = await storeAttachmentFile(this.context, {
+          objectKey,
+          body: bytes,
+          sizeBytes: bytes.byteLength,
+          metadata: {
+            httpMetadata: { contentType: attachment.mimeType },
+            customMetadata: {
+              filename: attachment.filename ?? "",
+              disposition: attachment.disposition ?? "attachment",
+            },
           },
         });
+        attachmentFileIds.push(file.fileId);
         attachmentRows.push({
           id,
-          objectKey,
+          objectKey: file.objectKey,
           filename: attachment.filename,
           mimeType: attachment.mimeType,
           size: bytes.byteLength,
           disposition:
             attachment.disposition === "inline" ? "inline" : "attachment",
           contentId: attachment.contentId ?? null,
+          fileId: file.fileId,
+          md5: file.md5,
         });
       }
 
@@ -221,8 +235,8 @@ export class InboundMailService {
           this.context.env.DB.prepare(
             `INSERT INTO message_attachments (
                id, message_id, object_key, filename, mime_type, size_bytes,
-               disposition, content_id
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+               disposition, content_id, file_id, md5
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           ).bind(
             item.id,
             messageId,
@@ -232,6 +246,8 @@ export class InboundMailService {
             item.size,
             item.disposition,
             item.contentId,
+            item.fileId,
+            item.md5,
           ),
         ),
         this.context.env.DB.prepare(
@@ -258,6 +274,9 @@ export class InboundMailService {
         attachmentCount: attachmentRows.length,
       });
     } catch (error) {
+      for (const fileId of attachmentFileIds) {
+        await deleteAttachmentFileIfUnreferenced(this.context, fileId);
+      }
       await this.context.env.OUTBOUND_QUEUE.send({
         kind: "orphan_object_cleanup",
         jobId: `orphan-cleanup:${crypto.randomUUID()}`,

@@ -1,4 +1,5 @@
 import {
+  infiniteQueryOptions,
   mutationOptions,
   queryOptions,
   type QueryClient,
@@ -52,11 +53,9 @@ const roleUpdate = AdminUpdateSchema.options[2];
 const domainUpdate = AdminUpdateSchema.options[1];
 const providerUpdate = AdminUpdateSchema.options[3];
 
-/** Form schemas accept the UI's comma-separated input and produce endpoint-ready bodies. */
+/** Form schemas accept UI state and produce endpoint-ready bodies. */
 export const adminFormSchemas = {
-  createUser: userCreateBody.extend({
-    roleIds: commaSeparated(userCreateBody.shape.roleIds),
-  }),
+  createUser: userCreateBody,
   createRole: roleCreateBody.extend({
     permissions: commaSeparated(roleCreateBody.shape.permissions),
   }),
@@ -78,10 +77,7 @@ export const adminFormSchemas = {
         userUpdate.shape.displayName.unwrap(),
       ]),
       status: z.union([z.literal(""), userUpdate.shape.status.unwrap()]),
-      roleIds: z.union([
-        z.literal(""),
-        commaSeparated(userUpdate.shape.roleIds.unwrap()),
-      ]),
+      roleIds: z.array(z.string().trim().uuid()).max(20),
     }),
   ]),
   manageRole: z.discriminatedUnion("action", [
@@ -168,7 +164,77 @@ export const adminKeys = {
   providerCatalog: () => [...adminKeys.all, "provider-catalog"] as const,
   auditEvents: (search: string) =>
     [...adminKeys.resource("audit-events"), search.trim()] as const,
+  messages: () => [...adminKeys.resource("messages"), "pages"] as const,
+  attachments: (search: string) =>
+    [...adminKeys.resource("attachments"), "pages", search.trim()] as const,
+  message: (messageId: string) =>
+    [...adminKeys.resource("messages"), messageId.trim()] as const,
+  attachmentDownload: (attachmentId: string) =>
+    [
+      ...adminKeys.resource("attachments"),
+      "download",
+      attachmentId.trim(),
+    ] as const,
+  userMailboxes: (userId: string) =>
+    [...adminKeys.resource("users"), "mailboxes", userId.trim()] as const,
 };
+
+export function adminMessagesInfiniteQueryOptions() {
+  return infiniteQueryOptions({
+    queryKey: adminKeys.messages(),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      apiClient.request(administrationEndpoints.messages, {
+        query: {
+          limit: 50,
+          ...(pageParam ? { cursor: pageParam } : {}),
+        },
+      }),
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+  });
+}
+
+export function adminMessageQueryOptions(messageId: string | null) {
+  return queryOptions({
+    queryKey: adminKeys.message(messageId ?? ""),
+    queryFn: () =>
+      apiClient.request(administrationEndpoints.message, {
+        params: { id: messageId! },
+      }),
+    enabled: Boolean(messageId),
+  });
+}
+
+export function adminAttachmentsInfiniteQueryOptions(search: string) {
+  const normalized = search.trim();
+  return infiniteQueryOptions({
+    queryKey: adminKeys.attachments(normalized),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      apiClient.request(administrationEndpoints.attachments, {
+        query: {
+          limit: 50,
+          ...(normalized ? { q: normalized } : {}),
+          ...(pageParam ? { cursor: pageParam } : {}),
+        },
+      }),
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+  });
+}
+
+export function adminAttachmentDownloadQueryOptions(attachmentId: string) {
+  return queryOptions({
+    queryKey: adminKeys.attachmentDownload(attachmentId),
+    queryFn: () =>
+      apiClient.request(administrationEndpoints.attachmentDownload, {
+        params: { id: attachmentId },
+      }),
+    enabled: Boolean(attachmentId),
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: 0,
+    retry: false,
+  });
+}
 
 const idempotencyHeaders = () => ({ "idempotency-key": crypto.randomUUID() });
 
@@ -191,7 +257,9 @@ export type AdminQueryData =
   | EndpointResponse<typeof administrationEndpoints.providerConnections>
   | EndpointResponse<typeof administrationEndpoints.webhookEvents>
   | EndpointResponse<typeof administrationEndpoints.auditEvents>
-  | EndpointResponse<typeof administrationEndpoints.analytics>;
+  | EndpointResponse<typeof administrationEndpoints.analytics>
+  | EndpointResponse<typeof administrationEndpoints.attachments>
+  | EndpointResponse<typeof administrationEndpoints.messages>;
 
 export function adminQueryOptions(
   resource: AdminResourceKey,
@@ -204,6 +272,14 @@ export function adminQueryOptions(
       : adminKeys.resource(resource);
   const queryFn = async (): Promise<AdminQueryData> => {
     switch (resource) {
+      case "messages":
+        return apiClient.request(administrationEndpoints.messages, {
+          query: { limit: 50 },
+        });
+      case "attachments":
+        return apiClient.request(administrationEndpoints.attachments, {
+          query: { limit: 50 },
+        });
       case "users":
         return apiClient.request(administrationEndpoints.users, {});
       case "roles":
@@ -231,6 +307,93 @@ export function adminQueryOptions(
     }
   };
   return queryOptions<AdminQueryData>({ queryKey, queryFn });
+}
+
+export function adminUserRoleOptionsQueryOptions() {
+  return queryOptions({
+    queryKey: [...adminKeys.resource("users"), "role-options"] as const,
+    queryFn: () =>
+      apiClient.request(administrationEndpoints.userRoleOptions, {}),
+  });
+}
+
+export function userMailboxesQueryOptions(userId: string) {
+  return queryOptions({
+    queryKey: adminKeys.userMailboxes(userId),
+    queryFn: () =>
+      apiClient.request(administrationEndpoints.userMailboxes, {
+        params: { id: userId },
+      }),
+    enabled: Boolean(userId),
+  });
+}
+
+export function addUserMailboxAccessMutationOptions(
+  queryClient: QueryClient,
+  userId: string,
+) {
+  return mutationOptions({
+    mutationFn: (
+      body: EndpointRequest<
+        typeof administrationEndpoints.addUserMailbox
+      >["body"],
+    ) =>
+      apiClient.request(administrationEndpoints.addUserMailbox, {
+        headers: idempotencyHeaders(),
+        params: { id: userId },
+        body,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: adminKeys.userMailboxes(userId),
+      });
+    },
+  });
+}
+
+export function updateUserMailboxAccessMutationOptions(
+  queryClient: QueryClient,
+  userId: string,
+) {
+  return mutationOptions({
+    mutationFn: ({
+      mailboxId,
+      body,
+    }: {
+      mailboxId: string;
+      body: EndpointRequest<
+        typeof administrationEndpoints.updateUserMailbox
+      >["body"];
+    }) =>
+      apiClient.request(administrationEndpoints.updateUserMailbox, {
+        headers: idempotencyHeaders(),
+        params: { id: userId, mailboxId },
+        body,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: adminKeys.userMailboxes(userId),
+      });
+    },
+  });
+}
+
+export function removeUserMailboxAccessMutationOptions(
+  queryClient: QueryClient,
+  userId: string,
+) {
+  return mutationOptions({
+    mutationFn: (mailboxId: string) =>
+      apiClient.request(administrationEndpoints.removeUserMailbox, {
+        headers: idempotencyHeaders(),
+        params: { id: userId, mailboxId },
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: adminKeys.userMailboxes(userId),
+      });
+    },
+  });
 }
 
 export function providerConnectionsQueryOptions() {

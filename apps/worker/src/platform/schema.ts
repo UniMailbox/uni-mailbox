@@ -308,11 +308,31 @@ export const attachmentUploads = sqliteTable(
     expiresAt: text("expires_at").notNull(),
     createdAt: text("created_at").notNull().default("CURRENT_TIMESTAMP"),
     consumedAt: text("consumed_at"),
+    fileId: text("file_id"),
+    md5: text("md5"),
   },
   (table) => ({
     cleanupIndex: index("idx_attachment_uploads_cleanup").on(
       table.status,
       table.expiresAt,
+    ),
+  }),
+);
+
+export const attachmentFiles = sqliteTable(
+  "attachment_files",
+  {
+    id: text("id").primaryKey(),
+    objectKey: text("object_key").notNull().unique(),
+    dedupeKey: text("dedupe_key").notNull().unique(),
+    md5: text("md5"),
+    sizeBytes: integer("size_bytes").notNull(),
+    ...timestamps,
+  },
+  (table) => ({
+    md5SizeIndex: index("idx_attachment_files_md5_size").on(
+      table.md5,
+      table.sizeBytes,
     ),
   }),
 );
@@ -330,11 +350,18 @@ export const messageAttachments = sqliteTable(
     disposition: text("disposition").notNull(),
     contentId: text("content_id"),
     sha256: text("sha256"),
+    fileId: text("file_id"),
+    md5: text("md5"),
     createdAt: text("created_at").notNull().default("CURRENT_TIMESTAMP"),
   },
   (table) => ({
     messageIndex: index("idx_message_attachments_message").on(table.messageId),
     objectIndex: index("idx_message_attachments_object").on(table.objectKey),
+    md5Index: index("idx_message_attachments_md5").on(
+      table.md5,
+      table.createdAt,
+    ),
+    filenameIndex: index("idx_message_attachments_filename").on(table.filename),
   }),
 );
 

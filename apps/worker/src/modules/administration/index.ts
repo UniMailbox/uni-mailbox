@@ -2,6 +2,7 @@ import {
   DomainError,
   PERMISSION_KEYS,
   statusRank,
+  type MailboxRole,
   type PermissionKey,
   type Principal,
   type ProviderMessageDetail,
@@ -10,13 +11,19 @@ import { runtimePolicy } from "@unimailbox/config";
 import type { AppContext } from "../../app-context";
 import { parseProviderKey } from "@unimailbox/contracts";
 import { PasswordService, normalizeEmail } from "../identity";
+import type { CursorCodec } from "../messages/cursor";
 import { sanitizeSignatureHtml } from "../signatures";
 import { shouldApplyProviderStatus } from "../provider-sync";
+import { createAttachmentDownloadResponse } from "../attachments/download-response";
 
 type AdminContext = Pick<
   AppContext,
-  "env" | "providers" | "credentials" | "logger"
+  "env" | "providers" | "credentials" | "logger" | "attachmentStore"
 >;
+
+function likePattern(value: string): string {
+  return `%${value.replace(/[\\%_]/gu, (match) => `\\${match}`)}%`;
+}
 
 export function assertPermission(
   principal: Principal,
@@ -38,18 +45,327 @@ function isPermission(value: string): value is PermissionKey {
 export class AdminApplicationService {
   private readonly passwords = new PasswordService();
 
-  constructor(private readonly context: AdminContext) {}
+  constructor(
+    private readonly context: AdminContext,
+    private readonly cursors: CursorCodec,
+  ) {}
+
+  async listMessages(
+    principal: Principal,
+    input: { cursor?: string; limit: number },
+  ) {
+    assertPermission(principal, "message.read_all");
+    const cursor = input.cursor
+      ? await this.cursors.decode(input.cursor)
+      : null;
+    const result = await this.context.env.DB.prepare(
+      `SELECT m.id, m.domain_id, d.name AS domain_name, m.from_address,
+              m.from_name, m.subject, m.status, m.created_at, m.sent_at,
+              m.received_at,
+              (
+                SELECT GROUP_CONCAT(mr.address, ', ')
+                FROM message_recipients mr
+                WHERE mr.message_id = m.id
+              ) AS recipient_addresses,
+              (
+                SELECT GROUP_CONCAT(mb.address, ', ')
+                FROM mailbox_messages mm
+                JOIN mailboxes mb ON mb.id = mm.mailbox_id
+                WHERE mm.message_id = m.id
+              ) AS mailbox_addresses
+       FROM messages m
+       LEFT JOIN domains d ON d.id = m.domain_id
+       WHERE (
+         ? IS NULL OR m.created_at < ?
+         OR (m.created_at = ? AND m.id < ?)
+       )
+       ORDER BY m.created_at DESC, m.id DESC
+       LIMIT ?`,
+    )
+      .bind(
+        cursor?.createdAt ?? null,
+        cursor?.createdAt ?? null,
+        cursor?.createdAt ?? null,
+        cursor?.id ?? null,
+        input.limit + 1,
+      )
+      .all<Record<string, unknown> & { id: string; created_at: string }>();
+    const hasNext = result.results.length > input.limit;
+    const items = result.results.slice(0, input.limit);
+    const last = items.at(-1);
+    return {
+      items,
+      nextCursor:
+        hasNext && last
+          ? await this.cursors.encode({
+              createdAt: last.created_at,
+              id: last.id,
+            })
+          : null,
+    };
+  }
+
+  async getMessage(principal: Principal, messageId: string, requestId: string) {
+    assertPermission(principal, "message.read_all");
+    const message = await this.context.env.DB.prepare(
+      `SELECT m.id, m.domain_id, d.name AS domain_name, m.thread_id,
+              m.from_address, m.from_name, m.subject, m.html_body, m.text_body,
+              m.message_id_header, m.in_reply_to_header, m.references_header,
+              m.provider_key, m.provider_message_id, m.status, m.created_at,
+              m.updated_at, m.sent_at, m.received_at
+       FROM messages m
+       LEFT JOIN domains d ON d.id = m.domain_id
+       WHERE m.id = ?`,
+    )
+      .bind(messageId)
+      .first<Record<string, unknown>>();
+    if (!message) {
+      throw new DomainError("MESSAGE_NOT_FOUND", "Message not found", 404);
+    }
+    const [recipients, mailboxes, attachments] = await Promise.all([
+      this.context.env.DB.prepare(
+        `SELECT type, address, display_name
+         FROM message_recipients WHERE message_id = ? ORDER BY rowid`,
+      )
+        .bind(messageId)
+        .all(),
+      this.context.env.DB.prepare(
+        `SELECT mb.id, mb.address, mm.folder
+         FROM mailbox_messages mm
+         JOIN mailboxes mb ON mb.id = mm.mailbox_id
+         WHERE mm.message_id = ?
+         ORDER BY mb.address, mm.folder`,
+      )
+        .bind(messageId)
+        .all(),
+      this.context.env.DB.prepare(
+        `SELECT id, filename, mime_type, size_bytes, disposition, content_id,
+                md5
+         FROM message_attachments WHERE message_id = ? ORDER BY created_at`,
+      )
+        .bind(messageId)
+        .all(),
+    ]);
+    await this.context.env.DB.prepare(
+      `INSERT INTO audit_events (
+         id, actor_user_id, action, resource_type, resource_id,
+         request_id, metadata_json
+       ) VALUES (?, ?, 'message.content.view', 'message', ?, ?, '{}')`,
+    )
+      .bind(crypto.randomUUID(), principal.userId, messageId, requestId)
+      .run();
+    return {
+      ...message,
+      recipients: recipients.results,
+      mailboxes: mailboxes.results,
+      attachments: attachments.results,
+    };
+  }
+
+  async listAttachments(
+    principal: Principal,
+    input: { q?: string; cursor?: string; limit: number },
+  ) {
+    assertPermission(principal, "attachment.read");
+    const canReadAllMessages = principal.permissions.has("message.read_all")
+      ? 1
+      : 0;
+    const cursor = input.cursor
+      ? await this.cursors.decode(input.cursor)
+      : null;
+    const search = input.q?.trim() ? likePattern(input.q.trim()) : null;
+    const result = await this.context.env.DB.prepare(
+      `SELECT ma.id, ma.message_id, ma.filename, ma.mime_type, ma.size_bytes,
+              ma.disposition, ma.content_id, COALESCE(ma.md5, af.md5) AS md5,
+              ma.created_at, m.subject, m.from_address,
+              m.created_at AS message_created_at,
+              (
+                SELECT COUNT(*) FROM message_attachments other
+                WHERE (
+                  other.file_id = ma.file_id
+                  OR (other.file_id IS NULL AND ma.file_id IS NULL
+                      AND other.object_key = ma.object_key)
+                )
+                AND (
+                  ? = 1 OR EXISTS (
+                    SELECT 1
+                    FROM mailbox_messages other_mm
+                    JOIN mailboxes other_mb
+                      ON other_mb.id = other_mm.mailbox_id
+                    LEFT JOIN mailbox_members other_member
+                      ON other_member.mailbox_id = other_mb.id
+                     AND other_member.user_id = ?
+                    WHERE other_mm.message_id = other.message_id
+                      AND (
+                        other_mb.owner_user_id = ?
+                        OR other_member.user_id IS NOT NULL
+                      )
+                  )
+                )
+              ) AS reference_count
+       FROM message_attachments ma
+       JOIN messages m ON m.id = ma.message_id
+       LEFT JOIN attachment_files af ON af.id = ma.file_id
+       WHERE (
+         ? = 1 OR EXISTS (
+           SELECT 1
+           FROM mailbox_messages mm
+           JOIN mailboxes mb ON mb.id = mm.mailbox_id
+           LEFT JOIN mailbox_members member
+             ON member.mailbox_id = mb.id AND member.user_id = ?
+           WHERE mm.message_id = ma.message_id
+             AND (mb.owner_user_id = ? OR member.user_id IS NOT NULL)
+         )
+       )
+       AND (
+         ? IS NULL
+         OR COALESCE(ma.filename, '') LIKE ? ESCAPE '\\' COLLATE NOCASE
+         OR ma.mime_type LIKE ? ESCAPE '\\' COLLATE NOCASE
+         OR COALESCE(ma.md5, af.md5, '') LIKE ? ESCAPE '\\' COLLATE NOCASE
+         OR m.subject LIKE ? ESCAPE '\\' COLLATE NOCASE
+         OR m.from_address LIKE ? ESCAPE '\\' COLLATE NOCASE
+       )
+       AND (
+         ? IS NULL OR ma.created_at < ?
+         OR (ma.created_at = ? AND ma.id < ?)
+       )
+       ORDER BY ma.created_at DESC, ma.id DESC
+       LIMIT ?`,
+    )
+      .bind(
+        canReadAllMessages,
+        principal.userId,
+        principal.userId,
+        canReadAllMessages,
+        principal.userId,
+        principal.userId,
+        search,
+        search,
+        search,
+        search,
+        search,
+        search,
+        cursor?.createdAt ?? null,
+        cursor?.createdAt ?? null,
+        cursor?.createdAt ?? null,
+        cursor?.id ?? null,
+        input.limit + 1,
+      )
+      .all<Record<string, unknown> & { id: string; created_at: string }>();
+    const hasNext = result.results.length > input.limit;
+    const items = result.results.slice(0, input.limit);
+    const last = items.at(-1);
+    return {
+      items,
+      nextCursor:
+        hasNext && last
+          ? await this.cursors.encode({
+              createdAt: last.created_at,
+              id: last.id,
+            })
+          : null,
+    };
+  }
+
+  async downloadAttachment(
+    principal: Principal,
+    attachmentId: string,
+    requestId: string,
+  ): Promise<Response> {
+    assertPermission(principal, "attachment.read");
+    const canReadAllMessages = principal.permissions.has("message.read_all")
+      ? 1
+      : 0;
+    const attachment = await this.context.env.DB.prepare(
+      `SELECT ma.object_key, ma.filename, ma.mime_type, ma.disposition,
+              ma.message_id
+       FROM message_attachments ma
+       WHERE ma.id = ?
+         AND (
+           ? = 1 OR EXISTS (
+             SELECT 1
+             FROM mailbox_messages mm
+             JOIN mailboxes mb ON mb.id = mm.mailbox_id
+             LEFT JOIN mailbox_members member
+               ON member.mailbox_id = mb.id AND member.user_id = ?
+             WHERE mm.message_id = ma.message_id
+               AND (mb.owner_user_id = ? OR member.user_id IS NOT NULL)
+           )
+         )
+       LIMIT 1`,
+    )
+      .bind(
+        attachmentId,
+        canReadAllMessages,
+        principal.userId,
+        principal.userId,
+      )
+      .first<{
+        object_key: string;
+        filename: string | null;
+        mime_type: string;
+        disposition: "attachment" | "inline";
+        message_id: string;
+      }>();
+    if (!attachment) {
+      throw new DomainError(
+        "ATTACHMENT_NOT_FOUND",
+        "Attachment not found",
+        404,
+      );
+    }
+    const object = await this.context.attachmentStore.get(
+      attachment.object_key,
+    );
+    if (!object) {
+      throw new DomainError(
+        "ATTACHMENT_OBJECT_MISSING",
+        "The attachment object is unavailable",
+        503,
+      );
+    }
+    await this.context.env.DB.prepare(
+      `INSERT INTO audit_events (
+         id, actor_user_id, action, resource_type, resource_id,
+         request_id, metadata_json
+       ) VALUES (?, ?, 'attachment.content.download', 'attachment', ?, ?, ?)`,
+    )
+      .bind(
+        crypto.randomUUID(),
+        principal.userId,
+        attachmentId,
+        requestId,
+        JSON.stringify({ messageId: attachment.message_id }),
+      )
+      .run();
+    return createAttachmentDownloadResponse(object, {
+      filename: attachment.filename,
+      mimeType: attachment.mime_type,
+      disposition: "attachment",
+    });
+  }
 
   async listUsers(principal: Principal) {
     assertPermission(principal, "user.read");
     const result = await this.context.env.DB.prepare(
       `SELECT u.id, u.email, u.display_name, u.status, u.created_at,
-              GROUP_CONCAT(r.name) AS roles
+              GROUP_CONCAT(r.name) AS roles,
+              GROUP_CONCAT(r.id) AS role_ids
        FROM users u
        LEFT JOIN user_roles ur ON ur.user_id = u.id
        LEFT JOIN roles r ON r.id = ur.role_id
        GROUP BY u.id
        ORDER BY u.created_at DESC`,
+    ).all();
+    return result.results;
+  }
+
+  async listUserRoleOptions(principal: Principal) {
+    assertPermission(principal, "user.manage");
+    const result = await this.context.env.DB.prepare(
+      `SELECT id, name, is_system
+       FROM roles
+       ORDER BY is_system DESC, name`,
     ).all();
     return result.results;
   }
@@ -162,6 +478,333 @@ export class AdminApplicationService {
          WHERE user_id = ? AND revoked_at IS NULL`,
       ).bind(userId),
     ]);
+  }
+
+  async listUserMailboxes(principal: Principal, userId: string) {
+    assertPermission(principal, "user.manage");
+    const target = await this.context.env.DB.prepare(
+      `SELECT id, email, display_name FROM users
+       WHERE id = ? AND status != 'deleted'`,
+    )
+      .bind(userId)
+      .first<{ id: string; email: string; display_name: string }>();
+    if (!target) {
+      throw new DomainError("USER_NOT_FOUND", "User not found", 404);
+    }
+    const [items, available] = await Promise.all([
+      this.context.env.DB.prepare(
+        `SELECT mb.id AS mailbox_id, mb.address, mb.display_name, mb.status,
+              mb.domain_id, mb.owner_user_id,
+              owner.email AS owner_email, owner.display_name AS owner_display_name,
+              CASE WHEN mb.owner_user_id = ? THEN 'owner'
+                   ELSE mm.role
+              END AS role
+       FROM mailboxes mb
+       JOIN users owner ON owner.id = mb.owner_user_id
+       LEFT JOIN mailbox_members mm
+         ON mm.mailbox_id = mb.id AND mm.user_id = ?
+       WHERE mb.status != 'deleted'
+         AND (mb.owner_user_id = ? OR mm.user_id IS NOT NULL)
+       ORDER BY mb.address`,
+      )
+        .bind(userId, userId, userId)
+        .all<
+          Record<string, unknown> & {
+            mailbox_id: string;
+            address: string;
+            display_name: string;
+            status: string;
+            domain_id: string;
+            owner_user_id: string;
+            owner_email: string;
+            owner_display_name: string;
+            role: string | null;
+          }
+        >(),
+      this.context.env.DB.prepare(
+        `SELECT mb.id AS mailbox_id, mb.address, mb.display_name, mb.status,
+                owner.email AS owner_email
+         FROM mailboxes mb
+         JOIN users owner ON owner.id = mb.owner_user_id
+         LEFT JOIN mailbox_members mm
+           ON mm.mailbox_id = mb.id AND mm.user_id = ?
+         WHERE mb.status != 'deleted'
+           AND mb.owner_user_id != ?
+           AND mm.user_id IS NULL
+         ORDER BY mb.address`,
+      )
+        .bind(userId, userId)
+        .all<{
+          mailbox_id: string;
+          address: string;
+          display_name: string;
+          status: "active" | "disabled";
+          owner_email: string;
+        }>(),
+    ]);
+    return {
+      items: items.results.map((row) => ({
+        mailboxId: row.mailbox_id,
+        address: row.address,
+        displayName: row.display_name,
+        status: row.status as "active" | "disabled" | "deleted",
+        domainId: row.domain_id,
+        role: (row.role ?? "owner") as "owner" | "viewer" | "sender" | "admin",
+        ownerUserId: row.owner_user_id,
+        ownerEmail: row.owner_email,
+        ownerDisplayName: row.owner_display_name,
+      })),
+      available: available.results.map((row) => ({
+        mailboxId: row.mailbox_id,
+        address: row.address,
+        displayName: row.display_name,
+        status: row.status,
+        ownerEmail: row.owner_email,
+      })),
+    };
+  }
+
+  async addUserMailboxAccess(
+    principal: Principal,
+    userId: string,
+    input: { mailboxId: string; role: MailboxRole },
+    requestId: string,
+  ) {
+    assertPermission(principal, "user.manage");
+    const [user, mailbox] = await Promise.all([
+      this.context.env.DB.prepare(
+        `SELECT id FROM users
+         WHERE id = ? AND status != 'deleted'`,
+      )
+        .bind(userId)
+        .first<{ id: string }>(),
+      this.context.env.DB.prepare(
+        `SELECT mb.id, mb.owner_user_id, mb.address, mb.display_name,
+                mb.status, mb.domain_id,
+                owner.email AS owner_email, owner.display_name AS owner_display_name
+         FROM mailboxes mb
+         JOIN users owner ON owner.id = mb.owner_user_id
+         WHERE mb.id = ? AND mb.status != 'deleted'`,
+      )
+        .bind(input.mailboxId)
+        .first<{
+          id: string;
+          owner_user_id: string;
+          address: string;
+          display_name: string;
+          status: string;
+          domain_id: string;
+          owner_email: string;
+          owner_display_name: string;
+        }>(),
+    ]);
+    if (!user) {
+      throw new DomainError("USER_NOT_FOUND", "User not found", 404);
+    }
+    if (!mailbox) {
+      throw new DomainError("MAILBOX_NOT_FOUND", "Mailbox not found", 404);
+    }
+    if (mailbox.owner_user_id === userId) {
+      throw new DomainError(
+        "MAILBOX_OWNER_MEMBERSHIP_INVALID",
+        "The mailbox owner already has full access",
+        409,
+      );
+    }
+    try {
+      await this.context.env.DB.batch([
+        this.context.env.DB.prepare(
+          `INSERT INTO mailbox_members (mailbox_id, user_id, role)
+           VALUES (?, ?, ?)
+           ON CONFLICT(mailbox_id, user_id) DO UPDATE
+           SET role = excluded.role, updated_at = CURRENT_TIMESTAMP`,
+        ).bind(input.mailboxId, userId, input.role),
+        this.context.env.DB.prepare(
+          `INSERT INTO audit_events (
+             id, actor_user_id, action, resource_type, resource_id,
+             request_id, metadata_json
+           ) VALUES (?, ?, 'user.mailbox.access.changed', 'user', ?, ?, ?)`,
+        ).bind(
+          crypto.randomUUID(),
+          principal.userId,
+          userId,
+          requestId,
+          JSON.stringify({
+            mailboxId: input.mailboxId,
+            role: input.role,
+          }),
+        ),
+      ]);
+    } catch {
+      throw new DomainError(
+        "MAILBOX_ACCESS_TARGET_NOT_FOUND",
+        "The mailbox or user could not be associated",
+        409,
+      );
+    }
+    return {
+      mailboxId: mailbox.id,
+      address: mailbox.address,
+      displayName: mailbox.display_name,
+      status: mailbox.status as "active" | "disabled" | "deleted",
+      domainId: mailbox.domain_id,
+      role: input.role,
+      ownerUserId: mailbox.owner_user_id,
+      ownerEmail: mailbox.owner_email,
+      ownerDisplayName: mailbox.owner_display_name,
+    };
+  }
+
+  async updateUserMailboxAccess(
+    principal: Principal,
+    userId: string,
+    mailboxId: string,
+    input: { role: MailboxRole },
+    requestId: string,
+  ) {
+    assertPermission(principal, "user.manage");
+    const [user, mailbox] = await Promise.all([
+      this.context.env.DB.prepare(
+        `SELECT id FROM users
+         WHERE id = ? AND status != 'deleted'`,
+      )
+        .bind(userId)
+        .first<{ id: string }>(),
+      this.context.env.DB.prepare(
+        `SELECT mb.id, mb.owner_user_id, mb.address, mb.display_name,
+                mb.status, mb.domain_id,
+                owner.email AS owner_email, owner.display_name AS owner_display_name
+         FROM mailboxes mb
+         JOIN users owner ON owner.id = mb.owner_user_id
+         WHERE mb.id = ? AND mb.status != 'deleted'`,
+      )
+        .bind(mailboxId)
+        .first<{
+          id: string;
+          owner_user_id: string;
+          address: string;
+          display_name: string;
+          status: string;
+          domain_id: string;
+          owner_email: string;
+          owner_display_name: string;
+        }>(),
+    ]);
+    if (!user) {
+      throw new DomainError("USER_NOT_FOUND", "User not found", 404);
+    }
+    if (!mailbox) {
+      throw new DomainError("MAILBOX_NOT_FOUND", "Mailbox not found", 404);
+    }
+    if (mailbox.owner_user_id === userId) {
+      throw new DomainError(
+        "MAILBOX_OWNER_MEMBERSHIP_INVALID",
+        "The mailbox owner's access cannot be changed here",
+        409,
+      );
+    }
+    const result = await this.context.env.DB.prepare(
+      `UPDATE mailbox_members
+       SET role = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE mailbox_id = ? AND user_id = ?`,
+    )
+      .bind(input.role, mailboxId, userId)
+      .run();
+    if (result.meta.changes === 0) {
+      throw new DomainError(
+        "MAILBOX_ACCESS_TARGET_NOT_FOUND",
+        "The user has no mailbox access to change",
+        404,
+      );
+    }
+    await this.context.env.DB.prepare(
+      `INSERT INTO audit_events (
+         id, actor_user_id, action, resource_type, resource_id,
+         request_id, metadata_json
+       ) VALUES (?, ?, 'user.mailbox.access.changed', 'user', ?, ?, ?)`,
+    )
+      .bind(
+        crypto.randomUUID(),
+        principal.userId,
+        userId,
+        requestId,
+        JSON.stringify({ mailboxId, role: input.role }),
+      )
+      .run();
+    return {
+      mailboxId: mailbox.id,
+      address: mailbox.address,
+      displayName: mailbox.display_name,
+      status: mailbox.status as "active" | "disabled" | "deleted",
+      domainId: mailbox.domain_id,
+      role: input.role,
+      ownerUserId: mailbox.owner_user_id,
+      ownerEmail: mailbox.owner_email,
+      ownerDisplayName: mailbox.owner_display_name,
+    };
+  }
+
+  async removeUserMailboxAccess(
+    principal: Principal,
+    userId: string,
+    mailboxId: string,
+    requestId: string,
+  ): Promise<void> {
+    assertPermission(principal, "user.manage");
+    const [user, mailbox] = await Promise.all([
+      this.context.env.DB.prepare(
+        `SELECT id FROM users
+         WHERE id = ? AND status != 'deleted'`,
+      )
+        .bind(userId)
+        .first<{ id: string }>(),
+      this.context.env.DB.prepare(
+        `SELECT id, owner_user_id FROM mailboxes
+         WHERE id = ? AND status != 'deleted'`,
+      )
+        .bind(mailboxId)
+        .first<{ id: string; owner_user_id: string }>(),
+    ]);
+    if (!user) {
+      throw new DomainError("USER_NOT_FOUND", "User not found", 404);
+    }
+    if (!mailbox) {
+      throw new DomainError("MAILBOX_NOT_FOUND", "Mailbox not found", 404);
+    }
+    if (mailbox.owner_user_id === userId) {
+      throw new DomainError(
+        "MAILBOX_OWNER_MEMBERSHIP_INVALID",
+        "The mailbox owner's access cannot be removed here",
+        409,
+      );
+    }
+    const result = await this.context.env.DB.prepare(
+      `DELETE FROM mailbox_members
+       WHERE mailbox_id = ? AND user_id = ?`,
+    )
+      .bind(mailboxId, userId)
+      .run();
+    if (result.meta.changes === 0) {
+      throw new DomainError(
+        "MAILBOX_ACCESS_TARGET_NOT_FOUND",
+        "The user has no mailbox access to remove",
+        404,
+      );
+    }
+    await this.context.env.DB.prepare(
+      `INSERT INTO audit_events (
+         id, actor_user_id, action, resource_type, resource_id,
+         request_id, metadata_json
+       ) VALUES (?, ?, 'user.mailbox.access.removed', 'user', ?, ?, ?)`,
+    )
+      .bind(
+        crypto.randomUUID(),
+        principal.userId,
+        userId,
+        requestId,
+        JSON.stringify({ mailboxId }),
+      )
+      .run();
   }
 
   async listRoles(principal: Principal) {

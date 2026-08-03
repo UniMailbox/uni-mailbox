@@ -37,8 +37,9 @@ users ──< user_roles >── roles ──< role_permissions >── permissi
 | `administrator` | `00000000-0000-4000-8000-000000000001` |
 | `member`        | `00000000-0000-4000-8000-000000000002` |
 
-`0002_seed_permissions.sql` 把 19 个 `PERMISSION_KEYS` 全部灌给了
-`administrator` 角色，`member` 只拿到 6 个 `message.*` / `mailbox.*`。
+`0002_seed_permissions.sql` 和后续权限迁移把 22 个 `PERMISSION_KEYS` 全部灌给了
+`administrator` 角色，`member` 拿到 7 个邮箱范围内的 `message.*`、`mailbox.*`
+和 `attachment.read`；全局邮件读取权限 `message.read_all` 仍仅授予系统管理员角色。
 登录时 `IdentityApplicationService.permissionsForUser`（`apps/worker/src/modules/identity/application.ts:484-497`）会
 把这些 permission 内嵌到 access token 里。
 

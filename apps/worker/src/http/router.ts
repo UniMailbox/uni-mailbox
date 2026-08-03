@@ -1,4 +1,8 @@
 import {
+  AdminMessageListQuerySchema,
+  AdminMessageParamsSchema,
+  AdminAttachmentListQuerySchema,
+  AdminAttachmentParamsSchema,
   DomainError,
   CreateAttachmentUploadSchema,
   DraftMessageSchema,
@@ -622,6 +626,53 @@ export function createHttpApp(createContext: HttpContextFactory) {
   app.use("/api/v1/admin/*", requireAuth());
   app.use("/api/v1/admin/*", requireAdminIdempotency());
 
+  app.get("/api/v1/admin/messages", async (context) =>
+    success(
+      await context
+        .get("appContext")
+        .admin.listMessages(
+          context.get("principal"),
+          AdminMessageListQuerySchema.parse(context.req.query()),
+        ),
+    ),
+  );
+  app.get("/api/v1/admin/messages/:id", async (context) => {
+    const { id } = AdminMessageParamsSchema.parse({
+      id: context.req.param("id"),
+    });
+    return success(
+      await context
+        .get("appContext")
+        .admin.getMessage(
+          context.get("principal"),
+          id,
+          context.get("requestId") ?? crypto.randomUUID(),
+        ),
+    );
+  });
+  app.get("/api/v1/admin/attachments", async (context) =>
+    success(
+      await context
+        .get("appContext")
+        .admin.listAttachments(
+          context.get("principal"),
+          AdminAttachmentListQuerySchema.parse(context.req.query()),
+        ),
+    ),
+  );
+  app.get("/api/v1/admin/attachments/:id/download", async (context) => {
+    const { id } = AdminAttachmentParamsSchema.parse({
+      id: context.req.param("id"),
+    });
+    return context
+      .get("appContext")
+      .admin.downloadAttachment(
+        context.get("principal"),
+        id,
+        context.get("requestId") ?? crypto.randomUUID(),
+      );
+  });
+
   app.get("/api/v1/admin/cloudflare/status", async (context) =>
     success(
       await context
@@ -752,6 +803,13 @@ export function createHttpApp(createContext: HttpContextFactory) {
       await context.get("appContext").admin.listUsers(context.get("principal")),
     ),
   );
+  app.get("/api/v1/admin/users/role-options", async (context) =>
+    success(
+      await context
+        .get("appContext")
+        .admin.listUserRoleOptions(context.get("principal")),
+    ),
+  );
   app.post("/api/v1/admin/users", async (context) => {
     const input = z
       .object({
@@ -793,6 +851,66 @@ export function createHttpApp(createContext: HttpContextFactory) {
       .admin.deleteUser(context.get("principal"), context.req.param("id"));
     return context.body(null, 204);
   });
+  app.get("/api/v1/admin/users/:id/mailboxes", async (context) =>
+    success(
+      await context
+        .get("appContext")
+        .admin.listUserMailboxes(
+          context.get("principal"),
+          context.req.param("id"),
+        ),
+    ),
+  );
+  app.post("/api/v1/admin/users/:id/mailboxes", async (context) => {
+    const input = z
+      .object({
+        mailboxId: z.string().uuid(),
+        role: z.enum(["viewer", "sender", "admin"]),
+      })
+      .parse(await context.req.json());
+    return success(
+      await context
+        .get("appContext")
+        .admin.addUserMailboxAccess(
+          context.get("principal"),
+          context.req.param("id"),
+          input,
+          context.get("requestId") ?? crypto.randomUUID(),
+        ),
+      { status: 201 },
+    );
+  });
+  app.patch("/api/v1/admin/users/:id/mailboxes/:mailboxId", async (context) => {
+    const input = z
+      .object({ role: z.enum(["viewer", "sender", "admin"]) })
+      .strict()
+      .parse(await context.req.json());
+    return success(
+      await context
+        .get("appContext")
+        .admin.updateUserMailboxAccess(
+          context.get("principal"),
+          context.req.param("id"),
+          context.req.param("mailboxId"),
+          input,
+          context.get("requestId") ?? crypto.randomUUID(),
+        ),
+    );
+  });
+  app.delete(
+    "/api/v1/admin/users/:id/mailboxes/:mailboxId",
+    async (context) => {
+      await context
+        .get("appContext")
+        .admin.removeUserMailboxAccess(
+          context.get("principal"),
+          context.req.param("id"),
+          context.req.param("mailboxId"),
+          context.get("requestId") ?? crypto.randomUUID(),
+        );
+      return context.body(null, 204);
+    },
+  );
 
   app.get("/api/v1/admin/roles", async (context) =>
     success(

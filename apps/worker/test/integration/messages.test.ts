@@ -131,7 +131,7 @@ describe("AttachmentApplicationService", () => {
     ).rejects.toMatchObject({ code: "ATTACHMENT_UPLOAD_TOKEN_INVALID" });
   });
 
-  it("completes migrated uploads whose R2 metadata keys were normalized to lowercase", async () => {
+  it("hashes and catalogs uploaded content before completing it", async () => {
     const service = attachmentsService();
     const created = await service.create(
       principal,
@@ -143,18 +143,16 @@ describe("AttachmentApplicationService", () => {
       },
       "https://mail.example/api/v1/attachments/uploads",
     );
-    await env.ATTACHMENTS!.put(created.objectKey, new Uint8Array([1, 2, 3]), {
-      httpMetadata: {
-        contentType: "text/plain",
-        contentDisposition: "attachment",
-      },
-      customMetadata: {
-        uploadid: created.attachmentId,
-        filename: "migration.txt",
-        disposition: "attachment",
-        expectedsize: "3",
-      },
-    });
+    const token = new URL(created.uploadUrl).searchParams.get("token") ?? "";
+    await service.uploadContent(
+      created.attachmentId,
+      token,
+      new Request(created.uploadUrl, {
+        method: "PUT",
+        headers: created.uploadHeaders,
+        body: new Uint8Array([1, 2, 3]),
+      }),
+    );
 
     await expect(
       service.complete(principal, created.attachmentId),
@@ -162,6 +160,75 @@ describe("AttachmentApplicationService", () => {
       attachmentId: created.attachmentId,
       status: "uploaded",
     });
+    await expect(
+      env.DB.prepare(
+        `SELECT au.md5, au.file_id, af.object_key
+         FROM attachment_uploads au
+         JOIN attachment_files af ON af.id = au.file_id
+         WHERE au.id = ?`,
+      )
+        .bind(created.attachmentId)
+        .first(),
+    ).resolves.toMatchObject({
+      md5: "5289df737df57326fcdd22597afb1fac",
+      object_key: created.objectKey,
+    });
+  });
+
+  it("reuses one stored file for byte-identical uploads", async () => {
+    const service = attachmentsService();
+    const uploads = await Promise.all(
+      ["first.txt", "second.txt"].map((filename) =>
+        service.create(
+          principal,
+          {
+            filename,
+            contentType: "text/plain",
+            size: 3,
+            disposition: "attachment",
+          },
+          "https://mail.example/api/v1/attachments/uploads",
+        ),
+      ),
+    );
+    for (const upload of uploads) {
+      await service.uploadContent(
+        upload.attachmentId,
+        new URL(upload.uploadUrl).searchParams.get("token") ?? "",
+        new Request(upload.uploadUrl, {
+          method: "PUT",
+          headers: upload.uploadHeaders,
+          body: new Uint8Array([1, 2, 3]),
+        }),
+      );
+      await service.complete(principal, upload.attachmentId);
+    }
+    const rows = await env.DB.prepare(
+      `SELECT au.file_id, au.object_key, af.object_key AS stored_object_key,
+              au.md5
+       FROM attachment_uploads au
+       JOIN attachment_files af ON af.id = au.file_id
+       ORDER BY au.filename`,
+    ).all<{
+      file_id: string;
+      object_key: string;
+      stored_object_key: string;
+      md5: string;
+    }>();
+    expect(rows.results).toHaveLength(2);
+    expect(new Set(rows.results.map((row) => row.file_id)).size).toBe(1);
+    expect(new Set(rows.results.map((row) => row.object_key)).size).toBe(2);
+    expect(new Set(rows.results.map((row) => row.stored_object_key)).size).toBe(
+      1,
+    );
+    expect(new Set(rows.results.map((row) => row.md5))).toEqual(
+      new Set(["5289df737df57326fcdd22597afb1fac"]),
+    );
+    await expect(
+      env.DB.prepare(
+        "SELECT COUNT(*) AS count FROM attachment_files",
+      ).first<number>("count"),
+    ).resolves.toBe(1);
   });
 });
 
@@ -181,6 +248,61 @@ describe("MessageApplicationService", () => {
       limit: 50,
     });
     expect(result.items).toEqual([]);
+  });
+
+  it("sends a cataloged upload using its canonical stored object", async () => {
+    const attachments = attachmentsService();
+    const upload = await attachments.create(
+      principal,
+      {
+        filename: "send.txt",
+        contentType: "text/plain",
+        size: 3,
+        disposition: "attachment",
+      },
+      "https://mail.example/api/v1/attachments/uploads",
+    );
+    await attachments.uploadContent(
+      upload.attachmentId,
+      new URL(upload.uploadUrl).searchParams.get("token") ?? "",
+      new Request(upload.uploadUrl, {
+        method: "PUT",
+        headers: upload.uploadHeaders,
+        body: new Uint8Array([1, 2, 3]),
+      }),
+    );
+    await attachments.complete(principal, upload.attachmentId);
+
+    const sent = await messageService().send(
+      principal,
+      {
+        mailboxId: senderId,
+        to: ["inbox@example.com"],
+        cc: [],
+        bcc: [],
+        subject: "Catalog attachment",
+        html: "<p>body</p>",
+        text: "body",
+        includeSignature: false,
+        attachmentIds: [upload.attachmentId],
+      },
+      "catalog-attachment-send",
+    );
+
+    await expect(
+      env.DB.prepare(
+        `SELECT ma.file_id, ma.object_key, ma.md5, au.status
+         FROM message_attachments ma
+         JOIN attachment_uploads au ON au.id = ma.upload_id
+         WHERE ma.message_id = ?`,
+      )
+        .bind(sent.messageId)
+        .first(),
+    ).resolves.toMatchObject({
+      md5: "5289df737df57326fcdd22597afb1fac",
+      object_key: upload.objectKey,
+      status: "consumed",
+    });
   });
 
   it("lists and reads messages; supports setRead/starred/listAttachments/remove", async () => {
@@ -265,5 +387,90 @@ describe("DraftApplicationService", () => {
         attachmentIds: [],
       }),
     ).rejects.toMatchObject({ code: "MAILBOX_PERMISSION_DENIED" });
+  });
+
+  it("keeps deduplicated bytes until the final draft reference is deleted", async () => {
+    const attachmentService = attachmentsService();
+    const uploads = [];
+    for (const filename of ["first.bin", "second.bin"]) {
+      const upload = await attachmentService.create(
+        principal,
+        {
+          filename,
+          contentType: "application/octet-stream",
+          size: 3,
+          disposition: "attachment",
+        },
+        "https://mail.example/api/v1/attachments/uploads",
+      );
+      await attachmentService.uploadContent(
+        upload.attachmentId,
+        new URL(upload.uploadUrl).searchParams.get("token") ?? "",
+        new Request(upload.uploadUrl, {
+          method: "PUT",
+          headers: upload.uploadHeaders,
+          body: new Uint8Array([1, 2, 3]),
+        }),
+      );
+      await attachmentService.complete(principal, upload.attachmentId);
+      uploads.push(upload);
+    }
+    const drafts = draftService();
+    const created = [];
+    for (const upload of uploads) {
+      created.push(
+        await drafts.create(principal, {
+          mailboxId: senderId,
+          to: ["inbox@example.com"],
+          cc: [],
+          bcc: [],
+          subject: "Shared",
+          html: "",
+          text: "",
+          includeSignature: false,
+          attachmentIds: [upload.attachmentId],
+        }),
+      );
+    }
+    const objectKey = await env.DB.prepare(
+      `SELECT af.object_key
+       FROM attachment_files af
+       JOIN message_attachments ma ON ma.file_id = af.id
+       WHERE ma.message_id = ?`,
+    )
+      .bind(created[0]?.id)
+      .first<string>("object_key");
+
+    await drafts.remove(principal, created[0]!.id);
+    expect(
+      await createAttachmentStore(fullEnv()).head(objectKey ?? ""),
+    ).not.toBeNull();
+    await drafts.remove(principal, created[1]!.id);
+    expect(
+      await env.DB.prepare(
+        `SELECT status FROM attachment_uploads ORDER BY filename`,
+      ).all(),
+    ).toMatchObject({
+      results: [{ status: "consumed" }, { status: "consumed" }],
+    });
+    expect(
+      await env.DB.prepare(
+        `SELECT COUNT(*) AS count FROM message_attachments WHERE file_id = (
+           SELECT id FROM attachment_files WHERE object_key = ?
+         )`,
+      )
+        .bind(objectKey)
+        .first<number>("count"),
+    ).toBe(0);
+    expect(
+      await env.DB.prepare(
+        "SELECT COUNT(*) AS count FROM attachment_files WHERE object_key = ?",
+      )
+        .bind(objectKey)
+        .first<number>("count"),
+    ).toBe(0);
+    expect(
+      await createAttachmentStore(fullEnv()).head(objectKey ?? ""),
+    ).toBeNull();
   });
 });

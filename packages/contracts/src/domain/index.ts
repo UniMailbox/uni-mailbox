@@ -87,8 +87,10 @@ export function parseProviderKey(value: string): ProviderKey {
 
 export const PERMISSION_KEYS = [
   "message.read",
+  "message.read_all",
   "message.send",
   "message.delete",
+  "attachment.read",
   "mailbox.create",
   "mailbox.manage",
   "mailbox.share",
@@ -115,6 +117,7 @@ export const MEMBER_PERMISSIONS: readonly PermissionKey[] = [
   "message.read",
   "message.send",
   "message.delete",
+  "attachment.read",
   "mailbox.create",
   "mailbox.manage",
   "mailbox.share",

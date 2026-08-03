@@ -119,14 +119,22 @@ describe("inbound mail persistence", () => {
     expect(stored?.subject).toBe("你好 Singapore");
     expect(stored?.text_body).toContain("正文 with emoji");
     const attachment = await env.DB.prepare(
-      `SELECT filename, size_bytes, object_key FROM message_attachments`,
+      `SELECT ma.filename, ma.size_bytes, ma.object_key, ma.md5, ma.file_id,
+              af.md5 AS file_md5
+       FROM message_attachments ma
+       JOIN attachment_files af ON af.id = ma.file_id`,
     ).first<{
       filename: string | null;
       size_bytes: number;
       object_key: string;
+      md5: string;
+      file_id: string;
+      file_md5: string;
     }>();
     expect(attachment?.filename).toBeNull();
     expect(attachment?.size_bytes).toBe(5);
+    expect(attachment?.md5).toBe("b59121341ab26766729b7f1d7f7e0c2f");
+    expect(attachment?.file_md5).toBe(attachment?.md5);
     const store = createAttachmentStore(envFixture());
     expect(await store.head(stored?.raw_object_key ?? "")).not.toBeNull();
     expect(await store.head(attachment?.object_key ?? "")).not.toBeNull();
