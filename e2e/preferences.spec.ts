@@ -29,6 +29,9 @@ test("project locale initializes per context and preserves user choice after rel
 
   await expect(page.locator("html")).toHaveAttribute("lang", uiLocale.code);
   await expect(
+    page.getByRole("region", { name: uiLocale.copy.settings }),
+  ).toBeVisible();
+  await expect(
     page.getByRole("heading", { name: uiLocale.copy.preferences }),
   ).toBeVisible();
   await page.getByLabel(uiLocale.copy.timeZone).selectOption("Asia/Singapore");
@@ -288,7 +291,7 @@ test("authorized administration uses localized navigation", async ({
     page.getByRole("heading", { name: uiLocale.copy.users }),
   ).toBeVisible();
   await expect(
-    page.getByText(uiLocale.copy.administration, { exact: true }),
+    page.getByRole("region", { name: uiLocale.copy.administration }),
   ).toBeVisible();
   await expect(
     page.getByRole("columnheader", { name: uiLocale.copy.recordId }),
@@ -303,7 +306,10 @@ test("authorized administration uses localized navigation", async ({
   await createDialog
     .getByLabel(uiLocale.copy.passwordField)
     .fill("correct horse battery staple");
-  await createDialog.getByLabel("Administrators").check();
+  await createDialog
+    .getByRole("combobox", { name: uiLocale.copy.assignedRoles })
+    .click();
+  await page.getByRole("option", { name: "Administrators" }).click();
   await expect(
     createDialog.getByText(uiLocale.copy.assignedRoles),
   ).toBeVisible();

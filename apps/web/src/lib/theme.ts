@@ -111,6 +111,11 @@ export function applyThemeColor(
   root.style.setProperty("--mint", palette.mint);
   root.style.setProperty("--theme-focus", palette.focus);
   root.style.setProperty("--theme-focus-soft", palette.focusSoft);
+  root.style.setProperty("--primary", palette.forest);
+  root.style.setProperty("--primary-foreground", "#ffffff");
+  root.style.setProperty("--accent", palette.mint);
+  root.style.setProperty("--accent-foreground", palette.forestDeep);
+  root.style.setProperty("--ring", palette.focus);
   root.ownerDocument
     .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
     ?.setAttribute("content", palette.forestDeep);

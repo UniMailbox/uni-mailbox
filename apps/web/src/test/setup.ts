@@ -2,6 +2,15 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
+class ResizeObserverMock implements ResizeObserver {
+  disconnect() {}
+  observe() {}
+  unobserve() {}
+}
+
+window.ResizeObserver = ResizeObserverMock;
+Element.prototype.scrollIntoView = () => undefined;
+
 afterEach(() => {
   cleanup();
   localStorage.clear();

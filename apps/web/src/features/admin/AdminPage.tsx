@@ -8,25 +8,14 @@ import {
 } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
-  Activity,
   ArrowLeft,
-  Cable,
   Download,
   Eye,
-  Globe2,
-  KeyRound,
-  Mail,
-  Paperclip,
   Pencil,
   Plus,
   RefreshCw,
   Send,
-  ScrollText,
-  Settings2,
-  Shield,
   Trash2,
-  Users,
-  Webhook,
   X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -37,10 +26,10 @@ import type {
   PermissionKey,
   administrationEndpoints,
 } from "@unimailbox/contracts";
-import { ADMIN_RESOURCE_PERMISSIONS } from "@unimailbox/contracts";
 import { ErrorState, LoadingState, SuccessNote } from "../../components/Status";
 import { DomainRoutingGuide } from "../../components/DomainRoutingGuide";
 import { BidiText } from "../../components/BidiText";
+import { SelectorTags } from "../../components/SelectorTags";
 import type { RuntimeLocale } from "../../i18n";
 import { formatTimestamp } from "../../i18n/format";
 import { useUiStore } from "../../lib/ui-store";
@@ -73,21 +62,6 @@ import {
   removeUserMailboxAccessMutationOptions,
 } from "./api";
 
-const navigation: Array<
-  [AdminResourceKey, React.ComponentType<{ className?: string }>]
-> = [
-  ["messages", Mail],
-  ["attachments", Paperclip],
-  ["users", Users],
-  ["roles", Shield],
-  ["domains", Globe2],
-  ["signatures", ScrollText],
-  ["settings", Settings2],
-  ["provider-connections", Cable],
-  ["webhook-events", Webhook],
-  ["audit-events", KeyRound],
-  ["analytics", Activity],
-];
 const CloudflareSettings = lazy(() =>
   import("../settings/CloudflareSettings").then((module) => ({
     default: module.CloudflareSettings,
@@ -325,60 +299,37 @@ function AdminSelectField({
 function AdminMultiSelectField({
   label,
   options,
-  emptyLabel,
   disabled = false,
+  loading = false,
 }: {
   label: string;
   options: Array<{ value: string; label: string }>;
-  emptyLabel: string;
   disabled?: boolean;
+  loading?: boolean;
 }) {
   const field = useAppFieldContext<string[]>();
   const { t } = useTranslation("admin");
-  const value = field.state.value;
-  const display =
-    value.length > 0
-      ? value
-          .map(
-            (selected) =>
-              options.find((option) => option.value === selected)?.label ??
-              t("userRoles.unknown"),
-          )
-          .join(", ")
-      : emptyLabel;
   return (
-    <fieldset className="field field-multi" disabled={disabled}>
-      <legend>{t(`fields.${label}`)}</legend>
-      <output className="field-multi-summary">{display}</output>
-      <div className="field-multi-options">
-        {options.map((option) => {
-          const checked = value.includes(option.value);
-          const optionId = `${field.name}-${option.value}`;
-          return (
-            <label
-              className="check-field"
-              htmlFor={optionId}
-              key={option.value}
-            >
-              <input
-                checked={checked}
-                disabled={disabled}
-                id={optionId}
-                onChange={(event) => {
-                  const next = event.target.checked
-                    ? [...value, option.value]
-                    : value.filter((item) => item !== option.value);
-                  field.handleChange(next);
-                }}
-                type="checkbox"
-              />
-              {option.label}
-            </label>
-          );
-        })}
-      </div>
+    <div className="field field-multi">
+      <span id={`${field.name}-label`}>{t(`fields.${label}`)}</span>
+      <SelectorTags
+        ariaLabel={t("userRoles.selected")}
+        clearLabel={t("userRoles.clear")}
+        disabled={disabled}
+        emptyLabel={t("userRoles.none")}
+        labelledBy={`${field.name}-label`}
+        loading={loading}
+        loadingLabel={t("userRoles.loading")}
+        noResultsLabel={t("userRoles.noResults")}
+        onChange={field.handleChange}
+        options={options}
+        placeholder={t("userRoles.placeholder")}
+        removeLabel={(roleName) => t("userRoles.remove", { roleName })}
+        searchLabel={t("userRoles.search")}
+        value={field.state.value}
+      />
       <FieldError labelKey={`admin:fields.${label}`} />
-    </fieldset>
+    </div>
   );
 }
 
@@ -1157,9 +1108,9 @@ function CreateUserPanel({ onClose }: { onClose: () => void }) {
       <form.AppField name="roleIds">
         {() => (
           <AdminMultiSelectField
-            disabled={roles.isLoading || Boolean(roles.error)}
-            emptyLabel={t("userRoles.none")}
+            disabled={Boolean(roles.error)}
             label="roles"
+            loading={roles.isLoading}
             options={roleOptions}
           />
         )}
@@ -1502,9 +1453,9 @@ function ManageUserPanel({
       <form.AppField name="roleIds">
         {() => (
           <AdminMultiSelectField
-            disabled={roles.isLoading || Boolean(roles.error)}
-            emptyLabel={t("userRoles.none")}
+            disabled={Boolean(roles.error)}
             label="roles"
+            loading={roles.isLoading}
             options={roleOptions}
           />
         )}
@@ -2558,207 +2509,176 @@ export function AdminPage({ resource }: { resource: AdminResourceKey }) {
   const canManageSettings =
     resource === "settings" && canAdminWrite("settings", permissions);
   return (
-    <div className="admin-app">
-      <aside className="admin-sidebar">
-        <Link className="wordmark compact" to="/inbox">
-          <span>CM</span> UniMailbox
-        </Link>
-        <div className="admin-rail-title">{t("controlPlane")}</div>
-        <nav>
-          {navigation
-            .filter(([id]) =>
-              permissions.includes(ADMIN_RESOURCE_PERMISSIONS[id]),
-            )
-            .map(([id, Icon]) => (
-              <Link
-                aria-current={id === resource ? "page" : undefined}
-                className={id === resource ? "active" : ""}
-                key={id}
-                to={`/admin/${id}`}
-              >
-                <Icon aria-hidden="true" />
-                {t(`navigation.${id}`)}
-              </Link>
-            ))}
-        </nav>
-        <Link className="back-link" to="/inbox">
+    <section className="admin-main">
+      <header>
+        <Link className="admin-back-link" to="/inbox">
           <ArrowLeft aria-hidden="true" className="directional-icon" />
           {t("backToMail")}
         </Link>
-      </aside>
-      <main className="admin-main">
-        <header>
-          <div>
-            <div className="section-kicker">{t("title")}</div>
-            <h1>{t(`navigation.${resource}`)}</h1>
-          </div>
-          {resource === "provider-connections" &&
-          canAdminWrite("provider-sync", permissions) ? (
-            <button
-              className="button secondary"
-              disabled={sync.isPending}
-              onClick={() => sync.mutate()}
-              type="button"
-            >
-              <RefreshCw
-                aria-hidden="true"
-                className={sync.isPending ? "spin" : ""}
-              />
-              {t("actions.reconcile")}
-            </button>
-          ) : null}
-        </header>
-        <section className="admin-surface">
-          <div className="surface-heading">
-            <div>
-              <span className="status-pill">{t("live")}</span>
-              <strong>
-                {t("registry", { resource: t(`navigation.${resource}`) })}
-              </strong>
-            </div>
-            <div className="surface-actions">
-              <small>{t("audited")}</small>
-              {canCreate ? (
-                <button
-                  className="button primary"
-                  onClick={() => setCreateOpen(true)}
-                  type="button"
-                >
-                  <Plus aria-hidden="true" />
-                  {t("actions.add", {
-                    resource: t(`navigation.${resource}`),
-                  })}
-                </button>
-              ) : null}
-            </div>
-          </div>
-          {resource === "audit-events" ? (
-            <label className="admin-search">
-              <span>{t("search.label")}</span>
-              <input
-                onChange={(event) => setAuditSearch(event.target.value)}
-                placeholder={t("search.placeholder")}
-                value={auditSearch}
-              />
-            </label>
-          ) : null}
-          {sync.isSuccess ? (
-            <SuccessNote>{t("states.syncComplete")}</SuccessNote>
-          ) : null}
-          {resource === "messages" ? (
-            <AdminMessagesPanel />
-          ) : resource === "attachments" ? (
-            <AdminAttachmentsPanel />
-          ) : query.isLoading ? (
-            <LoadingState />
-          ) : query.error ? (
-            <ErrorState
-              error={query.error}
-              retry={() => void query.refetch()}
-            />
-          ) : (
-            <>
-              <DataTable
-                canWrite={canWriteRows}
-                data={data}
-                onAction={setSelectedAction}
-                resource={resource}
-              />
-              {resource === "signatures" ? (
-                <SignatureEditor
-                  canSave={canAdminWrite("signatures", permissions)}
-                  domains={domains}
-                />
-              ) : null}
-              {settings ? (
-                <SettingsEditor
-                  canSave={canManageSettings}
-                  settings={settings}
-                />
-              ) : null}
-              {settings && canManageSettings ? (
-                <section className="admin-runtime-settings">
-                  <header>
-                    <h2>{t("runtime.heading")}</h2>
-                    <p>{t("runtime.description")}</p>
-                  </header>
-                  <Suspense fallback={<LoadingState />}>
-                    <CloudflareSettings />
-                    <StorageSettings />
-                  </Suspense>
-                </section>
-              ) : null}
-            </>
-          )}
-        </section>
-        {createOpen ? (
-          <AdminDialog
-            onClose={() => setCreateOpen(false)}
-            title={t("dialog.createTitle", {
-              resource: t(`navigation.${resource}`),
-            })}
+        <div>
+          <div className="section-kicker">{t("title")}</div>
+          <h1>{t(`navigation.${resource}`)}</h1>
+        </div>
+        {resource === "provider-connections" &&
+        canAdminWrite("provider-sync", permissions) ? (
+          <button
+            className="button secondary"
+            disabled={sync.isPending}
+            onClick={() => sync.mutate()}
+            type="button"
           >
-            <CreatePanel
-              onClose={() => setCreateOpen(false)}
-              permissions={permissions}
-              resource={resource}
+            <RefreshCw
+              aria-hidden="true"
+              className={sync.isPending ? "spin" : ""}
             />
-          </AdminDialog>
+            {t("actions.reconcile")}
+          </button>
         ) : null}
-        {selectedAction?.type === "view" ? (
-          <AdminDialog
-            onClose={() => setSelectedAction(null)}
-            title={t("dialog.viewTitle", {
-              resource: t(`navigation.${resource}`),
-            })}
-          >
-            <ViewRecord
-              permissions={permissions}
-              resource={resource}
-              row={selectedAction.row}
-            />
-            <div className="admin-dialog-footer">
+      </header>
+      <section className="admin-surface">
+        <div className="surface-heading">
+          <div>
+            <span className="status-pill">{t("live")}</span>
+            <strong>
+              {t("registry", { resource: t(`navigation.${resource}`) })}
+            </strong>
+          </div>
+          <div className="surface-actions">
+            <small>{t("audited")}</small>
+            {canCreate ? (
               <button
                 className="button primary"
-                onClick={() => setSelectedAction(null)}
+                onClick={() => setCreateOpen(true)}
                 type="button"
               >
-                {t("actions.close")}
+                <Plus aria-hidden="true" />
+                {t("actions.add", {
+                  resource: t(`navigation.${resource}`),
+                })}
               </button>
-            </div>
-          </AdminDialog>
-        ) : null}
-        {selectedAction?.type === "edit" ? (
-          <AdminDialog
-            onClose={() => setSelectedAction(null)}
-            title={t("dialog.editTitle", {
-              resource: t(`navigation.${resource}`),
-            })}
-          >
-            <ManagePanel
-              onClose={() => setSelectedAction(null)}
-              permissions={permissions}
-              resource={resource}
-              row={selectedAction.row}
+            ) : null}
+          </div>
+        </div>
+        {resource === "audit-events" ? (
+          <label className="admin-search">
+            <span>{t("search.label")}</span>
+            <input
+              onChange={(event) => setAuditSearch(event.target.value)}
+              placeholder={t("search.placeholder")}
+              value={auditSearch}
             />
-          </AdminDialog>
+          </label>
         ) : null}
-        {selectedAction?.type === "delete" ? (
-          <AdminDialog
-            onClose={() => setSelectedAction(null)}
-            title={t("dialog.deleteTitle", {
-              resource: t(`navigation.${resource}`),
-            })}
-            tone="danger"
-          >
-            <DeleteRecordPanel
-              onClose={() => setSelectedAction(null)}
+        {sync.isSuccess ? (
+          <SuccessNote>{t("states.syncComplete")}</SuccessNote>
+        ) : null}
+        {resource === "messages" ? (
+          <AdminMessagesPanel />
+        ) : resource === "attachments" ? (
+          <AdminAttachmentsPanel />
+        ) : query.isLoading ? (
+          <LoadingState />
+        ) : query.error ? (
+          <ErrorState error={query.error} retry={() => void query.refetch()} />
+        ) : (
+          <>
+            <DataTable
+              canWrite={canWriteRows}
+              data={data}
+              onAction={setSelectedAction}
               resource={resource}
-              row={selectedAction.row}
             />
-          </AdminDialog>
-        ) : null}
-      </main>
-    </div>
+            {resource === "signatures" ? (
+              <SignatureEditor
+                canSave={canAdminWrite("signatures", permissions)}
+                domains={domains}
+              />
+            ) : null}
+            {settings ? (
+              <SettingsEditor canSave={canManageSettings} settings={settings} />
+            ) : null}
+            {settings && canManageSettings ? (
+              <section className="admin-runtime-settings">
+                <header>
+                  <h2>{t("runtime.heading")}</h2>
+                  <p>{t("runtime.description")}</p>
+                </header>
+                <Suspense fallback={<LoadingState />}>
+                  <CloudflareSettings />
+                  <StorageSettings />
+                </Suspense>
+              </section>
+            ) : null}
+          </>
+        )}
+      </section>
+      {createOpen ? (
+        <AdminDialog
+          onClose={() => setCreateOpen(false)}
+          title={t("dialog.createTitle", {
+            resource: t(`navigation.${resource}`),
+          })}
+        >
+          <CreatePanel
+            onClose={() => setCreateOpen(false)}
+            permissions={permissions}
+            resource={resource}
+          />
+        </AdminDialog>
+      ) : null}
+      {selectedAction?.type === "view" ? (
+        <AdminDialog
+          onClose={() => setSelectedAction(null)}
+          title={t("dialog.viewTitle", {
+            resource: t(`navigation.${resource}`),
+          })}
+        >
+          <ViewRecord
+            permissions={permissions}
+            resource={resource}
+            row={selectedAction.row}
+          />
+          <div className="admin-dialog-footer">
+            <button
+              className="button primary"
+              onClick={() => setSelectedAction(null)}
+              type="button"
+            >
+              {t("actions.close")}
+            </button>
+          </div>
+        </AdminDialog>
+      ) : null}
+      {selectedAction?.type === "edit" ? (
+        <AdminDialog
+          onClose={() => setSelectedAction(null)}
+          title={t("dialog.editTitle", {
+            resource: t(`navigation.${resource}`),
+          })}
+        >
+          <ManagePanel
+            onClose={() => setSelectedAction(null)}
+            permissions={permissions}
+            resource={resource}
+            row={selectedAction.row}
+          />
+        </AdminDialog>
+      ) : null}
+      {selectedAction?.type === "delete" ? (
+        <AdminDialog
+          onClose={() => setSelectedAction(null)}
+          title={t("dialog.deleteTitle", {
+            resource: t(`navigation.${resource}`),
+          })}
+          tone="danger"
+        >
+          <DeleteRecordPanel
+            onClose={() => setSelectedAction(null)}
+            resource={resource}
+            row={selectedAction.row}
+          />
+        </AdminDialog>
+      ) : null}
+    </section>
   );
 }

@@ -35,6 +35,7 @@ import { requireAdminIdempotency } from "./admin-idempotency";
 import type { HttpAppBindings } from "./bindings";
 import type { CloudflareSettingsService } from "../modules/administration/cloudflare-settings";
 import type { InfrastructureSettingsService } from "../modules/administration/infrastructure-settings";
+import { captureWorkerHttpError } from "../platform/sentry";
 
 export interface HttpAppContext {
   installation: Pick<InstallationService, "getStatus">;
@@ -1201,6 +1202,11 @@ export function createHttpApp(createContext: HttpContextFactory) {
       path: context.req.path,
       method: context.req.method,
       error: error instanceof DomainError ? error.code : "INTERNAL_ERROR",
+    });
+    captureWorkerHttpError(error, {
+      requestId,
+      path: context.req.path,
+      method: context.req.method,
     });
     return errorResponse(error, requestId);
   });

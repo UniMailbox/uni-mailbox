@@ -28,6 +28,8 @@ import {
   RouteNotFoundBoundary,
 } from "../routes/boundaries";
 import { App } from "../App";
+import { WORKSPACE_FOLDER_IDS } from "../lib/app-navigation";
+import { AuthenticatedShell } from "../components/AuthenticatedShell";
 
 export interface RouterContext {
   queryClient: QueryClient;
@@ -50,6 +52,14 @@ function loginSearch(search: Record<string, unknown>) {
         ? undefined
         : safeLoginTarget(search.next),
   };
+}
+
+function AuthenticatedLayout() {
+  return (
+    <AuthenticatedShell>
+      <Outlet />
+    </AuthenticatedShell>
+  );
 }
 
 const rootRoute = createRootRouteWithContext<RouterContext>()({
@@ -107,7 +117,7 @@ const indexRoute = createRoute({
 const authenticatedRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: "authenticated",
-  component: Outlet,
+  component: AuthenticatedLayout,
   beforeLoad: async ({ context, location }) => {
     try {
       return {
@@ -128,15 +138,11 @@ const authenticatedRoute = createRoute({
   },
 });
 
-const folders = [
-  "inbox",
-  "sent",
-  "drafts",
-  "starred",
-  "archive",
-  "trash",
-] as const;
-function FolderRoute({ folder }: { folder: (typeof folders)[number] }) {
+function FolderRoute({
+  folder,
+}: {
+  folder: (typeof WORKSPACE_FOLDER_IDS)[number];
+}) {
   const { mailboxId } = useParams({ strict: false }) as { mailboxId?: string };
   return <MailWorkspace folder={folder} routeMailboxId={mailboxId} />;
 }
@@ -156,7 +162,7 @@ function SettingsRoute() {
   };
   return <SettingsPage section={section} />;
 }
-const folderRoutes = folders.flatMap((folder) => [
+const folderRoutes = WORKSPACE_FOLDER_IDS.flatMap((folder) => [
   createRoute({
     getParentRoute: () => authenticatedRoute,
     path: folder,

@@ -44,6 +44,11 @@ export interface Env {
   CLOUDFLARE_OAUTH_CLIENT_SECRET?: SecretBinding;
   CLOUDFLARE_OAUTH_SCOPES?: string;
   CF_VERSION_METADATA?: WorkerVersionMetadataBinding;
+  SENTRY_DSN?: string;
+  SENTRY_ENVIRONMENT?: string;
+  SENTRY_RELEASE?: string;
+  SENTRY_SAMPLE_RATE?: string;
+  SENTRY_TRACES_SAMPLE_RATE?: string;
 }
 
 export async function readSecretBinding(

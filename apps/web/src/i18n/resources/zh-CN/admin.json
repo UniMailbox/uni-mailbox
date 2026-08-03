@@ -98,7 +98,14 @@
   },
   "userRoles": {
     "none": "未分配角色",
-    "unknown": "未知角色"
+    "unknown": "未知角色",
+    "placeholder": "选择角色",
+    "search": "搜索角色",
+    "selected": "已选角色",
+    "loading": "正在加载角色…",
+    "noResults": "未找到角色",
+    "clear": "全部清除",
+    "remove": "移除 {{roleName}}"
   },
   "attachments": {
     "searchLabel": "搜索附件",

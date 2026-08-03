@@ -36,9 +36,7 @@ describe("administration console permission map", () => {
 
   it("lets an administrator open the console", () => {
     expect(canOpenAdminConsole(ADMINISTRATOR_PERMISSIONS)).toBe(true);
-    expect(adminConsoleEntryResource(ADMINISTRATOR_PERMISSIONS)).toBe(
-      "users",
-    );
+    expect(adminConsoleEntryResource(ADMINISTRATOR_PERMISSIONS)).toBe("users");
   });
 
   it("opens the mailbox-scoped attachment catalog for a plain member", () => {

@@ -1,12 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  KeyRound,
-  MailPlus,
-  Palette,
-  ShieldCheck,
-} from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { ShieldCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   EmailChangeSchema,
@@ -264,46 +258,14 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
       mailboxForm.reset();
     },
   });
-  const tabs: Array<{
-    section: SettingsSection;
-    to: string;
-    icon: React.ReactNode;
-  }> = [
-    { section: "account", to: "/settings/account", icon: <KeyRound /> },
-    { section: "mailboxes", to: "/settings/mailboxes", icon: <MailPlus /> },
-    {
-      section: "preferences",
-      to: "/settings/preferences",
-      icon: <Palette />,
-    },
-  ];
   return (
-    <main className="settings-page">
+    <section className="settings-page">
       <header>
-        <Link
-          className="icon-button"
-          to="/inbox"
-          aria-label={t("tabs.account")}
-        >
-          <ArrowLeft aria-hidden="true" className="directional-icon" />
-        </Link>
         <div>
           <div className="section-kicker">{t("kicker")}</div>
           <h1>{t(`title.${section}`)}</h1>
         </div>
       </header>
-      <nav className="settings-tabs" aria-label={t("kicker")}>
-        {tabs.map((tab) => (
-          <Link
-            aria-current={section === tab.section ? "page" : undefined}
-            key={tab.section}
-            to={tab.to}
-          >
-            {tab.icon}
-            {t(`tabs.${tab.section}`)}
-          </Link>
-        ))}
-      </nav>
       {section === "preferences" ? (
         <Preferences />
       ) : section === "account" ? (
@@ -490,6 +452,6 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
       ) : (
         <Preferences />
       )}
-    </main>
+    </section>
   );
 }

@@ -525,11 +525,11 @@ describe("Administration", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Close" })[0]!);
 
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
-    const assignedRole = await screen.findByRole("checkbox", {
-      name: "Administrators",
-    });
-    expect(assignedRole).toBeChecked();
-    fireEvent.click(assignedRole);
+    expect(await screen.findByText("Administrators")).toBeVisible();
+    expect(screen.queryByText(roleId)).not.toBeInTheDocument();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Remove Administrators" }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Apply change" }));
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -546,9 +546,10 @@ describe("Administration", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Add Users" }));
-    expect(
-      await screen.findByRole("checkbox", { name: "Administrators" }),
-    ).not.toBeChecked();
+    const roleCombobox = await screen.findByRole("combobox", {
+      name: "Assigned roles",
+    });
+    expect(screen.getByText("No roles assigned")).toBeVisible();
     expect(screen.queryByLabelText("Role IDs")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Display name"), {
       target: { value: "New User" },
@@ -559,7 +560,11 @@ describe("Administration", () => {
     fireEvent.change(screen.getByLabelText("Temporary password"), {
       target: { value: "correct-horse-battery-staple" },
     });
-    fireEvent.click(screen.getByRole("checkbox", { name: "Administrators" }));
+    fireEvent.click(roleCombobox);
+    fireEvent.change(screen.getByPlaceholderText("Search roles"), {
+      target: { value: "Admin" },
+    });
+    fireEvent.click(screen.getByRole("option", { name: "Administrators" }));
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
