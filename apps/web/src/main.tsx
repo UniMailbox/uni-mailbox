@@ -6,9 +6,17 @@ import { I18nextProvider } from "react-i18next";
 import { createAppQueryClient } from "./app/query-client";
 import { createAppRouter } from "./app/router";
 import { initializeI18n } from "./i18n";
+import { initBrowserSentry } from "./lib/sentry";
 import { initializeThemeColor } from "./lib/theme";
 import "./styles.css";
 
+initBrowserSentry({
+  dsn: import.meta.env.VITE_SENTRY_DSN,
+  environment: import.meta.env.VITE_SENTRY_ENVIRONMENT ?? import.meta.env.MODE,
+  release: import.meta.env.VITE_SENTRY_RELEASE,
+  sampleRate: import.meta.env.VITE_SENTRY_SAMPLE_RATE,
+  tracesSampleRate: import.meta.env.VITE_SENTRY_TRACES_SAMPLE_RATE,
+});
 initializeThemeColor();
 const queryClient = createAppQueryClient();
 const router = createAppRouter({ queryClient });

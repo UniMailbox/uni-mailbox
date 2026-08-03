@@ -98,7 +98,14 @@
   },
   "userRoles": {
     "none": "No roles assigned",
-    "unknown": "Unknown role"
+    "unknown": "Unknown role",
+    "placeholder": "Select roles",
+    "search": "Search roles",
+    "selected": "Selected roles",
+    "loading": "Loading roles…",
+    "noResults": "No roles found",
+    "clear": "Clear all",
+    "remove": "Remove {{roleName}}"
   },
   "attachments": {
     "searchLabel": "Search attachments",

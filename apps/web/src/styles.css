@@ -1,3 +1,27 @@
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted-surface);
+  --color-muted-foreground: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--line);
+  --color-input: var(--line);
+  --color-ring: var(--ring);
+}
+
 :root {
   color: #1c2823;
   background: #edf0ea;
@@ -18,6 +42,23 @@
   --line: #d1d7cf;
   --danger: #a3342d;
   --mono: "SFMono-Regular", "Cascadia Code", ui-monospace, monospace;
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: #ffffff;
+  --card-foreground: var(--ink);
+  --popover: #ffffff;
+  --popover-foreground: var(--ink);
+  --primary: var(--forest);
+  --primary-foreground: #ffffff;
+  --secondary: var(--theme-focus-soft);
+  --secondary-foreground: var(--forest-deep);
+  --muted-surface: var(--canvas);
+  --accent: var(--mint);
+  --accent-foreground: var(--forest-deep);
+  --ring: var(--theme-focus);
+  --surface: #ffffff;
+  --surface-strong: var(--theme-focus-soft);
+  --radius: 0.5rem;
 }
 
 * {
@@ -392,6 +433,46 @@ svg {
 }
 
 /* Mail workspace */
+.app-shell {
+  position: relative;
+  isolation: isolate;
+}
+.app-main {
+  min-width: 0;
+}
+.app-content {
+  min-width: 0;
+}
+.sidebar-backdrop {
+  display: none;
+}
+.nav-group {
+  display: grid;
+  gap: 3px;
+}
+.nav-group + .nav-group {
+  margin-top: 18px;
+}
+.nav-group-label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.nav-group-label svg {
+  width: 15px;
+  color: #6e8b7e;
+}
+.nav-group.active > .nav-group-label {
+  color: #c9d4ce;
+}
+.nav-group-items {
+  display: grid;
+  gap: 3px;
+}
+.topbar-context {
+  display: flex;
+  align-items: center;
+}
 .mail-app {
   display: grid;
   grid-template-columns: 246px minmax(0, 1fr);
@@ -439,6 +520,7 @@ svg {
   gap: 3px;
 }
 .mail-sidebar nav a {
+  position: relative;
   display: grid;
   grid-template-columns: 21px 1fr auto;
   min-height: 43px;
@@ -1552,6 +1634,34 @@ svg {
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 6px;
 }
+.selector-tags {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+.selector-tags-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.selector-tags-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+.selector-tags-trigger {
+  width: 100%;
+  justify-content: space-between;
+  text-align: start;
+}
+.selector-tags-popover {
+  z-index: 80;
+  width: var(--radix-popover-trigger-width);
+  min-width: 230px;
+}
+.selector-tags-check-hidden {
+  visibility: hidden;
+}
 .role-pill {
   display: inline-flex;
   align-items: center;
@@ -1571,6 +1681,19 @@ svg {
 }
 .settings-check-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-back-link {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--forest);
+  font: 700 10px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.admin-back-link svg {
+  width: 15px;
 }
 
 /* Settings */
@@ -1999,12 +2122,28 @@ svg {
     inset-block: 0;
     inset-inline-start: 0;
     width: 270px;
+    visibility: hidden;
+    pointer-events: none;
     transform: translateX(-100%);
-    transition: transform 0.2s ease;
+    transition:
+      transform 0.2s ease,
+      visibility 0s linear 0.2s;
   }
   .mail-sidebar.open {
+    visibility: visible;
+    pointer-events: auto;
     transform: translateX(0);
+    transition-delay: 0s;
     box-shadow: 20px 0 60px rgba(0, 0, 0, 0.25);
+  }
+  .sidebar-backdrop {
+    position: fixed;
+    z-index: 15;
+    display: block;
+    inset: 0;
+    width: 100%;
+    border: 0;
+    background: rgba(10, 29, 23, 0.35);
   }
   [dir="rtl"] .mail-sidebar {
     transform: translateX(100%);

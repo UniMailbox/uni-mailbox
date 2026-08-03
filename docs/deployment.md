@@ -1,5 +1,7 @@
 # Deployment and release guide
 
+For optional browser and Worker error collection, secret handling, source-map uploads, and the live-delivery checklist, see [Sentry error reporting](runbooks/sentry-error-reporting.md).
+
 UniMailbox deploys from the repository root as one Worker. The Worker serves
 the built web assets and owns HTTP, inbound email, Queue, and scheduled
 entrypoints. There is no separate Pages project. The canonical source repository

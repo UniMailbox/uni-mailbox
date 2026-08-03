@@ -1,6 +1,7 @@
 import type { UniMailboxQueueJob, Env } from "../platform/config";
 import { createAppContext } from "../app-context";
 import { processOutboundJob } from "../modules/outbound-mail";
+import { captureWorkerQueueError } from "../platform/sentry";
 
 export async function handleQueueBatch(
   batch: MessageBatch<UniMailboxQueueJob>,
@@ -22,7 +23,11 @@ export async function handleQueueBatch(
         await processOutboundJob(appContext, message.body);
       }
       message.ack();
-    } catch {
+    } catch (error) {
+      captureWorkerQueueError(error, {
+        attempts: message.attempts,
+        kind: message.body.kind ?? "outbound",
+      });
       message.retry();
     }
   }

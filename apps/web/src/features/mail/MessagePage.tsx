@@ -65,7 +65,7 @@ export function MessagePage({ messageId }: { messageId: string }) {
       ? formatDateTime(date, i18n.resolvedLanguage as RuntimeLocale, timeZone)
       : t("message.unavailableDate");
   return (
-    <main className="message-page">
+    <section className="message-page">
       <header className="message-topbar">
         <Link
           aria-label={t("message.back")}
@@ -217,6 +217,6 @@ export function MessagePage({ messageId }: { messageId: string }) {
           </section>
         ) : null}
       </article>
-    </main>
+    </section>
   );
 }

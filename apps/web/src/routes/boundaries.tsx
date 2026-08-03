@@ -4,17 +4,19 @@ import {
   type NotFoundRouteProps,
 } from "@tanstack/react-router";
 import { ShieldAlert } from "lucide-react";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { ErrorState } from "../components/Status";
+import { ForbiddenRouteError } from "../lib/forbidden-route-error";
+import { captureRouteError } from "../lib/sentry";
 
-export class ForbiddenRouteError extends Error {
-  constructor(readonly permission: string) {
-    super("FORBIDDEN");
-  }
-}
+export { ForbiddenRouteError } from "../lib/forbidden-route-error";
 
 export function RouteErrorBoundary({ error, reset }: ErrorComponentProps) {
   const { t } = useTranslation("auth");
+  useEffect(() => {
+    captureRouteError(error, { routeId: window.location.pathname });
+  }, [error]);
   if (error instanceof ForbiddenRouteError) {
     return (
       <main className="state-page">

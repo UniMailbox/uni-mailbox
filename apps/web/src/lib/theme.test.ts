@@ -38,6 +38,12 @@ describe("theme color preferences", () => {
     expect(document.documentElement.style.getPropertyValue("--forest")).toMatch(
       /^#[0-9a-f]{6}$/u,
     );
+    expect(document.documentElement.style.getPropertyValue("--primary")).toBe(
+      themePalette("#2563eb").forest,
+    );
+    expect(document.documentElement.style.getPropertyValue("--ring")).toBe(
+      themePalette("#2563eb").focus,
+    );
     expect(
       document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
         ?.content,

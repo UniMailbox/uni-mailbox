@@ -47,8 +47,10 @@ describe("AdminPage bidi inputs", () => {
       "dir",
       "ltr",
     );
+    const roleSelector = await screen.findByRole("combobox");
+    fireEvent.click(roleSelector);
     expect(
-      await screen.findByRole("checkbox", { name: "Administrators" }),
+      screen.getByRole("option", { name: "Administrators" }),
     ).not.toHaveAttribute("dir");
     expect(container.querySelector("input#displayName")).not.toHaveAttribute(
       "dir",
