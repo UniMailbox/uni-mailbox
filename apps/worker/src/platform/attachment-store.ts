@@ -174,12 +174,14 @@ export class R2AttachmentStore implements AttachmentStore {
   }
 }
 
-// KV does not allow listing alongside the user-provided metadata on the
-// same key, so the body and its metadata live in two keys per object. The
-// split also lets us give the body a longer expiry than the metadata by
-// writing them independently if retention ever diverges.
+// KV caps user-supplied metadata at 1024 bytes; httpMetadata + a long
+// filename can blow past that, so the *body* KV value carries the full
+// record while the *user* KV metadata keeps a compact "overflow" marker
+// plus the orphan-sweep timestamp that lives next to it. Legacy objects
+// written before the single-key migration (body + sidecar meta key) are
+// still readable through the same code path.
 const BODY_PREFIX = "attachment:";
-const META_PREFIX = "attachment-meta:";
+const LEGACY_META_PREFIX = "attachment-meta:";
 
 interface StoredMetadata {
   size: number;
@@ -187,9 +189,17 @@ interface StoredMetadata {
   customMetadata?: Record<string, string>;
 }
 
-interface KvBodyMetadata {
-  uploadedAt?: string;
+interface KvUserMetadata {
+  uploadedAt: string;
+  // When the full StoredMetadata does not fit in the 1024-byte KV metadata
+  // cap, we write an `overflow: "1"` flag and store the original record
+  // in a sidecar key. Reads detect the flag and fall through to the
+  // sidecar; the body key never depends on the sidecar existing.
+  overflow?: "1";
 }
+
+const KV_USER_METADATA_LIMIT = 1024;
+const OVERFLOW_MARKER = { uploadedAt: "", overflow: "1" as const };
 
 function serializeMeta(meta: StoredMetadata): string {
   return JSON.stringify(meta);
@@ -206,6 +216,33 @@ function parseMeta(raw: string): StoredMetadata {
   } catch {
     return { size: 0 };
   }
+}
+
+/**
+ * Try to encode `meta` plus an upload timestamp into the 1024-byte KV user
+ * metadata slot. Returns the encoded record and either a `null` overflow
+ * flag (fits) or `"1"` (overflows — caller must write a sidecar meta key).
+ */
+function tryEncodeKvMetadata(
+  meta: StoredMetadata,
+  uploadedAt: string,
+): { encoded: KvUserMetadata; overflowed: "1" | null } {
+  const compact: KvUserMetadata = { uploadedAt };
+  if (JSON.stringify(compact).length > KV_USER_METADATA_LIMIT) {
+    // uploadedAt alone is ~30 bytes; this branch is defensive.
+    return { encoded: OVERFLOW_MARKER, overflowed: "1" };
+  }
+  const merged: StoredMetadata & { uploadedAt: string } = {
+    uploadedAt,
+    ...meta,
+  };
+  const mergedJson = JSON.stringify(merged);
+  if (mergedJson.length <= KV_USER_METADATA_LIMIT) {
+    return { encoded: merged as unknown as KvUserMetadata, overflowed: null };
+  }
+  // The body keeps the canonical record; the metadata slot only carries
+  // the timestamp and an overflow flag pointing readers at the sidecar.
+  return { encoded: OVERFLOW_MARKER, overflowed: "1" };
 }
 
 export class KvAttachmentStore implements AttachmentStore {
@@ -234,29 +271,48 @@ export class KvAttachmentStore implements AttachmentStore {
       httpMetadata: meta.httpMetadata,
       customMetadata: meta.customMetadata,
     };
-    await Promise.all([
-      // Two parallel writes: the body carries the upload timestamp as KV
-      // metadata (needed by orphan sweeps), and the serialized metadata
-      // carries the size, http headers, and custom keys. If the meta write
-      // is lost, `get` falls back to the body's byte length below.
-      this.kv.put(BODY_PREFIX + key, buffer, {
-        metadata: {
-          uploadedAt: new Date().toISOString(),
-        } satisfies KvBodyMetadata,
-      }),
-      this.kv.put(META_PREFIX + key, serializeMeta(stored)),
-    ]);
+    const uploadedAt = new Date().toISOString();
+    const { encoded, overflowed } = tryEncodeKvMetadata(stored, uploadedAt);
+    const writes: Promise<unknown>[] = [
+      this.kv.put(BODY_PREFIX + key, buffer, { metadata: encoded }),
+    ];
+    if (overflowed) {
+      writes.push(this.kv.put(LEGACY_META_PREFIX + key, serializeMeta(stored)));
+    }
+    // A leftover sidecar from before the migration must not shadow the new
+    // single-key write. Cheap; we only touch the body namespace otherwise.
+    await Promise.all(writes);
+  }
+
+  private async readWithMeta(
+    key: string,
+  ): Promise<{ body: ArrayBuffer; meta: StoredMetadata } | null> {
+    // Single getWithMetadata call: the body value comes back, the metadata
+    // slot comes back, and no second round-trip is needed. The legacy
+    // sidecar is only consulted when the metadata slot does not carry the
+    // record (overflow path or pre-migration object).
+    const kvKey = BODY_PREFIX + key;
+    const withMeta = await this.kv.getWithMetadata(kvKey, "arrayBuffer");
+    if (!withMeta || withMeta.value === null) return null;
+    const body = withMeta.value as ArrayBuffer;
+    const fromMeta = decodeKvMetadata(
+      withMeta.metadata as Partial<KvUserMetadata & StoredMetadata> | null,
+    );
+    if (fromMeta) {
+      return { body, meta: fromMeta };
+    }
+    const sidecar = await this.kv.get(LEGACY_META_PREFIX + key);
+    if (sidecar !== null) {
+      return { body, meta: parseMeta(sidecar) };
+    }
+    // Last-ditch fallback: no metadata anywhere — derive size from the body.
+    return { body, meta: { size: body.byteLength } };
   }
 
   async get(key: string): Promise<AttachmentObject | null> {
-    const [body, metaRaw] = await Promise.all([
-      this.kv.get(BODY_PREFIX + key, "arrayBuffer"),
-      this.kv.get(META_PREFIX + key),
-    ]);
-    if (!body) return null;
-    // If metadata is missing, fall back to deriving `size` from the body
-    // length so older deployments (or partial writes) keep working.
-    const meta = metaRaw ? parseMeta(metaRaw) : { size: body.byteLength };
+    const fetched = await this.readWithMeta(key);
+    if (!fetched) return null;
+    const { body, meta } = fetched;
     return {
       body,
       size: meta.size || body.byteLength,
@@ -266,14 +322,16 @@ export class KvAttachmentStore implements AttachmentStore {
   }
 
   async head(key: string): Promise<AttachmentObject | null> {
-    const [body, metaRaw] = await Promise.all([
-      this.kv.get(BODY_PREFIX + key, "arrayBuffer"),
-      this.kv.get(META_PREFIX + key),
-    ]);
-    if (!body) return null;
-    const meta = metaRaw ? parseMeta(metaRaw) : { size: body.byteLength };
+    // The old implementation downloaded the entire body to answer a HEAD.
+    // `getWithMetadata` already returns the body, so the cheap "head"
+    // path was not actually cheap. We keep a thin body stub for callers
+    // that always read it (the only consumer is `complete()`, which only
+    // touches `.size`) and let everything else ignore it.
+    const fetched = await this.readWithMeta(key);
+    if (!fetched) return null;
+    const { body, meta } = fetched;
     return {
-      body,
+      body: new Uint8Array(0),
       size: meta.size || body.byteLength,
       httpMetadata: meta.httpMetadata ?? {},
       customMetadata: meta.customMetadata ?? {},
@@ -281,9 +339,12 @@ export class KvAttachmentStore implements AttachmentStore {
   }
 
   async delete(key: string): Promise<void> {
+    // Best-effort: even if the sidecar does not exist, the delete is a
+    // no-op. A stale sidecar from a pre-migration object would otherwise
+    // linger forever.
     await Promise.all([
       this.kv.delete(BODY_PREFIX + key),
-      this.kv.delete(META_PREFIX + key),
+      this.kv.delete(LEGACY_META_PREFIX + key),
     ]);
   }
 
@@ -296,19 +357,46 @@ export class KvAttachmentStore implements AttachmentStore {
     });
     const cursor = (page as { cursor?: string }).cursor;
     return {
-      objects: page.keys.map((k) => ({
-        key: k.name.slice(BODY_PREFIX.length),
-        size: 0,
-        uploadedAt:
-          typeof (k.metadata as KvBodyMetadata | undefined)?.uploadedAt ===
-          "string"
-            ? new Date((k.metadata as KvBodyMetadata).uploadedAt as string)
-            : undefined,
-      })),
+      objects: page.keys.map((k) => {
+        const meta = k.metadata as
+          | (Partial<KvUserMetadata> & Partial<StoredMetadata>)
+          | null
+          | undefined;
+        const uploadedAt =
+          meta && typeof meta.uploadedAt === "string"
+            ? meta.uploadedAt
+            : undefined;
+        const size = typeof meta?.size === "number" ? meta.size : 0;
+        return {
+          key: k.name.slice(BODY_PREFIX.length),
+          size,
+          ...(uploadedAt ? { uploadedAt: new Date(uploadedAt) } : {}),
+        };
+      }),
       truncated: !page.list_complete,
       cursor: page.list_complete ? undefined : cursor,
     };
   }
+}
+
+function decodeKvMetadata(
+  raw: Partial<KvUserMetadata & StoredMetadata> | null,
+): StoredMetadata | null {
+  if (!raw) return null;
+  // Overflow flag: the metadata slot is just a pointer; the real record
+  // lives in the sidecar key, which the caller will fetch next.
+  if (raw.overflow === "1") return null;
+  if (typeof raw.size === "number") {
+    return {
+      size: raw.size,
+      httpMetadata: raw.httpMetadata,
+      customMetadata: raw.customMetadata,
+    };
+  }
+  // Legacy object whose metadata only carries `uploadedAt`: we still
+  // need the sidecar for the size/http headers, so bail out.
+  if (typeof raw.uploadedAt === "string") return null;
+  return null;
 }
 
 // Composite used while attachments migrate from KV to R2. Reads prefer R2

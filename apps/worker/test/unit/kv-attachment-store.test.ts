@@ -82,11 +82,26 @@ function createMemoryKV(): KVNamespace {
       };
       return result as unknown as KVNamespaceListResult<unknown>;
     },
-    async getWithMetadata(key: string) {
+    async getWithMetadata(
+      key: string,
+      typeOrOptions?: "text" | "arrayBuffer" | "json" | "stream",
+    ) {
       const entry = store.get(key);
+      if (!entry) {
+        return { value: null, metadata: null };
+      }
+      if (typeOrOptions === "arrayBuffer") {
+        if (typeof entry.value === "string") {
+          return {
+            value: new TextEncoder().encode(entry.value).buffer,
+            metadata: entry.meta ?? null,
+          };
+        }
+        return { value: entry.value, metadata: entry.meta ?? null };
+      }
       return {
-        value: entry ? String(entry.value) : null,
-        metadata: entry?.meta ?? null,
+        value: typeof entry.value === "string" ? entry.value : null,
+        metadata: entry.meta ?? null,
       };
     },
   } as unknown as KVNamespace;
@@ -214,7 +229,7 @@ describe("KvAttachmentStore", () => {
     ).resolves.toBe(3);
   });
 
-  it("tolerates missing and malformed KV sidecar metadata", async () => {
+  it("tolerates missing and malformed KV metadata", async () => {
     await kv.put("attachment:no-meta", new Uint8Array([1, 2]).buffer);
     const noMeta = await store.get("no-meta");
     expect(noMeta).toMatchObject({
@@ -223,16 +238,78 @@ describe("KvAttachmentStore", () => {
       customMetadata: {},
     });
 
-    await kv.put("attachment:bad-meta", new Uint8Array([3]).buffer);
+    // Legacy sidecar still readable when the body metadata is the bare
+    // `{uploadedAt}` shape from the old code.
+    await kv.put("attachment:bad-meta", new Uint8Array([3]).buffer, {
+      metadata: { uploadedAt: new Date().toISOString() },
+    });
     await kv.put("attachment-meta:bad-meta", "{not-json");
     expect(await store.get("bad-meta")).toMatchObject({ size: 1 });
 
-    await kv.put("attachment:bad-size", new Uint8Array([4, 5]).buffer);
+    // Overflow path: metadata slot only carries the overflow pointer, the
+    // real record lives in the sidecar.
+    await kv.put("attachment:bad-size", new Uint8Array([4, 5]).buffer, {
+      metadata: { uploadedAt: "", overflow: "1" },
+    });
     await kv.put(
       "attachment-meta:bad-size",
       JSON.stringify({ size: "unknown" }),
     );
     expect(await store.get("bad-size")).toMatchObject({ size: 2 });
+  });
+
+  it("stores a single key per attachment and reports size via list", async () => {
+    await store.put("attachments/single", new Uint8Array([10, 20, 30]), {
+      httpMetadata: { contentType: "image/png" },
+    });
+    // No sidecar was written because the metadata fit in the 1024-byte slot.
+    expect(await kv.get("attachment-meta:attachments/single")).toBeNull();
+    const list = await store.list({ prefix: "attachments/" });
+    const entry = list.objects.find((e) => e.key === "attachments/single");
+    expect(entry?.size).toBe(3);
+    expect(entry?.uploadedAt).toBeInstanceOf(Date);
+  });
+
+  it("falls back to the sidecar when KV metadata overflows", async () => {
+    // Construct a customMetadata payload that pushes the encoded record
+    // past the 1024-byte user-metadata limit.
+    const longCustom = { label: "x".repeat(2_000) };
+    await store.put("attachments/big-meta", new Uint8Array([7, 7]), {
+      httpMetadata: { contentType: "text/plain" },
+      customMetadata: longCustom,
+    });
+    // The sidecar now holds the full record; the body metadata slot only
+    // carries the overflow pointer.
+    const withMeta = await (
+      kv as unknown as {
+        getWithMetadata: (
+          key: string,
+          type: "arrayBuffer",
+        ) => Promise<{ value: ArrayBuffer | null; metadata: unknown }>;
+      }
+    ).getWithMetadata("attachment:attachments/big-meta", "arrayBuffer");
+    expect(withMeta.value).not.toBeNull();
+    expect((withMeta.metadata as { overflow?: string } | null)?.overflow).toBe(
+      "1",
+    );
+    const sidecar = await kv.get("attachment-meta:attachments/big-meta");
+    expect(sidecar).toBeTruthy();
+    const parsed = JSON.parse(sidecar as string) as {
+      customMetadata?: { label?: string };
+    };
+    expect(parsed.customMetadata?.label?.length).toBe(2_000);
+
+    const fetched = await store.get("attachments/big-meta");
+    expect(fetched?.size).toBe(2);
+    expect(fetched?.customMetadata.label?.length).toBe(2_000);
+  });
+
+  it("head() does not surface the body bytes", async () => {
+    await store.put("attachments/head", new Uint8Array([1, 2, 3, 4]), {});
+    const head = await store.head("attachments/head");
+    expect(head?.size).toBe(4);
+    expect(head?.body).toBeInstanceOf(Uint8Array);
+    expect((head?.body as Uint8Array).byteLength).toBe(0);
   });
 
   it("preserves KV pagination and treats untrusted timestamps as unknown", async () => {
@@ -254,7 +331,7 @@ describe("KvAttachmentStore", () => {
       cursor: "cursor",
     });
     expect(page).toEqual({
-      objects: [{ key: "legacy", size: 0, uploadedAt: undefined }],
+      objects: [{ key: "legacy", size: 0 }],
       truncated: true,
       cursor: "next-page",
     });
