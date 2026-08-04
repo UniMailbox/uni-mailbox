@@ -525,7 +525,7 @@ svg {
   flex-direction: column;
   min-height: 0;
   height: 100%;
-  overflow: hidden;
+  overflow: scroll;
   padding: 24px 15px 18px;
   color: #c9d4ce;
   background: var(--forest-deep);
@@ -715,6 +715,35 @@ svg {
 }
 .mail-sidebar.collapsed .sidebar-collapse-toggle {
   margin-inline-start: 0;
+}
+
+/* Sidebar tooltip — used when the sidebar is collapsed so labels remain
+   accessible without taking up horizontal space. */
+.sidebar-tooltip {
+  z-index: 60;
+  max-width: 220px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: var(--forest-deep);
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  animation: sidebar-tooltip-in 120ms ease-out;
+}
+.sidebar-tooltip-arrow {
+  fill: var(--forest-deep);
+}
+@keyframes sidebar-tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .system-pulse,
 .live-dot {
