@@ -8,6 +8,7 @@ import {
 } from "@unimailbox/contracts";
 import { runtimePolicy } from "@unimailbox/config";
 import type { Env } from "../../platform/config";
+import { enforceRateLimit, rateLimitRules } from "../../platform/rate-limit";
 import {
   PasswordService,
   hashRefreshToken,
@@ -114,11 +115,10 @@ export class IdentityApplicationService {
   ): Promise<{ userId: string }> {
     if (request) {
       const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
-      await this.enforceRateLimit(
-        `rate:register:${await digest(ip)}`,
-        5,
-        3600,
-        "REGISTRATION_RATE_LIMITED",
+      await enforceRateLimit(
+        this.env.KV,
+        rateLimitRules.register,
+        await digest(ip),
       );
     }
     const settings = await this.env.DB.prepare(
@@ -501,21 +501,11 @@ export class IdentityApplicationService {
     request: Request,
   ): Promise<void> {
     const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
-    const key = `rate:login:${await digest(`${email}:${ip}`)}`;
-    await this.enforceRateLimit(key, 10, 900, "LOGIN_RATE_LIMITED");
-  }
-
-  private async enforceRateLimit(
-    key: string,
-    maximum: number,
-    ttl: number,
-    code: string,
-  ): Promise<void> {
-    const attempts = Number.parseInt((await this.env.KV.get(key)) ?? "0", 10);
-    if (attempts >= maximum) {
-      throw new DomainError(code, "Too many requests", 429);
-    }
-    await this.env.KV.put(key, String(attempts + 1), { expirationTtl: ttl });
+    await enforceRateLimit(
+      this.env.KV,
+      rateLimitRules.login,
+      await digest(`${email}:${ip}`),
+    );
   }
 }
 

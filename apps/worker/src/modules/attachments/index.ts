@@ -9,6 +9,7 @@ import {
   KV_VALUE_LIMIT,
   type AttachmentStore,
 } from "../../platform/attachment-store";
+import { enforceRateLimit, rateLimitRules } from "../../platform/rate-limit";
 import type { UploadTokenCodec } from "./upload-token";
 import { createAttachmentDownloadResponse } from "./download-response";
 import {
@@ -59,16 +60,11 @@ export class AttachmentApplicationService {
     input: CreateAttachmentUploadInput,
     requestUrl: string,
   ) {
-    const rateKey = `rate:attachment:${principal.userId}`;
-    const count = Number.parseInt((await this.env.KV.get(rateKey)) ?? "0", 10);
-    if (count >= 100) {
-      throw new DomainError(
-        "ATTACHMENT_RATE_LIMITED",
-        "Too many attachment upload requests",
-        429,
-      );
-    }
-    await this.env.KV.put(rateKey, String(count + 1), { expirationTtl: 3600 });
+    await enforceRateLimit(
+      this.env.KV,
+      rateLimitRules.attachmentUpload,
+      principal.userId,
+    );
     const settings = await this.env.DB.prepare(
       "SELECT max_attachment_bytes FROM system_settings WHERE id = 1",
     ).first<SettingsRow>();

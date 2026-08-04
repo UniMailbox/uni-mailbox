@@ -13,6 +13,7 @@ import {
 import type { AppContext } from "../../app-context";
 import { OutboundJobService } from "../outbound-mail";
 import type { MailboxApplicationService } from "../mailboxes";
+import { enforceRateLimit, rateLimitRules } from "../../platform/rate-limit";
 import type { CursorCodec } from "./cursor";
 
 interface SenderMailboxRow {
@@ -94,21 +95,11 @@ export class MessageApplicationService {
         "A valid Idempotency-Key header is required",
       );
     }
-    const rateKey = `rate:send:${principal.userId}`;
-    const sendCount = Number.parseInt(
-      (await this.context.env.KV.get(rateKey)) ?? "0",
-      10,
+    await enforceRateLimit(
+      this.context.env.KV,
+      rateLimitRules.messageSend,
+      principal.userId,
     );
-    if (sendCount >= 60) {
-      throw new DomainError(
-        "MESSAGE_SEND_RATE_LIMITED",
-        "Too many send requests",
-        429,
-      );
-    }
-    await this.context.env.KV.put(rateKey, String(sendCount + 1), {
-      expirationTtl: 60,
-    });
     // The canonical hash serialises the input with sorted object keys, so
     // JSON field order differences across callers don't cause replay
     // mismatches against the recorded idempotency record.
