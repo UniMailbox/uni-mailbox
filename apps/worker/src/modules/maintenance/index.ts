@@ -1,8 +1,12 @@
 import type { Env } from "../../platform/config";
 import type { StorageBackend } from "../../platform/attachment-store";
 import packageMetadata from "../../../../../package.json";
-
-const SCHEDULED_STARTUP_WINDOW_MS = 10 * 60 * 1000;
+import {
+  HEALTHY_HEARTBEAT_FRESHNESS_MS,
+  HEARTBEAT_KEY,
+  SCHEDULED_STARTUP_WINDOW_MS,
+  parseHeartbeat,
+} from "./heartbeat";
 
 export interface HealthResult {
   status: "ok" | "degraded";
@@ -52,21 +56,30 @@ export class HealthService {
     }
     if (this.env.KV) {
       try {
-        const lastRun = Number(
-          (await this.env.KV.get("health:scheduled:last_run")) ?? 0,
-        );
+        const lastRecord = parseHeartbeat(await this.env.KV.get(HEARTBEAT_KEY));
         const deployedAt = Date.parse(
           this.env.CF_VERSION_METADATA?.timestamp ?? "",
         );
-        checks.scheduled =
-          lastRun === 0
-            ? Number.isFinite(deployedAt) &&
-              Date.now() - deployedAt > SCHEDULED_STARTUP_WINDOW_MS
+        if (!lastRecord) {
+          checks.scheduled =
+            Number.isFinite(deployedAt) &&
+            Date.now() - deployedAt > SCHEDULED_STARTUP_WINDOW_MS
               ? "stale"
-              : "pending"
-            : Date.now() - lastRun <= 5 * 60 * 1000
-              ? "ok"
-              : "stale";
+              : "pending";
+        } else if (lastRecord.status === "degraded") {
+          // A degraded heartbeat is the cron telling us it ran but the
+          // body threw. It is still a signal that the trigger is alive,
+          // so it does not flip to `stale`; it just stays `ok` and we add
+          // a dedicated operational alert.
+          checks.scheduled = "ok";
+        } else if (
+          Date.now() - lastRecord.timestamp <=
+          HEALTHY_HEARTBEAT_FRESHNESS_MS
+        ) {
+          checks.scheduled = "ok";
+        } else {
+          checks.scheduled = "stale";
+        }
       } catch {
         checks.kv = "error";
         checks.scheduled = "error";
@@ -84,6 +97,16 @@ export class HealthService {
       operationalAlerts.push("scheduled_trigger_stale");
     } else if (checks.scheduled === "error") {
       operationalAlerts.push("scheduled_trigger_check_failed");
+    } else if (this.env.KV) {
+      // Surface a degraded heartbeat as an alert without tripping the
+      // `scheduled` check itself, so monitoring can distinguish a stuck
+      // trigger from a trigger that runs but fails. The `KV` guard mirrors
+      // the one above; we keep it because a `null` reading does not
+      // constitute a degraded heartbeat.
+      const lastRecord = parseHeartbeat(await this.env.KV.get(HEARTBEAT_KEY));
+      if (lastRecord?.status === "degraded") {
+        operationalAlerts.push("scheduled_trigger_degraded");
+      }
     }
     return {
       status: requiredChecks.every((value) => value === "ok")

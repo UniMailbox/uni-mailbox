@@ -89,17 +89,50 @@ describe("HealthService", () => {
   it("reports recent and stale scheduled heartbeats", async () => {
     const now = Date.now();
     await expect(
-      new HealthService(envFixture(false, { lastRun: String(now) }), "kv")
+      new HealthService(
+        envFixture(false, {
+          lastRun: JSON.stringify({ timestamp: now, status: "ok" }),
+        }),
+        "kv",
+      )
         .check()
         .then((result) => result.checks.scheduled),
     ).resolves.toBe("ok");
     const stale = await new HealthService(
-      envFixture(false, { lastRun: String(now - 6 * 60 * 1000) }),
+      envFixture(false, {
+        lastRun: JSON.stringify({
+          timestamp: now - 75 * 60 * 1000,
+          status: "ok",
+        }),
+      }),
       "kv",
     ).check();
     expect(stale.checks.scheduled).toBe("stale");
     expect(stale.status).toBe("ok");
     expect(stale.operationalAlerts).toContain("scheduled_trigger_stale");
+  });
+
+  it("accepts the legacy plain-number heartbeat format", async () => {
+    const recent = await new HealthService(
+      envFixture(false, { lastRun: String(Date.now()) }),
+      "kv",
+    ).check();
+    expect(recent.checks.scheduled).toBe("ok");
+  });
+
+  it("surfaces a degraded heartbeat as an operational alert without flipping scheduled", async () => {
+    const result = await new HealthService(
+      envFixture(false, {
+        lastRun: JSON.stringify({
+          timestamp: Date.now() - 1000,
+          status: "degraded",
+          reason: "outbound queue connection refused",
+        }),
+      }),
+      "kv",
+    ).check();
+    expect(result.checks.scheduled).toBe("ok");
+    expect(result.operationalAlerts).toContain("scheduled_trigger_degraded");
   });
 
   it("turns a missing Cron heartbeat into an operational alert after ten minutes", async () => {
