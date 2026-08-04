@@ -1,6 +1,7 @@
 import type { AppContext } from "../../app-context";
 import { OutboundJobService } from "../outbound-mail";
 import { isOrphanCleanupEligible } from "./orphan-policy";
+import { runWithHeartbeat } from "./heartbeat";
 import {
   backfillAttachmentFileMd5,
   deleteAttachmentFileIfUnreferenced,
@@ -19,22 +20,23 @@ export async function runScheduledTasks(
   context: AppContext,
   scheduledTime: number,
 ): Promise<void> {
-  await context.env.KV.put("health:scheduled:last_run", String(scheduledTime), {
-    expirationTtl: 86_400,
+  // Heartbeat cadence is owned by `runWithHeartbeat`: healthy ticks only
+  // persist on the hour, degraded ticks persist every minute.
+  await runWithHeartbeat(context, scheduledTime, async () => {
+    await recoverExpiredOutboundLocks(context);
+    await new OutboundJobService(context).dispatchPending();
+    const date = new Date(scheduledTime);
+    if (date.getUTCMinutes() === HOURLY_TRIGGER_MINUTE) {
+      await runHourlyMaintenance(context);
+    }
+    if (
+      date.getUTCHours() === DAILY_TRIGGER_HOUR &&
+      date.getUTCMinutes() === DAILY_TRIGGER_MINUTE
+    ) {
+      await runDailyMaintenance(context);
+    }
+    await processMaintenanceJobs(context);
   });
-  await recoverExpiredOutboundLocks(context);
-  await new OutboundJobService(context).dispatchPending();
-  const date = new Date(scheduledTime);
-  if (date.getUTCMinutes() === HOURLY_TRIGGER_MINUTE) {
-    await runHourlyMaintenance(context);
-  }
-  if (
-    date.getUTCHours() === DAILY_TRIGGER_HOUR &&
-    date.getUTCMinutes() === DAILY_TRIGGER_MINUTE
-  ) {
-    await runDailyMaintenance(context);
-  }
-  await processMaintenanceJobs(context);
 }
 
 // Hourly path: purge expired uploads and refresh operational metrics. The
