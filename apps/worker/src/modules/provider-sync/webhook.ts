@@ -8,6 +8,7 @@ import {
 } from "@unimailbox/contracts";
 import { runtimePolicy } from "@unimailbox/config";
 import type { AppContext } from "../../app-context";
+import { enforceRateLimit, rateLimitRules } from "../../platform/rate-limit";
 
 type WebhookContext = Pick<
   AppContext,
@@ -53,24 +54,14 @@ export class WebhookApplicationService {
     request: Request,
   ): Promise<{ accepted: true; duplicate: boolean }> {
     const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
-    // Per-(connection, IP) per-minute window — TTL of 60s aligns the KV
-    // counter expiry with the rolling window so a single burst can't bleed
-    // into the next minute.
-    const rateKey = `rate:webhook:${connectionId}:${await digest(ip)}`;
-    const count = Number.parseInt(
-      (await this.context.env.KV.get(rateKey)) ?? "0",
-      10,
+    // Per-(connection, IP) per-minute window — the index is encoded in the
+    // key so each window is a distinct KV entry and a busy connection can
+    // never keep its counter alive past the window boundary.
+    await enforceRateLimit(
+      this.context.env.KV,
+      rateLimitRules.webhook,
+      `${connectionId}:${await digest(ip)}`,
     );
-    if (count >= runtimePolicy.webhookRequestsPerMinute) {
-      throw new DomainError(
-        "WEBHOOK_RATE_LIMITED",
-        "Too many webhook requests",
-        429,
-      );
-    }
-    await this.context.env.KV.put(rateKey, String(count + 1), {
-      expirationTtl: 60,
-    });
     const providerKey = parseProviderKey(providerKeyValue);
     const connection = await this.context.env.DB.prepare(
       `SELECT pc.provider_key, pc.config_json, ec.encrypted_payload
