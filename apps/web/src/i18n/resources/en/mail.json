@@ -26,7 +26,11 @@
     "arabic": "Pseudo-RTL",
     "activeMailbox": "Active mailbox",
     "search": "Search mail",
-    "searchPlaceholder": "Search loaded mail"
+    "searchPlaceholder": "Search loaded mail",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar",
+    "collapseGroup": "Collapse section",
+    "expandGroup": "Expand section"
   },
   "system": {
     "nominal": "Systems nominal",

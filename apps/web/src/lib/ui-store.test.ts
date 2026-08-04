@@ -55,6 +55,43 @@ describe("ui-store", () => {
     expect(useUiStore.getState().sidebarOpen).toBe(false);
   });
 
+  it("persists the whole-sidebar collapsed preference", () => {
+    useUiStore.getState().setSidebarCollapsed(true);
+    expect(useUiStore.getState().sidebarCollapsed).toBe(true);
+    expect(window.localStorage.getItem("unimailbox.sidebarCollapsed")).toBe(
+      "1",
+    );
+
+    useUiStore.getState().toggleSidebarCollapsed();
+    expect(useUiStore.getState().sidebarCollapsed).toBe(false);
+    expect(window.localStorage.getItem("unimailbox.sidebarCollapsed")).toBe(
+      "0",
+    );
+
+    useUiStore.getState().toggleSidebarCollapsed();
+    expect(useUiStore.getState().sidebarCollapsed).toBe(true);
+  });
+
+  it("tracks expanded submenu groups and persists them", () => {
+    useUiStore.getState().toggleGroupExpanded("settings");
+    expect(useUiStore.getState().expandedGroups).toEqual(["settings"]);
+    expect(
+      window.localStorage.getItem("unimailbox.sidebarExpandedGroups"),
+    ).toBe(JSON.stringify(["settings"]));
+
+    useUiStore.getState().toggleGroupExpanded("workspace");
+    expect(useUiStore.getState().expandedGroups).toEqual([
+      "settings",
+      "workspace",
+    ]);
+
+    useUiStore.getState().setGroupExpanded("settings", false);
+    expect(useUiStore.getState().expandedGroups).toEqual(["workspace"]);
+    expect(
+      window.localStorage.getItem("unimailbox.sidebarExpandedGroups"),
+    ).toBe(JSON.stringify(["workspace"]));
+  });
+
   it("updates and persists the selected time zone", () => {
     useUiStore.getState().setTimeZone("Asia/Singapore");
     expect(useUiStore.getState().timeZone).toBe("Asia/Singapore");

@@ -4,6 +4,7 @@ import {
   Suspense,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -11,7 +12,16 @@ import type { ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Check, LogOut, Menu, PenLine, Search } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  LogOut,
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PenLine,
+  Search,
+} from "lucide-react";
 import {
   findNavigationLeaf,
   getNavigationModel,
@@ -62,26 +72,47 @@ function NavigationGroupView({
   pathname,
   onNavigate,
   translate,
+  expanded,
+  onToggle,
   unreadCount,
+  isCollapsed,
 }: {
   group: NavigationGroup;
   pathname: string;
   onNavigate: () => void;
   translate: (key: string) => string;
+  expanded: boolean;
+  onToggle: () => void;
   unreadCount?: number;
+  isCollapsed: boolean;
 }) {
   const GroupIcon = group.icon;
   const active = isNavigationGroupActive(group, pathname);
+  const label = translate(group.labelKey);
+  const headerId = `nav-group-${group.id}`;
+  const panelId = `nav-group-${group.id}-items`;
   return (
     <section
-      aria-label={translate(group.labelKey)}
-      className={`nav-group ${active ? "active" : ""}`}
+      aria-labelledby={headerId}
+      className={`nav-group ${active ? "active" : ""} ${
+        expanded ? "expanded" : "collapsed"
+      }`}
     >
-      <h2 className="nav-label nav-group-label">
-        <GroupIcon aria-hidden="true" />
-        <span>{translate(group.labelKey)}</span>
+      <h2 className="nav-label nav-group-label" id={headerId}>
+        <button
+          aria-controls={panelId}
+          aria-expanded={expanded}
+          className="nav-group-toggle"
+          onClick={onToggle}
+          title={label}
+          type="button"
+        >
+          <GroupIcon aria-hidden="true" />
+          <span className="nav-group-text">{label}</span>
+          <ChevronDown aria-hidden="true" className="nav-group-chevron" />
+        </button>
       </h2>
-      <div className="nav-group-items">
+      <div aria-hidden={!expanded} className="nav-group-items" id={panelId}>
         {group.children.map((item) => {
           const Icon = item.icon;
           const isActive = item.isActive(pathname);
@@ -91,6 +122,7 @@ function NavigationGroupView({
               className={isActive ? "active" : ""}
               key={item.id}
               onClick={onNavigate}
+              title={isCollapsed ? translate(item.labelKey) : undefined}
               to={item.href as "/inbox"}
             >
               <Icon aria-hidden="true" />
@@ -122,6 +154,12 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
   const setComposeOpen = useUiStore((state) => state.setComposeOpen);
   const sidebarOpen = useUiStore((state) => state.sidebarOpen);
   const setSidebarOpen = useUiStore((state) => state.setSidebarOpen);
+  const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed);
+  const toggleSidebarCollapsed = useUiStore(
+    (state) => state.toggleSidebarCollapsed,
+  );
+  const expandedGroups = useUiStore((state) => state.expandedGroups);
+  const toggleGroupExpanded = useUiStore((state) => state.toggleGroupExpanded);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const [search, setSearch] = useState("");
@@ -147,6 +185,19 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
   });
   const showSearch = isAuthenticatedMailPath(pathname);
   const canCompose = true;
+  const expandedSet = useMemo(() => new Set(expandedGroups), [expandedGroups]);
+  // Auto-expand the group that contains the active leaf on first render so a
+  // user landing on a deep route always sees the highlighted submenu.
+  useEffect(() => {
+    if (!activeLeaf) return;
+    const activeGroup = navigation.find((group) =>
+      group.children.some((child) => child.id === activeLeaf.id),
+    );
+    if (!activeGroup) return;
+    if (!expandedSet.has(activeGroup.id)) {
+      toggleGroupExpanded(activeGroup.id);
+    }
+  }, [activeLeaf, navigation, expandedSet, toggleGroupExpanded]);
   const logout = useMutation({
     ...logoutMutationOptions(queryClient),
     onSettled: () => {
@@ -196,10 +247,16 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
     <AuthenticatedShellContext.Provider
       value={{ activeMailboxId, search, setSearch }}
     >
-      <div className="mail-app app-shell">
+      <div
+        className={`mail-app app-shell ${
+          sidebarCollapsed ? "sidebar-collapsed" : ""
+        }`}
+      >
         <aside
           aria-label={t("navigation.folders")}
-          className={`mail-sidebar app-sidebar ${sidebarOpen ? "open" : ""}`}
+          className={`mail-sidebar app-sidebar ${sidebarOpen ? "open" : ""} ${
+            sidebarCollapsed ? "collapsed" : ""
+          }`}
           id="authenticated-navigation"
         >
           <header>
@@ -225,29 +282,58 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
               className="compose-button"
               disabled={!activeMailboxId}
               onClick={() => setComposeOpen(true)}
+              title={sidebarCollapsed ? t("compose.panelLabel") : undefined}
               type="button"
             >
-              <PenLine aria-hidden="true" /> {t("compose.panelLabel")}
+              <PenLine aria-hidden="true" />{" "}
+              <span>{t("compose.panelLabel")}</span>
             </button>
           ) : null}
-          <nav>
-            {navigation.map((group) => (
-              <NavigationGroupView
-                group={group}
-                key={group.id}
-                onNavigate={closeSidebar}
-                pathname={pathname}
-                translate={translate}
-                unreadCount={activeMailbox?.unread_count ?? undefined}
-              />
-            ))}
+          <nav className="sidebar-nav-scroll">
+            <div className="sidebar-nav-inner">
+              {navigation.map((group) => (
+                <NavigationGroupView
+                  group={group}
+                  isCollapsed={sidebarCollapsed}
+                  key={group.id}
+                  onNavigate={closeSidebar}
+                  onToggle={() => toggleGroupExpanded(group.id)}
+                  expanded={expandedSet.has(group.id)}
+                  pathname={pathname}
+                  translate={translate}
+                  unreadCount={activeMailbox?.unread_count ?? undefined}
+                />
+              ))}
+            </div>
           </nav>
           <footer>
             <span className="system-pulse" />
-            <div>
+            <div className="sidebar-footer-text">
               <strong>{t("system.nominal")}</strong>
               <small>{t("system.online")}</small>
             </div>
+            <button
+              aria-label={
+                sidebarCollapsed
+                  ? t("navigation.expandSidebar")
+                  : t("navigation.collapseSidebar")
+              }
+              aria-pressed={sidebarCollapsed}
+              className="sidebar-collapse-toggle"
+              onClick={toggleSidebarCollapsed}
+              title={
+                sidebarCollapsed
+                  ? t("navigation.expandSidebar")
+                  : t("navigation.collapseSidebar")
+              }
+              type="button"
+            >
+              {sidebarCollapsed ? (
+                <PanelLeftOpen aria-hidden="true" />
+              ) : (
+                <PanelLeftClose aria-hidden="true" />
+              )}
+            </button>
           </footer>
         </aside>
         {sidebarOpen ? (

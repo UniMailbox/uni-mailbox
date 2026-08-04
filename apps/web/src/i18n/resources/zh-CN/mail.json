@@ -26,7 +26,11 @@
     "arabic": "伪 RTL",
     "activeMailbox": "当前邮箱",
     "search": "搜索邮件",
-    "searchPlaceholder": "搜索已加载的邮件"
+    "searchPlaceholder": "搜索已加载的邮件",
+    "collapseSidebar": "收起侧边栏",
+    "expandSidebar": "展开侧边栏",
+    "collapseGroup": "收起分组",
+    "expandGroup": "展开分组"
   },
   "system": {
     "nominal": "系统运行正常",
