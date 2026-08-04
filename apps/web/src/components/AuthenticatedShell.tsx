@@ -34,6 +34,7 @@ import { useUiStore } from "../lib/ui-store";
 import { logoutMutationOptions } from "../features/auth/api";
 import { mailboxesQueryOptions } from "../features/mail/api";
 import { BidiText } from "./BidiText";
+import { Tooltip } from "./ui/tooltip";
 
 const ComposePanel = lazy(() =>
   import("../features/mail/ComposePanel").then((module) => ({
@@ -99,38 +100,48 @@ function NavigationGroupView({
       }`}
     >
       <h2 className="nav-label nav-group-label" id={headerId}>
-        <button
-          aria-controls={panelId}
-          aria-expanded={expanded}
-          className="nav-group-toggle"
-          onClick={onToggle}
-          title={label}
-          type="button"
-        >
-          <GroupIcon aria-hidden="true" />
-          <span className="nav-group-text">{label}</span>
-          <ChevronDown aria-hidden="true" className="nav-group-chevron" />
-        </button>
+        <Tooltip disabled={!isCollapsed} label={label} side="right">
+          <button
+            aria-controls={panelId}
+            aria-expanded={expanded}
+            className="nav-group-toggle"
+            onClick={onToggle}
+            title={!isCollapsed ? label : undefined}
+            type="button"
+          >
+            <GroupIcon aria-hidden="true" />
+            <span className="nav-group-text">{label}</span>
+            <ChevronDown aria-hidden="true" className="nav-group-chevron" />
+          </button>
+        </Tooltip>
       </h2>
       <div aria-hidden={!expanded} className="nav-group-items" id={panelId}>
         {group.children.map((item) => {
           const Icon = item.icon;
           const isActive = item.isActive(pathname);
-          return (
+          const itemLabel = translate(item.labelKey);
+          const link = (
             <Link
               aria-current={isActive ? "page" : undefined}
               className={isActive ? "active" : ""}
               key={item.id}
               onClick={onNavigate}
-              title={isCollapsed ? translate(item.labelKey) : undefined}
+              title={!isCollapsed ? itemLabel : undefined}
               to={item.href as "/inbox"}
             >
               <Icon aria-hidden="true" />
-              <span>{translate(item.labelKey)}</span>
+              <span>{itemLabel}</span>
               {item.id === "inbox" && unreadCount ? (
                 <strong>{unreadCount.toLocaleString()}</strong>
               ) : null}
             </Link>
+          );
+          return isCollapsed ? (
+            <Tooltip key={item.id} label={itemLabel} side="right">
+              {link}
+            </Tooltip>
+          ) : (
+            link
           );
         })}
       </div>
@@ -278,16 +289,22 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
             </button>
           </header>
           {canCompose ? (
-            <button
-              className="compose-button"
-              disabled={!activeMailboxId}
-              onClick={() => setComposeOpen(true)}
-              title={sidebarCollapsed ? t("compose.panelLabel") : undefined}
-              type="button"
+            <Tooltip
+              disabled={!sidebarCollapsed}
+              label={t("compose.panelLabel")}
+              side="right"
             >
-              <PenLine aria-hidden="true" />{" "}
-              <span>{t("compose.panelLabel")}</span>
-            </button>
+              <button
+                className="compose-button"
+                disabled={!activeMailboxId}
+                onClick={() => setComposeOpen(true)}
+                title={!sidebarCollapsed ? t("compose.panelLabel") : undefined}
+                type="button"
+              >
+                <PenLine aria-hidden="true" />{" "}
+                <span>{t("compose.panelLabel")}</span>
+              </button>
+            </Tooltip>
           ) : null}
           <nav className="sidebar-nav-scroll">
             <div className="sidebar-nav-inner">
@@ -312,28 +329,32 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
               <strong>{t("system.nominal")}</strong>
               <small>{t("system.online")}</small>
             </div>
-            <button
-              aria-label={
+            <Tooltip
+              label={
                 sidebarCollapsed
                   ? t("navigation.expandSidebar")
                   : t("navigation.collapseSidebar")
               }
-              aria-pressed={sidebarCollapsed}
-              className="sidebar-collapse-toggle"
-              onClick={toggleSidebarCollapsed}
-              title={
-                sidebarCollapsed
-                  ? t("navigation.expandSidebar")
-                  : t("navigation.collapseSidebar")
-              }
-              type="button"
+              side="right"
             >
-              {sidebarCollapsed ? (
-                <PanelLeftOpen aria-hidden="true" />
-              ) : (
-                <PanelLeftClose aria-hidden="true" />
-              )}
-            </button>
+              <button
+                aria-label={
+                  sidebarCollapsed
+                    ? t("navigation.expandSidebar")
+                    : t("navigation.collapseSidebar")
+                }
+                aria-pressed={sidebarCollapsed}
+                className="sidebar-collapse-toggle"
+                onClick={toggleSidebarCollapsed}
+                type="button"
+              >
+                {sidebarCollapsed ? (
+                  <PanelLeftOpen aria-hidden="true" />
+                ) : (
+                  <PanelLeftClose aria-hidden="true" />
+                )}
+              </button>
+            </Tooltip>
           </footer>
         </aside>
         {sidebarOpen ? (
