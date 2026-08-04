@@ -143,15 +143,27 @@ describe("R2AttachmentStore", () => {
   it("uses primary R2 reads, KV fallback heads, and primary listings", async () => {
     const bucket = bucketFixture();
     const kv = {
-      get: vi
-        .fn()
-        .mockImplementation((key: string) =>
-          key.startsWith("attachment:") ? new ArrayBuffer(2) : null,
-        ),
+      get: vi.fn().mockResolvedValue(null),
       put: vi.fn(),
       delete: vi.fn(),
       list: vi.fn(),
-      getWithMetadata: vi.fn(),
+      getWithMetadata: vi
+        .fn()
+        .mockImplementation((key: string, type: "arrayBuffer" | "text") => {
+          if (!key.startsWith("attachment:")) {
+            return Promise.resolve({ value: null, metadata: null });
+          }
+          if (type !== "arrayBuffer") {
+            return Promise.resolve({ value: null, metadata: null });
+          }
+          return Promise.resolve({
+            value: new ArrayBuffer(2),
+            metadata: {
+              uploadedAt: new Date().toISOString(),
+              size: 2,
+            },
+          });
+        }),
     } as unknown as KVNamespace;
     const store = createAttachmentStore({
       KV: kv,
