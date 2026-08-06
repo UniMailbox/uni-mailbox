@@ -374,8 +374,8 @@ export class MessageApplicationService {
       ...(providerJobId
         ? [
             this.context.env.DB.prepare(
-              `INSERT INTO outbound_jobs (id, message_id, status)
-               VALUES (?, ?, 'pending')`,
+              `INSERT INTO outbound_jobs (id, message_id, status, created_via_schedule)
+               VALUES (?, ?, 'pending', 0)`,
             ).bind(providerJobId, messageId),
           ]
         : []),

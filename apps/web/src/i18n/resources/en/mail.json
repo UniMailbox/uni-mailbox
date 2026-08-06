@@ -79,6 +79,10 @@
     "saved": "Saved to server",
     "saveDraft": "Save draft",
     "saving": "Saving…",
+    "scheduleAt": "Schedule send at",
+    "scheduleSend": "Schedule send",
+    "scheduling": "Scheduling…",
+    "cancelSchedule": "Cancel schedule",
     "send": "Send message",
     "sending": "Queueing…",
     "validation": {

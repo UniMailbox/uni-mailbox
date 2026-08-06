@@ -5,7 +5,15 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { useStore } from "@tanstack/react-form";
-import { Bold, Italic, Link2, Paperclip, Send, X } from "lucide-react";
+import {
+  Bold,
+  CalendarClock,
+  Italic,
+  Link2,
+  Paperclip,
+  Send,
+  X,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   attachmentEndpoints,
@@ -25,7 +33,13 @@ import {
 import { apiErrorToken } from "../../i18n/errors";
 import { localeMetadata, type RuntimeLocale } from "../../i18n";
 import { type ComposeIntent, useUiStore } from "../../lib/ui-store";
-import { draftQueryOptions, mailKeys, messageQueryOptions } from "./api";
+import {
+  draftCancelScheduleMutationOptions,
+  draftQueryOptions,
+  draftScheduleMutationOptions,
+  mailKeys,
+  messageQueryOptions,
+} from "./api";
 
 interface ComposeFormValues {
   to: string;
@@ -46,6 +60,20 @@ function addresses(value: string): string[] {
         .filter(Boolean),
     ),
   ];
+}
+
+function localDateTimeValue(value?: string | null): string {
+  const date = value ? new Date(value) : new Date(Date.now() + 120_000);
+  const candidate = Number.isNaN(date.getTime())
+    ? new Date(Date.now() + 120_000)
+    : date;
+  const pad = (part: number) => part.toString().padStart(2, "0");
+  return `${candidate.getFullYear()}-${pad(candidate.getMonth() + 1)}-${pad(candidate.getDate())}T${pad(candidate.getHours())}:${pad(candidate.getMinutes())}`;
+}
+
+function toScheduledIso(value: string): string | null {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 const ComposeFormSchema = {
@@ -136,6 +164,9 @@ export function ComposePanel({
   const [editorRevision, setEditorRevision] = useState(0);
   const [serverDraftId, setServerDraftId] = useState(intent?.draftId);
   const [draftVersion, setDraftVersion] = useState<string>();
+  const [scheduledAtInput, setScheduledAtInput] = useState(() =>
+    localDateTimeValue(),
+  );
   const [localRecoveryComplete, setLocalRecoveryComplete] = useState(() =>
     Boolean(intent?.draftId || intent?.parentMessageId),
   );
@@ -151,6 +182,10 @@ export function ComposePanel({
   });
   const formValues = useStore(form.store, (state) => state.values);
   const sendPending = useRef(false);
+  const scheduleMutation = useMutation(draftScheduleMutationOptions(client));
+  const cancelScheduleMutation = useMutation(
+    draftCancelScheduleMutationOptions(client),
+  );
 
   function hydrateForm(values: ComposeFormValues) {
     form.reset(values);
@@ -215,6 +250,7 @@ export function ComposePanel({
     setAttachmentIds(draft.data.attachments.map((attachment) => attachment.id));
     setServerDraftId(draft.data.id);
     setDraftVersion(draft.data.updated_at);
+    setScheduledAtInput(localDateTimeValue(draft.data.scheduled_at));
     hydratedSource.current = draft.data.id;
   }, [draft.data, editor, form]);
 
@@ -383,14 +419,51 @@ export function ComposePanel({
       close(false);
     },
   });
+  const isBusy =
+    scheduleMutation.isPending ||
+    cancelScheduleMutation.isPending ||
+    send.isPending ||
+    save.isPending;
+
+  async function scheduleDraft() {
+    if (isBusy) return;
+    const scheduledAt = toScheduledIso(scheduledAtInput);
+    if (!scheduledAt) return;
+    const saved = await persistDraft(formValues);
+    const result = await scheduleMutation.mutateAsync({
+      draftId: saved.id,
+      mailboxId,
+      ifMatch: `"${saved.updated_at}"`,
+      idempotencyKey: crypto.randomUUID(),
+      scheduledAt,
+    });
+    setDraftVersion(result.updatedAt);
+    setScheduledAtInput(localDateTimeValue(result.scheduledAt));
+  }
+
+  async function cancelDraftSchedule() {
+    if (isBusy || !serverDraftId || !draft.data?.scheduled_at) return;
+    const currentVersion = draftVersion ?? draft.data?.updated_at;
+    if (!currentVersion) return;
+    const result = await cancelScheduleMutation.mutateAsync({
+      draftId: serverDraftId,
+      mailboxId,
+      ifMatch: `"${currentVersion}"`,
+      idempotencyKey: crypto.randomUUID(),
+    });
+    setDraftVersion(result.updatedAt);
+    if (result.cancelled) {
+      setScheduledAtInput("");
+    }
+  }
 
   async function saveDraft() {
-    if (save.isPending || send.isPending) return;
+    if (isBusy) return;
     await save.mutateAsync(formValues);
   }
 
   async function submitMessage(values: ComposeFormValues) {
-    if (sendPending.current || send.isPending || save.isPending) return;
+    if (sendPending.current || isBusy) return;
     sendPending.current = true;
     try {
       await send.mutateAsync(values);
@@ -545,6 +618,16 @@ export function ComposePanel({
           dir={editorDirection}
           editor={editor}
         />
+        <label className="compose-line schedule-line">
+          <span>{t("compose.scheduleAt")}</span>
+          <input
+            aria-label={t("compose.scheduleAt")}
+            disabled={isBusy}
+            onChange={(event) => setScheduledAtInput(event.target.value)}
+            type="datetime-local"
+            value={scheduledAtInput}
+          />
+        </label>
         <footer>
           <div className="compose-meta">
             <span>{t("compose.autosaved")}</span>
@@ -556,12 +639,18 @@ export function ComposePanel({
             {uploading ? <strong>{t("compose.uploading")}</strong> : null}
             {send.error ? <InlineMutationError error={send.error} /> : null}
             {save.error ? <InlineMutationError error={save.error} /> : null}
+            {scheduleMutation.error ? (
+              <InlineMutationError error={scheduleMutation.error} />
+            ) : null}
+            {cancelScheduleMutation.error ? (
+              <InlineMutationError error={cancelScheduleMutation.error} />
+            ) : null}
             {save.isSuccess ? <strong>{t("compose.saved")}</strong> : null}
           </div>
           <div className="compose-actions">
             <button
               className="button secondary"
-              disabled={save.isPending || send.isPending}
+              disabled={isBusy}
               onClick={() => {
                 void saveDraft();
               }}
@@ -570,9 +659,35 @@ export function ComposePanel({
               {save.isPending ? t("compose.saving") : t("compose.saveDraft")}
             </button>
             <button
-              className="button primary"
-              disabled={send.isPending || save.isPending}
+              className="button secondary"
+              disabled={isBusy || !toScheduledIso(scheduledAtInput)}
+              onClick={() => {
+                void scheduleDraft();
+              }}
+              type="button"
             >
+              <CalendarClock />
+              <span>
+                {scheduleMutation.isPending
+                  ? t("compose.scheduling")
+                  : t("compose.scheduleSend")}
+              </span>
+            </button>
+            <button
+              className="button tertiary"
+              disabled={
+                isBusy ||
+                !draft.data?.scheduled_at ||
+                cancelScheduleMutation.isPending
+              }
+              onClick={() => {
+                void cancelDraftSchedule();
+              }}
+              type="button"
+            >
+              {t("compose.cancelSchedule")}
+            </button>
+            <button className="button primary" disabled={isBusy}>
               <span>
                 {send.isPending ? t("compose.sending") : t("compose.send")}
               </span>

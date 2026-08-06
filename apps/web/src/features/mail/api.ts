@@ -238,6 +238,56 @@ export function draftSendMutationOptions(queryClient: QueryClient) {
   });
 }
 
+export function draftScheduleMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: (input: {
+      draftId: string;
+      mailboxId: string;
+      ifMatch: string;
+      idempotencyKey: string;
+      scheduledAt: string;
+    }) =>
+      apiClient.request(draftEndpoints.schedule, {
+        params: { draftId: input.draftId },
+        headers: {
+          "if-match": input.ifMatch,
+          "idempotency-key": input.idempotencyKey,
+        },
+        body: { scheduledAt: input.scheduledAt },
+      }),
+    onSuccess: async (_result, input) => {
+      await queryClient.invalidateQueries({
+        queryKey: mailKeys.draft(input.draftId),
+      });
+      await queryClient.invalidateQueries({ queryKey: mailKeys.drafts() });
+    },
+  });
+}
+
+export function draftCancelScheduleMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: (input: {
+      draftId: string;
+      mailboxId: string;
+      ifMatch: string;
+      idempotencyKey: string;
+    }) =>
+      apiClient.request(draftEndpoints.cancelSchedule, {
+        params: { draftId: input.draftId },
+        headers: {
+          "if-match": input.ifMatch,
+          "idempotency-key": input.idempotencyKey,
+        },
+      }),
+    onSuccess: async (_result, input) => {
+      await queryClient.invalidateQueries({
+        queryKey: mailKeys.draft(input.draftId),
+      });
+      await queryClient.invalidateQueries({ queryKey: mailKeys.drafts() });
+    },
+  });
+}
+
 export function attachmentUploadCompleteMutationOptions(
   queryClient: QueryClient,
 ) {

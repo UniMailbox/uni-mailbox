@@ -22,6 +22,7 @@ interface JobRow {
 
 interface ProviderMessageRow {
   id: string;
+  status: string;
   from_address: string;
   from_name: string;
   subject: string;
@@ -30,16 +31,20 @@ interface ProviderMessageRow {
   message_id_header: string | null;
   in_reply_to_header: string | null;
   references_header: string;
-  provider_key: string;
-  provider_connection_id: string;
-  config_json: string;
-  encrypted_payload: string;
+  provider_key: string | null;
+  provider_connection_id: string | null;
+  config_json: string | null;
+  encrypted_payload: string | null;
 }
 
 interface RecipientRow {
   type: "to" | "cc" | "bcc";
   address: string;
   display_name: string;
+}
+
+interface InternalMailboxRow {
+  id: string;
 }
 
 interface AttachmentRow {
@@ -118,16 +123,18 @@ async function loadProviderMessage(
   cc: MailAddress[];
   bcc: MailAddress[];
   attachments: ProviderAttachment[];
+  internalMailboxIds: string[];
 }> {
   const row = await context.env.DB.prepare(
-    `SELECT m.id, m.from_address, m.from_name, m.subject, m.html_body,
-            m.text_body, m.message_id_header, m.in_reply_to_header,
-            m.references_header, m.provider_key, m.provider_connection_id,
-            pc.config_json, ec.encrypted_payload
+    `SELECT m.id, m.status, m.from_address, m.from_name, m.subject,
+            m.html_body, m.text_body, m.message_id_header,
+            m.in_reply_to_header, m.references_header, m.provider_key,
+            m.provider_connection_id, pc.config_json, ec.encrypted_payload
      FROM messages m
-     JOIN provider_connections pc ON pc.id = m.provider_connection_id
-     JOIN encrypted_credentials ec ON ec.id = pc.credential_id
-     WHERE m.id = ? AND pc.status = 'active'`,
+     LEFT JOIN provider_connections pc
+       ON pc.id = m.provider_connection_id AND pc.status = 'active'
+     LEFT JOIN encrypted_credentials ec ON ec.id = pc.credential_id
+     WHERE m.id = ?`,
   )
     .bind(messageId)
     .first<ProviderMessageRow>();
@@ -148,39 +155,64 @@ async function loadProviderMessage(
   )
     .bind(messageId)
     .all<RecipientRow>();
-  const attachmentRows = await context.env.DB.prepare(
-    `SELECT object_key, filename, mime_type, disposition, content_id
-     FROM message_attachments
-     WHERE message_id = ?`,
+  const internalMailboxes = await context.env.DB.prepare(
+    `SELECT DISTINCT mb.id
+     FROM message_recipients r
+     JOIN mailboxes mb
+       ON mb.address = r.address COLLATE NOCASE AND mb.status = 'active'
+     WHERE r.message_id = ?`,
   )
     .bind(messageId)
-    .all<AttachmentRow>();
+    .all<InternalMailboxRow>();
+  const hasExternal = recipients.results.length > 0;
+  if (
+    hasExternal &&
+    (!row.provider_key ||
+      !row.provider_connection_id ||
+      !row.config_json ||
+      !row.encrypted_payload)
+  ) {
+    throw new DomainError(
+      "OUTBOUND_MESSAGE_NOT_FOUND",
+      "The queued message or provider connection is unavailable",
+      404,
+    );
+  }
   const attachments: ProviderAttachment[] = [];
-  for (const attachment of attachmentRows.results) {
-    const object = await context.attachmentStore.get(attachment.object_key);
-    if (!object) {
-      throw new DomainError(
-        "ATTACHMENT_OBJECT_MISSING",
-        "An attachment object is missing",
-        503,
-      );
+  if (hasExternal) {
+    const attachmentRows = await context.env.DB.prepare(
+      `SELECT object_key, filename, mime_type, disposition, content_id
+       FROM message_attachments
+       WHERE message_id = ?`,
+    )
+      .bind(messageId)
+      .all<AttachmentRow>();
+    for (const attachment of attachmentRows.results) {
+      const object = await context.attachmentStore.get(attachment.object_key);
+      if (!object) {
+        throw new DomainError(
+          "ATTACHMENT_OBJECT_MISSING",
+          "An attachment object is missing",
+          503,
+        );
+      }
+      const bytes =
+        object.body instanceof Uint8Array
+          ? object.body
+          : object.body instanceof ArrayBuffer
+            ? new Uint8Array(object.body)
+            : new Uint8Array(await new Response(object.body).arrayBuffer());
+      attachments.push({
+        filename: attachment.filename,
+        contentType: attachment.mime_type,
+        disposition: attachment.disposition,
+        ...(attachment.content_id ? { contentId: attachment.content_id } : {}),
+        content: bytes.buffer.slice(
+          bytes.byteOffset,
+          bytes.byteOffset + bytes.byteLength,
+        ) as ArrayBuffer,
+      });
     }
-    const bytes =
-      object.body instanceof Uint8Array
-        ? object.body
-        : object.body instanceof ArrayBuffer
-          ? new Uint8Array(object.body)
-          : new Uint8Array(await new Response(object.body).arrayBuffer());
-    attachments.push({
-      filename: attachment.filename,
-      contentType: attachment.mime_type,
-      disposition: attachment.disposition,
-      ...(attachment.content_id ? { contentId: attachment.content_id } : {}),
-      content: bytes.buffer.slice(
-        bytes.byteOffset,
-        bytes.byteOffset + bytes.byteLength,
-      ) as ArrayBuffer,
-    });
   }
   const addresses = (type: RecipientRow["type"]): MailAddress[] =>
     recipients.results
@@ -195,6 +227,7 @@ async function loadProviderMessage(
     cc: addresses("cc"),
     bcc: addresses("bcc"),
     attachments,
+    internalMailboxIds: internalMailboxes.results.map((mailbox) => mailbox.id),
   };
 }
 
@@ -221,65 +254,108 @@ export async function processOutboundJob(
   if (claim.meta.changes !== 1) return;
 
   try {
+    const outboundRow = await context.env.DB.prepare(
+      `SELECT created_via_schedule FROM outbound_jobs WHERE id = ?`,
+    )
+      .bind(job.jobId)
+      .first<{ created_via_schedule: number | null }>();
+    const scheduled = (outboundRow?.created_via_schedule ?? 0) === 1;
     const message = await loadProviderMessage(context, job.messageId);
-    const providerKey = parseProviderKey(message.row.provider_key);
-    const plugin = context.providers.get(providerKey);
-    const secrets = await context.credentials.decrypt(
-      message.row.encrypted_payload,
-    );
-    const result = await plugin.outbound.send(
-      {
-        connectionId: message.row.provider_connection_id,
-        config: JSON.parse(message.row.config_json) as Record<string, unknown>,
-        secrets,
-      },
-      {
-        idempotencyKey: message.row.id,
-        from: {
-          address: message.row.from_address,
-          ...(message.row.from_name ? { name: message.row.from_name } : {}),
+    let providerKey: string | null = null;
+    let providerMessageId: string | null = null;
+    let acceptedAt: string | null = null;
+    if (
+      message.to.length > 0 ||
+      message.cc.length > 0 ||
+      message.bcc.length > 0
+    ) {
+      if (
+        !message.row.provider_key ||
+        !message.row.provider_connection_id ||
+        !message.row.config_json ||
+        !message.row.encrypted_payload
+      ) {
+        throw new DomainError(
+          "OUTBOUND_MESSAGE_NOT_FOUND",
+          "The queued message or provider connection is unavailable",
+          404,
+        );
+      }
+      const parsedProviderKey = parseProviderKey(message.row.provider_key);
+      const plugin = context.providers.get(parsedProviderKey);
+      const secrets = await context.credentials.decrypt(
+        message.row.encrypted_payload,
+      );
+      const result = await plugin.outbound.send(
+        {
+          connectionId: message.row.provider_connection_id,
+          config: JSON.parse(message.row.config_json) as Record<
+            string,
+            unknown
+          >,
+          secrets,
         },
-        to: message.to,
-        cc: message.cc,
-        bcc: message.bcc,
-        subject: message.row.subject,
-        html: message.row.html_body,
-        text: message.row.text_body,
-        ...(message.row.message_id_header
-          ? { messageId: message.row.message_id_header }
-          : {}),
-        ...(message.row.in_reply_to_header
-          ? { inReplyTo: message.row.in_reply_to_header }
-          : {}),
-        ...(message.row.references_header
-          ? { references: message.row.references_header }
-          : {}),
-        attachments: message.attachments,
-      },
-    );
+        {
+          idempotencyKey: message.row.id,
+          from: {
+            address: message.row.from_address,
+            ...(message.row.from_name ? { name: message.row.from_name } : {}),
+          },
+          to: message.to,
+          cc: message.cc,
+          bcc: message.bcc,
+          subject: message.row.subject,
+          html: message.row.html_body,
+          text: message.row.text_body,
+          ...(message.row.message_id_header
+            ? { messageId: message.row.message_id_header }
+            : {}),
+          ...(message.row.in_reply_to_header
+            ? { inReplyTo: message.row.in_reply_to_header }
+            : {}),
+          ...(message.row.references_header
+            ? { references: message.row.references_header }
+            : {}),
+          attachments: message.attachments,
+        },
+      );
+      providerKey = parsedProviderKey;
+      providerMessageId = result.providerMessageId;
+      acceptedAt = result.acceptedAt;
+    }
     await context.env.DB.batch([
       context.env.DB.prepare(
         `UPDATE messages
-         SET status = 'sent', provider_key = ?, provider_message_id = ?,
-             sent_at = ?, updated_at = CURRENT_TIMESTAMP
+         SET status = 'sent', provider_key = COALESCE(?, provider_key),
+             provider_message_id = COALESCE(?, provider_message_id),
+             sent_at = COALESCE(?, CURRENT_TIMESTAMP),
+             updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
-      ).bind(
-        providerKey,
-        result.providerMessageId,
-        result.acceptedAt.replace("T", " ").replace("Z", ""),
-        job.messageId,
-      ),
+      ).bind(providerKey, providerMessageId, acceptedAt, job.messageId),
       context.env.DB.prepare(
         `UPDATE outbound_jobs
          SET status = 'succeeded', lock_token = NULL, lock_expires_at = NULL,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = ? AND lock_token = ?`,
       ).bind(job.jobId, lockToken),
+      context.env.DB.prepare(
+        `UPDATE mailbox_messages
+         SET folder = 'sent'
+         WHERE message_id = ? AND folder = 'drafts'`,
+      ).bind(job.messageId),
+      ...message.internalMailboxIds.map((mailboxId) =>
+        context.env.DB.prepare(
+          `INSERT OR IGNORE INTO mailbox_messages (
+             id, mailbox_id, message_id, folder
+           ) VALUES (?, ?, ?, 'inbox')`,
+        ).bind(crypto.randomUUID(), mailboxId, job.messageId),
+      ),
     ]);
     context.logger.info("outbound.send.completed", {
       messageId: job.messageId,
       providerKey,
-      providerMessageId: result.providerMessageId,
+      providerMessageId,
+      scheduled,
     });
   } catch (error) {
     const safe = safeFailure(error);

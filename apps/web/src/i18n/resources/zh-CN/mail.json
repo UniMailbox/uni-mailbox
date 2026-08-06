@@ -79,6 +79,10 @@
     "saved": "已保存到服务器",
     "saveDraft": "保存草稿",
     "saving": "正在保存…",
+    "scheduleAt": "定时发送时间",
+    "scheduleSend": "安排定时发送",
+    "scheduling": "正在安排定时发送…",
+    "cancelSchedule": "取消定时",
     "send": "发送邮件",
     "sending": "正在加入队列…",
     "validation": {

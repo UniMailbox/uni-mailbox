@@ -12,19 +12,23 @@ Cloudflare notification destinations are account-owned and cannot be safely
 embedded in a reusable `wrangler.jsonc`. After the first deployment, connect the
 operator destination in **Notifications** and create these policies:
 
-| Signal            | Trigger                                                            | First response                                      |
-| ----------------- | ------------------------------------------------------------------ | --------------------------------------------------- |
-| Worker errors     | Sustained exception/error increase for `unimailbox`                | Check request IDs and the newest deployment version |
-| Scheduled trigger | `/health` reports `scheduled: stale` for two checks                | Inspect Cron Trigger events and KV availability     |
-| Queue failures    | `failed_jobs > 0` or messages appear in `unimailbox-outbound-dead` | Follow the outbound recovery runbook                |
-| Webhook failures  | `failed_webhooks > 0` for two checks                               | Verify Brevo secret and run reconciliation          |
-| D1/R2/KV          | Any `/health` binding check is `error` or `missing`                | Stop promotion and inspect the affected binding     |
-| Inbound silence   | No expected inbound smoke event during a release drill             | Verify Email Routing and the Worker catch-all rule  |
+| Signal            | Trigger                                                                                                      | First response                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
+| Worker errors     | Sustained exception/error increase for `unimailbox`                                                          | Check request IDs and the newest deployment version       |
+| Scheduled trigger | `/health` reports `scheduled: stale` for two checks                                                          | Inspect Cron Trigger events and KV availability           |
+| Scheduled backlog | Pending scheduled drafts > N for 10 minutes (`maintenance.metrics.aggregated` would surface this once added) | Follow the scheduled send section of the outbound runbook |
+| Queue failures    | `failed_jobs > 0` or messages appear in `unimailbox-outbound-dead`                                           | Follow the outbound recovery runbook                      |
+| Webhook failures  | `failed_webhooks > 0` for two checks                                                                         | Verify Brevo secret and run reconciliation                |
+| D1/R2/KV          | Any `/health` binding check is `error` or `missing`                                                          | Stop promotion and inspect the affected binding           |
+| Inbound silence   | No expected inbound smoke event during a release drill                                                       | Verify Email Routing and the Worker catch-all rule        |
 
 Use the administration analytics endpoint for `failed_jobs` and
 `failed_webhooks`. If the account sends Workers Logs to a SIEM, alert on the
 structured event names `http.request.failed`, `outbound.send.failed`, and
-`webhook.processing.failed`; never alert on message bodies or credential fields.
+`webhook.processing.failed`. Scheduled send emits `outbound.send.completed`
+with a `scheduled: true` flag when the row started as a user-scheduled
+draft; use that to separate "scheduled-backlog" and "immediate-send" SLOs.
+Never alert on message bodies or credential fields.
 
 ## Release drill
 

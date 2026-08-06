@@ -6,6 +6,7 @@ import {
   DomainError,
   CreateAttachmentUploadSchema,
   DraftMessageSchema,
+  DraftScheduleSchema,
   InstallationStep,
   LoginSchema,
   MailboxCreateSchema,
@@ -611,6 +612,34 @@ export function createHttpApp(createContext: HttpContextFactory) {
         ),
     ),
   );
+  app.post("/api/v1/drafts/:id/schedule", async (context) => {
+    const input = DraftScheduleSchema.parse(await context.req.json());
+    const result = await context
+      .get("appContext")
+      .drafts.schedule(
+        context.get("principal"),
+        context.req.param("id"),
+        input.scheduledAt,
+        context.req.header("if-match"),
+        context.req.header("idempotency-key") ?? "",
+      );
+    const response = success(result);
+    response.headers.set("etag", `"${result.updatedAt}"`);
+    return response;
+  });
+  app.delete("/api/v1/drafts/:id/schedule", async (context) => {
+    const result = await context
+      .get("appContext")
+      .drafts.cancelSchedule(
+        context.get("principal"),
+        context.req.param("id"),
+        context.req.header("if-match"),
+        context.req.header("idempotency-key") ?? "",
+      );
+    const response = success(result);
+    response.headers.set("etag", `"${result.updatedAt}"`);
+    return response;
+  });
 
   app.get("/api/v1/admin/cloudflare/oauth/callback", async (context) =>
     context.redirect(

@@ -1053,6 +1053,8 @@ Rules:
 - Newly uploaded attachments are consumed when attached to a saved draft. Removing one deletes its metadata and schedules the unreferenced R2 object for cleanup.
 - Sending a draft is one D1 batch: verify the expected draft version, change its status to `queued` or `sent`, move the sender relation from `drafts` to `sent`, create internal recipient relations, and create an outbound job only for external recipients.
 - A successful send transition is irreversible through the draft API. Repeated requests with the same idempotency key return the same result.
+- A draft can be scheduled for deferred send by inserting a pending `outbound_jobs` row whose `available_at` is in the future; the schedule endpoint refuses to overwrite rows that have already moved past `pending`. The message status stays `draft` and the folder stays `drafts` until the dispatcher claims and completes the row, at which point the same draft-to-sent transition as immediate send runs atomically.
+- Cancelling a schedule deletes the pending `outbound_jobs` row; the draft version is only bumped once the row is confirmed gone, so a partial-success state cannot occur.
 
 ### 7.10 Outbound message flow
 

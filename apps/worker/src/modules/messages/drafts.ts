@@ -8,6 +8,17 @@ import type { AppContext } from "../../app-context";
 import type { MailboxApplicationService } from "../mailboxes";
 import { OutboundJobService } from "../outbound-mail";
 import { deleteAttachmentFileIfUnreferenced } from "../attachments/file-catalog";
+import {
+  SCHEDULE_CANCEL_OPERATION,
+  SCHEDULE_OPERATION,
+  SCHEDULED_AT_SELECT,
+  hashScheduleRequest,
+  resolveScheduleInstant,
+  sha256Hex,
+  systemClock,
+  toIsoFromD1,
+  type Clock,
+} from "./schedule";
 
 interface DraftRow {
   id: string;
@@ -78,16 +89,6 @@ function tuples(count: number, width: number): string {
   ).join(",");
 }
 
-async function hash(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(value),
-  );
-  return Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("");
-}
-
 export class DraftApplicationService {
   constructor(
     private readonly context: Pick<
@@ -95,6 +96,7 @@ export class DraftApplicationService {
       "env" | "providers" | "credentials" | "logger" | "attachmentStore"
     >,
     private readonly mailboxes: MailboxApplicationService,
+    private readonly clock: Clock = systemClock,
   ) {}
 
   async create(principal: Principal, input: DraftMessageInput) {
@@ -163,7 +165,7 @@ export class DraftApplicationService {
   async list(principal: Principal) {
     const result = await this.context.env.DB.prepare(
       `SELECT m.id, mm.mailbox_id, m.subject, m.updated_at, m.created_at,
-              m.from_address
+              m.from_address, ${SCHEDULED_AT_SELECT}
        FROM messages m
        JOIN mailbox_messages mm
          ON mm.message_id = m.id AND mm.folder = 'drafts'
@@ -172,7 +174,12 @@ export class DraftApplicationService {
     )
       .bind(principal.userId)
       .all();
-    return result.results;
+    return result.results.map((row) => ({
+      ...row,
+      scheduled_at: toIsoFromD1(
+        (row as { scheduled_at?: string | null }).scheduled_at,
+      ),
+    }));
   }
 
   async get(principal: Principal, draftId: string) {
@@ -190,8 +197,8 @@ export class DraftApplicationService {
       .bind(draftId)
       .all();
     const content = await this.context.env.DB.prepare(
-      `SELECT subject, html_body, text_body, updated_at
-       FROM messages WHERE id = ?`,
+      `SELECT m.subject, m.html_body, m.text_body, m.updated_at, ${SCHEDULED_AT_SELECT}
+       FROM messages m WHERE m.id = ?`,
     )
       .bind(draftId)
       .first();
@@ -199,6 +206,9 @@ export class DraftApplicationService {
       id: draft.id,
       mailboxId: draft.mailbox_id,
       ...content,
+      scheduled_at: toIsoFromD1(
+        (content as { scheduled_at?: string | null } | null)?.scheduled_at,
+      ),
       recipients: recipients.results,
       attachments: attachments.results,
     };
@@ -345,6 +355,13 @@ export class DraftApplicationService {
     ifMatch: string | undefined,
     idempotencyKey: string,
   ): Promise<{ messageId: string; status: "queued" | "sent" }> {
+    // `draft.send` keeps the original idempotency envelope (no `operation`
+    // namespace in the digest) so records written before scheduled send
+    // shipped continue to resolve. The hash shape must stay
+    // `{ draftId, version }` byte-for-byte.
+    const requestHash = await sha256Hex(
+      JSON.stringify({ draftId, version: ifMatch ?? "" }),
+    );
     const replay = await this.context.env.DB.prepare(
       `SELECT request_hash, response_json
        FROM idempotency_records
@@ -353,9 +370,6 @@ export class DraftApplicationService {
     )
       .bind(principal.userId, idempotencyKey)
       .first<{ request_hash: string; response_json: string }>();
-    const requestHash = await hash(
-      JSON.stringify({ draftId, version: ifMatch ?? "" }),
-    );
     if (replay) {
       if (replay.request_hash !== requestHash) {
         throw new DomainError(
@@ -372,31 +386,29 @@ export class DraftApplicationService {
     const draft = await this.requireDraft(principal.userId, draftId);
     assertDraftVersion(draft.updated_at, ifMatch);
     await this.mailboxes.assert(principal.userId, draft.mailbox_id, "send");
-    const recipients = await this.context.env.DB.prepare(
-      `SELECT type, address FROM message_recipients
-       WHERE message_id = ? ORDER BY rowid`,
+    const existingSchedule = await this.context.env.DB.prepare(
+      `SELECT status FROM outbound_jobs WHERE message_id = ?`,
     )
       .bind(draftId)
-      .all<{ type: "to" | "cc" | "bcc"; address: string }>();
-    if (!recipients.results.some((recipient) => recipient.type === "to")) {
+      .first<{ status: string }>();
+    if (
+      existingSchedule?.status === "pending" ||
+      existingSchedule?.status === "enqueued"
+    ) {
       throw new DomainError(
-        "DRAFT_TO_REQUIRED",
-        "At least one TO recipient is required",
+        "DRAFT_SCHEDULED",
+        "Cancel the draft schedule before sending it immediately",
+        409,
       );
     }
-    const addresses = recipients.results.map((recipient) => recipient.address);
-    const internal = await this.context.env.DB.prepare(
-      `SELECT id, address FROM mailboxes
-       WHERE status = 'active' AND address IN (${placeholders(addresses.length)})`,
-    )
-      .bind(...addresses)
-      .all<{ id: string; address: string }>();
-    const internalAddresses = new Set(
-      internal.results.map((mailbox) => mailbox.address.toLowerCase()),
-    );
-    const hasExternal = addresses.some(
-      (address) => !internalAddresses.has(address.toLowerCase()),
-    );
+    if (existingSchedule?.status === "processing") {
+      throw new DomainError(
+        "SCHEDULE_ALREADY_DISPATCHED",
+        "The draft has already started dispatching",
+        409,
+      );
+    }
+    const { hasExternal, internal } = await this.loadRecipients(draftId);
     if (hasExternal && !draft.outbound_connection_id) {
       throw new DomainError(
         "OUTBOUND_PROVIDER_NOT_CONFIGURED",
@@ -438,8 +450,8 @@ export class DraftApplicationService {
              WHERE id = ? AND status = ? AND updated_at = ?
            )`,
       ).bind(draftId, draft.mailbox_id, draftId, status, nextVersion),
-      ...(internal.results.length > 0
-        ? internal.results.map((mailbox) =>
+      ...(internal.length > 0
+        ? internal.map((mailbox) =>
             this.context.env.DB.prepare(
               `INSERT OR IGNORE INTO mailbox_messages (
                  id, mailbox_id, message_id, folder
@@ -462,8 +474,8 @@ export class DraftApplicationService {
       ...(jobId
         ? [
             this.context.env.DB.prepare(
-              `INSERT INTO outbound_jobs (id, message_id, status)
-               SELECT ?, ?, 'pending'
+              `INSERT INTO outbound_jobs (id, message_id, status, created_via_schedule)
+               SELECT ?, ?, 'pending', 0
                WHERE EXISTS (
                  SELECT 1 FROM messages
                  WHERE id = ? AND status = ? AND updated_at = ?
@@ -515,6 +527,412 @@ export class DraftApplicationService {
       }
     }
     return response;
+  }
+
+  /**
+   * Schedule a draft for deferred send. Idempotency check runs *before*
+   * reading the draft / existing job so a retry with the same key
+   * short-circuits before the draft row is locked or the job status is
+   * inspected. The replay path returns the cached response verbatim, so
+   * a client retrying a network error gets the same `scheduledAt` we
+   * stored on first write.
+   *
+   * Validation order:
+   *   1. Idempotency cache (operation + key + hash).
+   *   2. requireDraft + If-Match + mailbox assert.
+   *   3. Existing outbound_jobs status (only `pending` is reschedulable).
+   *   4. Window validation (90s ≤ Δ ≤ 30d).
+   *   5. Recipient validation (≥1 TO) + outbound provider check.
+   *
+   * The batch writes:
+   *   - `messages.provider_connection_id` (external only, so the dispatcher's
+   *     `loadProviderMessage` join doesn't miss a provider);
+   *   - `messages.updated_at` ← new version (the optimistic-lock commit
+   *     signal, guarded by the previous version);
+   *   - `outbound_jobs` UPDATE (reschedule pending) + INSERT WHERE NOT
+   *     EXISTS (first-time schedule), so neither path races against a
+   *     concurrent claim that already moved the row out of `pending`;
+   *   - idempotency_records INSERT, guarded by the new version.
+   */
+  async schedule(
+    principal: Principal,
+    draftId: string,
+    scheduledAt: string,
+    ifMatch: string | undefined,
+    idempotencyKey: string,
+  ): Promise<{
+    messageId: string;
+    status: "scheduled";
+    scheduledAt: string;
+    updatedAt: string;
+  }> {
+    const requestHash = await hashScheduleRequest({
+      operation: SCHEDULE_OPERATION,
+      draftId,
+      version: ifMatch ?? "",
+      scheduledAt: new Date(scheduledAt).toISOString(),
+    });
+    const replay = await this.context.env.DB.prepare(
+      `SELECT request_hash, response_json
+       FROM idempotency_records
+       WHERE actor_user_id = ? AND operation = ?
+         AND idempotency_key = ? AND expires_at > CURRENT_TIMESTAMP`,
+    )
+      .bind(principal.userId, SCHEDULE_OPERATION, idempotencyKey)
+      .first<{ request_hash: string; response_json: string }>();
+    if (replay) {
+      if (replay.request_hash !== requestHash) {
+        throw new DomainError(
+          "IDEMPOTENCY_KEY_REUSED",
+          "The idempotency key was used with different input",
+          409,
+        );
+      }
+      return JSON.parse(replay.response_json) as {
+        messageId: string;
+        status: "scheduled";
+        scheduledAt: string;
+        updatedAt: string;
+      };
+    }
+    const draft = await this.requireDraft(principal.userId, draftId);
+    assertDraftVersion(draft.updated_at, ifMatch);
+    await this.mailboxes.assert(principal.userId, draft.mailbox_id, "send");
+    const existing = await this.context.env.DB.prepare(
+      `SELECT status FROM outbound_jobs WHERE message_id = ?`,
+    )
+      .bind(draftId)
+      .first<{ status: string }>();
+    if (existing && existing.status !== "pending") {
+      throw new DomainError(
+        "SCHEDULE_ALREADY_DISPATCHED",
+        "The draft has already been dispatched and cannot be rescheduled",
+        409,
+      );
+    }
+    const resolved = resolveScheduleInstant(scheduledAt, this.clock());
+    const { hasExternal } = await this.loadRecipients(draftId);
+    // `provider_connection_id` is the column the outbound loader joins on.
+    // Internal-only schedules don't need a provider; the cron dispatcher
+    // (#7) handles them via a separate path. External schedules *must* have
+    // a provider or the loader returns 404 and the job never dispatches.
+    if (hasExternal && !draft.outbound_connection_id) {
+      throw new DomainError(
+        "OUTBOUND_PROVIDER_NOT_CONFIGURED",
+        "The sender domain has no outbound provider connection",
+        409,
+      );
+    }
+    const providerConnectionId = hasExternal
+      ? draft.outbound_connection_id
+      : null;
+    const nextVersion = createDraftVersion();
+    const response = {
+      messageId: draftId,
+      status: "scheduled" as const,
+      scheduledAt: resolved.instant.toISOString(),
+      updatedAt: nextVersion,
+    };
+    const jobId = crypto.randomUUID();
+    const results = await this.context.env.DB.batch([
+      // Commit signal: bump `updated_at` and pin `provider_connection_id`
+      // for external sends. Guarded by the *previous* version so a
+      // concurrent writer cannot partially mutate us.
+      this.context.env.DB.prepare(
+        `UPDATE messages
+         SET provider_connection_id = ?, updated_at = ?
+         WHERE id = ? AND status = 'draft' AND created_by_user_id = ?
+           AND updated_at = ?`,
+      ).bind(
+        providerConnectionId,
+        nextVersion,
+        draftId,
+        principal.userId,
+        draft.updated_at,
+      ),
+      // Reschedule: only touches a row that is *still* `pending`. If the
+      // dispatcher has already moved it to `enqueued`/`processing`, this
+      // statement is a no-op and we let the `INSERT WHERE NOT EXISTS`
+      // below handle the first-time case (it is also a no-op here because
+      // the row exists). The `created_via_schedule` flag is set on
+      // reschedule too so the log SLO split is source-of-truth.
+      this.context.env.DB.prepare(
+        `UPDATE outbound_jobs
+         SET available_at = ?, created_via_schedule = 1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE message_id = ? AND status = 'pending'`,
+      ).bind(resolved.availableAtText, draftId),
+      // First-time schedule: only fires when no row exists for this
+      // message. We *never* use INSERT OR REPLACE because that would
+      // overwrite a row the dispatcher has already claimed — a row that
+      // has left `pending` is someone else's concern (#7) and a re-send
+      // must go through `draft.send`, not `draft.schedule`.
+      this.context.env.DB.prepare(
+        `INSERT INTO outbound_jobs (
+           id, message_id, status, available_at, created_via_schedule
+         )
+         SELECT ?, ?, 'pending', ?, 1
+         WHERE NOT EXISTS (
+           SELECT 1 FROM outbound_jobs WHERE message_id = ?
+         )`,
+      ).bind(jobId, draftId, resolved.availableAtText, draftId),
+      this.context.env.DB.prepare(
+        `INSERT INTO idempotency_records (
+           id, actor_user_id, operation, idempotency_key, request_hash,
+           resource_id, response_status, response_json, expires_at
+         )
+         SELECT ?, ?, ?, ?, ?, ?, 200, ?,
+                datetime('now', '+1 day')
+         WHERE EXISTS (
+           SELECT 1 FROM messages
+           WHERE id = ? AND status = 'draft' AND updated_at = ?
+         )`,
+      ).bind(
+        crypto.randomUUID(),
+        principal.userId,
+        SCHEDULE_OPERATION,
+        idempotencyKey,
+        requestHash,
+        draftId,
+        JSON.stringify(response),
+        draftId,
+        nextVersion,
+      ),
+    ]);
+    if (results[0]?.meta.changes !== 1) {
+      throw new DomainError(
+        "DRAFT_VERSION_CONFLICT",
+        "The draft was modified by another request",
+        409,
+      );
+    }
+    return response;
+  }
+
+  /**
+   * Cancel a pending or enqueued schedule. Idempotency replay is checked
+   * first so retries don't race the dispatcher. The atomic batch:
+   *
+   *   1. DELETE outbound_jobs WHERE status IN ('pending','enqueued') — the
+   *      only statuses the cancel endpoint is allowed to rescind.
+   *   2. UPDATE messages SET updated_at = nextVersion WHERE … AND
+   *      NOT EXISTS (SELECT 1 FROM outbound_jobs WHERE message_id = ?).
+   *      The `NOT EXISTS` guard refuses to bump the version if the row is
+   *      still around (e.g. the dispatcher already promoted it past
+   *      `enqueued` into `processing`), so a partial-success state — job
+   *      still present, version bumped — cannot happen.
+   *   3. INSERT idempotency_records, guarded by the new version.
+   *
+   * Result inspection:
+   *   - DELETE changes === 0 → the dispatcher already moved the job past
+   *     `enqueued` (or the row was never there). Throw
+   *     `SCHEDULE_ALREADY_DISPATCHED` rather than reporting a false success.
+   *   - DELETE changes === 1 but UPDATE changes === 0 → a concurrent
+   *     reschedule bumped the draft version between our check and our
+   *     batch; throw `DRAFT_VERSION_CONFLICT`.
+   *   - Both === 1 → return `cancelled: true`.
+   *
+   * The no-job case (`existing` SELECT returned nothing) is a separate
+   * idempotent path that returns `cancelled: false` without touching
+   * `messages.updated_at`, so we don't punish the user for cancelling a
+   * draft they never scheduled.
+   */
+  async cancelSchedule(
+    principal: Principal,
+    draftId: string,
+    ifMatch: string | undefined,
+    idempotencyKey: string,
+  ): Promise<{
+    messageId: string;
+    status: "draft";
+    cancelled: boolean;
+    updatedAt: string;
+  }> {
+    const requestHash = await hashScheduleRequest({
+      operation: SCHEDULE_CANCEL_OPERATION,
+      draftId,
+      version: ifMatch ?? "",
+      scheduledAt: "",
+    });
+    const replay = await this.context.env.DB.prepare(
+      `SELECT request_hash, response_json
+       FROM idempotency_records
+       WHERE actor_user_id = ? AND operation = ?
+         AND idempotency_key = ? AND expires_at > CURRENT_TIMESTAMP`,
+    )
+      .bind(principal.userId, SCHEDULE_CANCEL_OPERATION, idempotencyKey)
+      .first<{ request_hash: string; response_json: string }>();
+    if (replay) {
+      if (replay.request_hash !== requestHash) {
+        throw new DomainError(
+          "IDEMPOTENCY_KEY_REUSED",
+          "The idempotency key was used with different input",
+          409,
+        );
+      }
+      return JSON.parse(replay.response_json) as {
+        messageId: string;
+        status: "draft";
+        cancelled: boolean;
+        updatedAt: string;
+      };
+    }
+    const draft = await this.requireDraft(principal.userId, draftId);
+    assertDraftVersion(draft.updated_at, ifMatch);
+    await this.mailboxes.assert(principal.userId, draft.mailbox_id, "send");
+    const existing = await this.context.env.DB.prepare(
+      `SELECT status FROM outbound_jobs WHERE message_id = ?`,
+    )
+      .bind(draftId)
+      .first<{ status: string }>();
+    if (!existing) {
+      // No schedule to cancel — idempotent no-op. We still cache the
+      // response so a retry with the same key returns the same answer
+      // even if a concurrent schedule sneaks in between requests.
+      const response = {
+        messageId: draftId,
+        status: "draft" as const,
+        cancelled: false,
+        updatedAt: draft.updated_at,
+      };
+      await this.context.env.DB.prepare(
+        `INSERT INTO idempotency_records (
+           id, actor_user_id, operation, idempotency_key, request_hash,
+           resource_id, response_status, response_json, expires_at
+         ) VALUES (?, ?, ?, ?, ?, ?, 200, ?, datetime('now', '+1 day'))`,
+      )
+        .bind(
+          crypto.randomUUID(),
+          principal.userId,
+          SCHEDULE_CANCEL_OPERATION,
+          idempotencyKey,
+          requestHash,
+          draftId,
+          JSON.stringify(response),
+        )
+        .run();
+      return response;
+    }
+    if (existing.status !== "pending" && existing.status !== "enqueued") {
+      throw new DomainError(
+        "SCHEDULE_ALREADY_DISPATCHED",
+        "The schedule has already been dispatched and cannot be cancelled",
+        409,
+      );
+    }
+    const nextVersion = createDraftVersion();
+    const response = {
+      messageId: draftId,
+      status: "draft" as const,
+      cancelled: true,
+      updatedAt: nextVersion,
+    };
+    const results = await this.context.env.DB.batch([
+      this.context.env.DB.prepare(
+        `DELETE FROM outbound_jobs
+         WHERE message_id = ? AND status IN ('pending', 'enqueued')`,
+      ).bind(draftId),
+      this.context.env.DB.prepare(
+        `UPDATE messages
+         SET updated_at = ?
+         WHERE id = ? AND status = 'draft' AND created_by_user_id = ?
+           AND updated_at = ?
+           AND NOT EXISTS (
+             SELECT 1 FROM outbound_jobs WHERE message_id = ?
+           )`,
+      ).bind(nextVersion, draftId, principal.userId, draft.updated_at, draftId),
+      this.context.env.DB.prepare(
+        `INSERT INTO idempotency_records (
+           id, actor_user_id, operation, idempotency_key, request_hash,
+           resource_id, response_status, response_json, expires_at
+         )
+         SELECT ?, ?, ?, ?, ?, ?, 200, ?,
+                datetime('now', '+1 day')
+         WHERE EXISTS (
+           SELECT 1 FROM messages
+           WHERE id = ? AND status = 'draft' AND updated_at = ?
+         )`,
+      ).bind(
+        crypto.randomUUID(),
+        principal.userId,
+        SCHEDULE_CANCEL_OPERATION,
+        idempotencyKey,
+        requestHash,
+        draftId,
+        JSON.stringify(response),
+        draftId,
+        nextVersion,
+      ),
+    ]);
+    if (results[0]?.meta.changes !== 1) {
+      // The DELETE did not match: the job moved past `enqueued` between
+      // our pre-check and the batch. We refuse to claim a partial success.
+      throw new DomainError(
+        "SCHEDULE_ALREADY_DISPATCHED",
+        "The schedule has already been dispatched and cannot be cancelled",
+        409,
+      );
+    }
+    if (results[1]?.meta.changes !== 1) {
+      // The DELETE matched but the version bump didn't. Two possibilities:
+      //   - the row still exists (`NOT EXISTS` failed) — the dispatcher
+      //     re-inserted it after our DELETE, which we treat as a race.
+      //   - a concurrent writer changed `updated_at`.
+      // Either way the request did not produce a clean state, so we don't
+      // pretend otherwise.
+      throw new DomainError(
+        "DRAFT_VERSION_CONFLICT",
+        "The draft was modified by another request",
+        409,
+      );
+    }
+    return response;
+  }
+
+  /**
+   * Shared recipient lookup for `send` and `schedule`. Throws
+   * `DRAFT_TO_REQUIRED` so both flows agree on the precondition that at
+   * least one TO recipient is set before any state transition. The
+   * internal/external split is reused verbatim so `send` and `schedule`
+   * agree on whether an outbound job is required.
+   */
+  private async loadRecipients(draftId: string): Promise<{
+    recipients: { type: "to" | "cc" | "bcc"; address: string }[];
+    addresses: string[];
+    internal: { id: string; address: string }[];
+    hasExternal: boolean;
+  }> {
+    const recipients = await this.context.env.DB.prepare(
+      `SELECT type, address FROM message_recipients
+       WHERE message_id = ? ORDER BY rowid`,
+    )
+      .bind(draftId)
+      .all<{ type: "to" | "cc" | "bcc"; address: string }>();
+    if (!recipients.results.some((recipient) => recipient.type === "to")) {
+      throw new DomainError(
+        "DRAFT_TO_REQUIRED",
+        "At least one TO recipient is required",
+      );
+    }
+    const addresses = recipients.results.map((recipient) => recipient.address);
+    const internal = await this.context.env.DB.prepare(
+      `SELECT id, address FROM mailboxes
+       WHERE status = 'active' AND address IN (${placeholders(addresses.length)})`,
+    )
+      .bind(...addresses)
+      .all<{ id: string; address: string }>();
+    const internalAddresses = new Set(
+      internal.results.map((mailbox) => mailbox.address.toLowerCase()),
+    );
+    const hasExternal = addresses.some(
+      (address) => !internalAddresses.has(address.toLowerCase()),
+    );
+    return {
+      recipients: recipients.results,
+      addresses,
+      internal: internal.results,
+      hasExternal,
+    };
   }
 
   private async requireDraft(

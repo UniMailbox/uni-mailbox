@@ -89,6 +89,108 @@ folder to edit:
 | A scheduled job                                | `apps/worker/src/modules/maintenance/scheduled.ts`                                     | a paired worker test exercising the cron trigger path                                                                                   |
 | A migration                                    | `migrations/NNNN_short_name.sql` (next index from `ls migrations/`)                    | `migrations/NNNN_short_name.verify.sql`, `migrations/NNNN_short_name.md`, then `pnpm db:migration:status` to confirm the ledger matches |
 
+## Background tasks (cron triggers)
+
+`wrangler.jsonc` defines three cron schedules, all funneled through a single
+entrypoint: `apps/worker/src/entrypoints/scheduled.ts` →
+`apps/worker/src/modules/maintenance/scheduled.ts::runScheduledTasks`. Every
+tick is wrapped in `runWithHeartbeat`, which writes a status record to KV at
+`health:scheduled:last_run` so `/health` can distinguish "trigger alive" from
+"trigger stuck".
+
+| Cron         | Cadence             | Purpose                                                                                 |
+| ------------ | ------------------- | --------------------------------------------------------------------------------------- |
+| `* * * * *`  | every minute        | Outbound lock recovery + dispatch due-now pending jobs + drain `maintenance_jobs` queue |
+| `0 * * * *`  | top of every hour   | Adds hourly upload cleanup + 5-scalar operational metrics snapshot                      |
+| `17 3 * * *` | 03:17 UTC every day | Adds TTL cleanup (sessions, idempotency, webhook × 90d) + trash + orphan-object R2 scan |
+
+The 03:17 slot is offset from the top of the hour on purpose — see the comment
+at `maintenance/scheduled.ts:11-17`. Running the heavy daily cleanup at the
+same time as the hourly tick would contend with the worker's other
+top-of-hour traffic.
+
+### What every tick does
+
+```text
+runScheduledTasks(scheduledTime)
+  └─ runWithHeartbeat(...)               // writes health:scheduled:last_run to KV
+       ├─ 1. recoverExpiredOutboundLocks()           // status='processing' → 'pending' if lock expired
+       ├─ 2. OutboundJobService.dispatchPending(100) // pending + available_at<=now → enqueue
+       ├─ 3. [minute===0]  runHourlyMaintenance()
+       ├─ 4. [03:17 UTC]   runDailyMaintenance()
+       └─ 5. processMaintenanceJobs()               // generic cursor-style jobs (e.g. md5 backfill)
+```
+
+`recoverExpiredOutboundLocks` rescues rows the prior tick owned but never
+finished (lock TTL is `runtimePolicy.outboundLockTtlMs`, 5 minutes). It is
+idempotent against the active claim path inside `processOutboundJob`.
+
+`dispatchPending` is what makes the cron → Queue handoff visible. The Queue
+consumer at `entrypoints/queue.ts` only sees enqueued messages; the cron is
+what promotes `pending` rows (whose `available_at <= now`) into
+`status='enqueued'` and pushes them into `OUTBOUND_QUEUE`. Any `available_at`
+in the future is held back here. **If you want user-facing scheduled send,
+this is the lever to extend** — see the investigation at
+[`docs/investigations/2026-08-06-queue-investigation.md`](investigations/2026-08-06-queue-investigation.md).
+
+### Scheduled send (user-facing)
+
+User-facing scheduled send is now part of the public draft API. The
+`POST /api/v1/drafts/:id/schedule` endpoint inserts (or replaces) the
+single pending `outbound_jobs` row whose `available_at` is the user-supplied
+instant. Until the cron next ticks that row past its `available_at`, the
+draft is held in the queue with the message and folder unchanged
+(`messages.status='draft'`, `mailbox_messages.folder='drafts'`). The
+`DELETE` endpoint deletes the same row, leaving the rest of the draft
+intact. Because the queue and dispatcher treat `available_at` as the
+single source of truth, **no new cron, job table, or durable object is
+needed**. Test the schedule path by inserting a future `available_at` and
+running `OutboundJobService.dispatchPending` directly; that bypasses the
+cron wait without mocking the clock.
+
+### Hourly tick (minute === 0)
+
+| Task                          | What it does                                                                                                                                           |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `cleanupExpiredUploads`       | `attachment_uploads` rows past `expires_at` (LIMIT 100/tick), with R2 + attachment_files GC                                                            |
+| `aggregateOperationalMetrics` | One-row snapshot: `queue_pending`, `queue_failed`, `webhook_failed`, `inbound_hour`, `outbound_hour` — emitted as `maintenance.metrics.aggregated` log |
+
+### Daily tick (03:17 UTC)
+
+| Task                      | What it does                                                                                                     |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `runDailyCleanup`         | DELETE expired sessions / idempotency_records / webhook_events (90d) / webhook_deliveries (90d)                  |
+| `cleanupTrashAndMessages` | DELETE `message_user_state` (>30d), `mailbox_messages` in trash (>30d), and orphan `messages`+attachments        |
+| `cleanupOrphanObjects`    | R2 list-scan (100 keys/tick) for objects with no DB reference; cursor persists in `maintenance_jobs.cursor_json` |
+
+Orphan deletion is guarded by `orphan-policy.isOrphanCleanupEligible` — objects
+younger than the policy window are skipped to avoid races with writes that
+have not yet inserted their DB row.
+
+### Generic `maintenance_jobs` table
+
+`processMaintenanceJobs` reads `status IN ('pending','running')` rows from the
+`maintenance_jobs` table and dispatches by `job_key`. Today only
+`attachment-md5-backfill` is registered; its cursor (`{ objectKey }`) lets the
+backfill resume across days without re-walking the table. Unrecognized
+`job_key`s are marked `failed` with `No registered handler for <key>` so a
+missing handler cannot loop forever.
+
+### Adding or changing a cron task
+
+1. Read `maintenance/scheduled.ts` end-to-end — every task is in that one file.
+2. For a new tick on a new schedule, add an entry under `triggers.crons` in
+   `wrangler.jsonc` and a new conditional branch in `runScheduledTasks`.
+3. For a new generic job, register it in the `maintenanceHandlers` map at
+   the bottom of `scheduled.ts`. It will be picked up automatically by the
+   every-minute tick.
+4. The hourly metrics snapshot is the source of truth for "is the system
+   healthy?" — if your change moves work between ticks, update which scalar
+   tracks it or add a new one.
+5. Tests live alongside the module (`apps/worker/test/`) — for cron behavior,
+   drive `runScheduledTasks` directly with a stubbed `ScheduledController`
+   instead of waiting for the real trigger.
+
 ## Verification — what each command checks
 
 ```bash
