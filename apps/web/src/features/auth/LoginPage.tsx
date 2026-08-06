@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { LoginSchema } from "@unimailbox/contracts";
 import { useTranslation } from "react-i18next";
 import { FieldError, FormRoot, useAppForm } from "../../lib/form/app-form";
+import { PasswordInput } from "../../components/ui/password-input";
 import { loginMutationOptions } from "./api";
 import { safeLoginTarget } from "../../app/router";
 import { ErrorState } from "../../components/Status";
@@ -64,11 +65,11 @@ export function LoginPage() {
               {(field) => (
                 <label className="field">
                   <span>{t("login.password")}</span>
-                  <input
+                  <PasswordInput
+                    ariaLabel={t("login.password")}
                     autoComplete="current-password"
                     onBlur={field.handleBlur}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    type="password"
+                    onChange={(value) => field.handleChange(value)}
                     value={field.state.value}
                   />
                   <FieldError label={t("login.password")} />

@@ -1,9 +1,21 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { I18nextProvider } from "react-i18next";
 import { ApiClientError } from "../lib/api/errors";
 import { createTestI18n } from "../i18n/test-instance";
 import { ErrorState, LoadingState, SuccessNote } from "./Status";
+
+const toastSuccessSpy = vi.fn();
+
+vi.mock("sonner", () => ({
+  toast: {
+    success: (...args: unknown[]) => toastSuccessSpy(...args),
+    error: vi.fn(),
+    info: vi.fn(),
+    loading: vi.fn(),
+  },
+  Toaster: () => null,
+}));
 
 function renderLocalized(ui: React.ReactElement) {
   return render(
@@ -11,13 +23,15 @@ function renderLocalized(ui: React.ReactElement) {
   );
 }
 
-function renderPseudoLocalized(ui: React.ReactElement) {
-  return render(
-    <I18nextProvider i18n={createTestI18n("ar-XB")}>{ui}</I18nextProvider>,
-  );
-}
-
 describe("Status components", () => {
+  beforeEach(() => {
+    toastSuccessSpy.mockClear();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("renders the loading state with the default label", () => {
     renderLocalized(<LoadingState />);
     expect(screen.getByRole("status")).toHaveTextContent("Loading");
@@ -28,7 +42,7 @@ describe("Status components", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Reading inbox");
   });
 
-  it("uses a localized API error instead of a diagnostic server message", () => {
+  it("uses a localized API error for the request failure", () => {
     renderLocalized(
       <ErrorState
         error={
@@ -44,25 +58,19 @@ describe("Status components", () => {
       "Authentication is required.",
     );
     expect(screen.getByRole("alert")).not.toHaveTextContent("Bad request");
-    expect(screen.getByText("request-1").closest("bdi")).toHaveAttribute(
-      "dir",
-      "ltr",
-    );
   });
 
-  it("isolates request IDs in the RTL pseudo-locale", () => {
-    renderPseudoLocalized(
+  it("does not surface the request id in the DOM tree", () => {
+    renderLocalized(
       <ErrorState
         error={
-          new ApiClientError("AUTH_REQUIRED", 401, { requestId: "request-rtl" })
+          new ApiClientError("AUTH_REQUIRED", 401, { requestId: "request-1" })
         }
       />,
     );
 
-    expect(screen.getByText("request-rtl").closest("bdi")).toHaveAttribute(
-      "dir",
-      "ltr",
-    );
+    expect(screen.queryByText("request-1")).toBeNull();
+    expect(screen.queryByRole("button", { name: /request/i })).toBeNull();
   });
 
   it("renders the error state without an Error instance", () => {
@@ -86,12 +94,13 @@ describe("Status components", () => {
     expect(retryCount).toBe(1);
   });
 
-  it("renders the success note with children", () => {
-    renderLocalized(
+  it("forwards success messages through toast and renders nothing in the DOM", () => {
+    const { container } = renderLocalized(
       <SuccessNote>
         <span>All saved</span>
       </SuccessNote>,
     );
-    expect(screen.getByRole("status")).toHaveTextContent("All saved");
+    expect(toastSuccessSpy).toHaveBeenCalledTimes(1);
+    expect(container.firstChild).toBeNull();
   });
 });

@@ -11,6 +11,18 @@ import zhCN from "../../i18n/resources/zh-CN/admin.json";
 import arXB from "../../i18n/resources/ar-XB/admin.json";
 import { CreateDomainPanel, ManageDomainPanel } from "./AdminPage";
 
+const toastSuccessSpy = vi.fn();
+
+vi.mock("sonner", () => ({
+  toast: {
+    success: (...args: unknown[]) => toastSuccessSpy(...args),
+    error: vi.fn(),
+    info: vi.fn(),
+    loading: vi.fn(),
+  },
+  Toaster: () => null,
+}));
+
 type TranslationTree = string | { [key: string]: TranslationTree };
 
 function leaves(value: TranslationTree, prefix = ""): string[] {
@@ -652,11 +664,12 @@ describe("Administration", () => {
       target: { value: "owner@example.net" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Send test email" }));
-    expect(
-      await screen.findByText(
-        "resend accepted the test email to owner@example.net.",
-      ),
-    ).toBeVisible();
     expect(fetchMock).toHaveBeenCalled();
+    // Success now surfaces through the toast layer instead of an inline DOM
+    // node; assert the side-effect fired rather than scanning the tree for a
+    // confirmation banner that no longer exists.
+    await waitFor(() => {
+      expect(toastSuccessSpy).toHaveBeenCalled();
+    });
   });
 });

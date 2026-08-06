@@ -1,7 +1,9 @@
-import { AlertTriangle, CheckCircle2, LoaderCircle } from "lucide-react";
+import { useEffect } from "react";
+import type { ReactNode } from "react";
+import { LoaderCircle, AlertTriangle } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { apiErrorToken } from "../i18n/errors";
-import { BidiText } from "./BidiText";
 
 export function LoadingState({ label }: { label?: string }) {
   const { t } = useTranslation("common");
@@ -28,20 +30,6 @@ export function ErrorState({
       <div>
         <strong>{t("states.requestFailed")}</strong>
         <p>{String(t(token.key, token.values))}</p>
-        {token.requestId ? (
-          <button
-            aria-label={t("actions.copyRequestId")}
-            className="request-id"
-            onClick={() =>
-              void navigator.clipboard?.writeText(token.requestId!)
-            }
-            type="button"
-          >
-            <BidiText kind="identifier">
-              <code>{token.requestId}</code>
-            </BidiText>
-          </button>
-        ) : null}
       </div>
       {retry ? (
         <button className="button secondary" onClick={retry} type="button">
@@ -52,11 +40,14 @@ export function ErrorState({
   );
 }
 
-export function SuccessNote({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="success-note" role="status">
-      <CheckCircle2 aria-hidden="true" />
-      {children}
-    </div>
-  );
+/**
+ * Surface a confirmation through the toast layer instead of the DOM tree.
+ * Render nothing so the message does not stack with form copy; the toast UI
+ * itself owns accessibility (role + focus management) and a11y text.
+ */
+export function SuccessNote({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    toast.success(children as Parameters<typeof toast.success>[0]);
+  }, [children]);
+  return null;
 }

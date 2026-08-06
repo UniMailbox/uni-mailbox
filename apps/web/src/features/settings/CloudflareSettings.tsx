@@ -19,6 +19,7 @@ import { ErrorState, LoadingState, SuccessNote } from "../../components/Status";
 import { BidiText } from "../../components/BidiText";
 import { DomainRoutingGuide } from "../../components/DomainRoutingGuide";
 import { FieldError, FormRoot, useAppForm } from "../../lib/form/app-form";
+import { PasswordInput } from "../../components/ui/password-input";
 import {
   cloudflareDomainMutationOptions,
   cloudflareInboundMutationOptions,
@@ -359,29 +360,37 @@ export function CloudflareSettings() {
             {(["label", "domainId", "apiKey", "webhookSecret"] as const).map(
               (name) => (
                 <brevoForm.AppField key={name} name={name}>
-                  {(field) => (
-                    <label className="field">
-                      <span>
-                        {t(
-                          `cloudflare.${name === "domainId" ? "domainId" : name === "apiKey" ? "apiKey" : name === "webhookSecret" ? "webhookSecret" : "connectionLabel"}`,
+                  {(field) => {
+                    const isSecret =
+                      name === "apiKey" || name === "webhookSecret";
+                    const labelKey = brevoFieldLabelKey(name);
+                    return (
+                      <label className="field">
+                        <span>{t(labelKey)}</span>
+                        {isSecret ? (
+                          <PasswordInput
+                            ariaLabel={t(labelKey)}
+                            autoComplete="off"
+                            dir="ltr"
+                            onBlur={field.handleBlur}
+                            onChange={(value) => field.handleChange(value)}
+                            value={field.state.value}
+                          />
+                        ) : (
+                          <input
+                            dir={name === "label" ? undefined : "ltr"}
+                            onBlur={field.handleBlur}
+                            onChange={(event) =>
+                              field.handleChange(event.target.value)
+                            }
+                            type="text"
+                            value={field.state.value}
+                          />
                         )}
-                      </span>
-                      <input
-                        dir={name === "label" ? undefined : "ltr"}
-                        onBlur={field.handleBlur}
-                        onChange={(event) =>
-                          field.handleChange(event.target.value)
-                        }
-                        type={
-                          name === "apiKey" || name === "webhookSecret"
-                            ? "password"
-                            : "text"
-                        }
-                        value={field.state.value}
-                      />
-                      <FieldError label={t(brevoFieldLabelKey(name))} />
-                    </label>
-                  )}
+                        <FieldError label={t(labelKey)} />
+                      </label>
+                    );
+                  }}
                 </brevoForm.AppField>
               ),
             )}

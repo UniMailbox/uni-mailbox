@@ -17,19 +17,23 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
   useSearch: () => ({}),
 }));
 
+function renderLogin(locale: "en" | "ar-XB") {
+  return render(
+    <I18nextProvider i18n={createTestI18n(locale)}>
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+        }
+      >
+        <LoginPage />
+      </QueryClientProvider>
+    </I18nextProvider>,
+  );
+}
+
 describe("LoginPage bidi inputs", () => {
   it("keeps the login email LTR in the pseudo-RTL locale", () => {
-    render(
-      <I18nextProvider i18n={createTestI18n("ar-XB")}>
-        <QueryClientProvider
-          client={
-            new QueryClient({ defaultOptions: { mutations: { retry: false } } })
-          }
-        >
-          <LoginPage />
-        </QueryClientProvider>
-      </I18nextProvider>,
-    );
+    renderLogin("ar-XB");
 
     expect(document.documentElement).toHaveAttribute("dir", "rtl");
     expect(screen.getByRole("textbox")).toHaveAttribute("dir", "ltr");
@@ -37,17 +41,7 @@ describe("LoginPage bidi inputs", () => {
 
   it("shows schema feedback when native email validation would reject submit", async () => {
     const fetchMock = vi.spyOn(window, "fetch");
-    render(
-      <I18nextProvider i18n={createTestI18n("en")}>
-        <QueryClientProvider
-          client={
-            new QueryClient({ defaultOptions: { mutations: { retry: false } } })
-          }
-        >
-          <LoginPage />
-        </QueryClientProvider>
-      </I18nextProvider>,
-    );
+    renderLogin("en");
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "not-an-email" },
     });
@@ -63,5 +57,35 @@ describe("LoginPage bidi inputs", () => {
     );
     expect(submit).toBeEnabled();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("LoginPage password visibility", () => {
+  it("defaults to type=password and offers a localized toggle", () => {
+    renderLogin("en");
+
+    const input = screen.getByLabelText("Password");
+    const toggle = screen.getByRole("button", { name: "Show password" });
+
+    expect(input).toHaveAttribute("type", "password");
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("switches between type=password and type=text when toggled", () => {
+    renderLogin("en");
+
+    const input = screen.getByLabelText("Password");
+
+    fireEvent.click(screen.getByRole("button", { name: "Show password" }));
+    expect(input).toHaveAttribute("type", "text");
+    expect(
+      screen.getByRole("button", { name: "Hide password" }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide password" }));
+    expect(input).toHaveAttribute("type", "password");
+    expect(
+      screen.getByRole("button", { name: "Show password" }),
+    ).toHaveAttribute("aria-pressed", "false");
   });
 });

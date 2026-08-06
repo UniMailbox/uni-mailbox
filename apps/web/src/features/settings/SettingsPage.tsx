@@ -11,6 +11,7 @@ import {
 } from "@unimailbox/contracts";
 import { ErrorState, LoadingState } from "../../components/Status";
 import { BidiText } from "../../components/BidiText";
+import { PasswordInput } from "../../components/ui/password-input";
 import { FieldError, FormRoot, useAppForm } from "../../lib/form/app-form";
 import { endSession } from "../../lib/session";
 import { DEFAULT_THEME_COLOR } from "../../lib/theme";
@@ -299,13 +300,11 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
                     {(field) => (
                       <label className="field">
                         <span>{t("account.currentPassword")}</span>
-                        <input
+                        <PasswordInput
+                          ariaLabel={t("account.currentPassword")}
                           autoComplete="current-password"
                           onBlur={field.handleBlur}
-                          onChange={(event) =>
-                            field.handleChange(event.target.value)
-                          }
-                          type="password"
+                          onChange={(value) => field.handleChange(value)}
                           value={field.state.value}
                         />
                         <FieldError label={t("account.currentPassword")} />
@@ -325,13 +324,11 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
                     {(field) => (
                       <label className="field">
                         <span>{t("account.currentPassword")}</span>
-                        <input
+                        <PasswordInput
+                          ariaLabel={t("account.currentPassword")}
                           autoComplete="current-password"
                           onBlur={field.handleBlur}
-                          onChange={(event) =>
-                            field.handleChange(event.target.value)
-                          }
-                          type="password"
+                          onChange={(value) => field.handleChange(value)}
                           value={field.state.value}
                         />
                         <FieldError label={t("account.currentPassword")} />
@@ -342,13 +339,11 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
                     {(field) => (
                       <label className="field">
                         <span>{t("account.newPassword")}</span>
-                        <input
+                        <PasswordInput
+                          ariaLabel={t("account.newPassword")}
                           autoComplete="new-password"
                           onBlur={field.handleBlur}
-                          onChange={(event) =>
-                            field.handleChange(event.target.value)
-                          }
-                          type="password"
+                          onChange={(value) => field.handleChange(value)}
                           value={field.state.value}
                         />
                         <FieldError label={t("account.newPassword")} />

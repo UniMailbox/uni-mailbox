@@ -1,6 +1,31 @@
 export const DEFAULT_THEME_COLOR = "#123d31";
 export const THEME_COLOR_STORAGE_KEY = "unimailbox.theme-color";
 
+/**
+ * The set of CSS custom properties that `applyThemeColor` writes to the
+ * document root. Exposed so tests and tooling can iterate the surface without
+ * having to track the names in a second place. The semantic error / success /
+ * info / warn tokens are intentionally excluded — those colours are stable and
+ * should never drift when the user picks a new brand colour.
+ */
+export const THEME_COLOR_TOKENS = [
+  "--theme-color",
+  "--forest",
+  "--forest-deep",
+  "--mint",
+  "--theme-focus",
+  "--theme-focus-soft",
+  // shadcn bridge (kept in sync so `tailwindcss` and shadcn primitives track
+  // the active palette).
+  "--primary",
+  "--primary-foreground",
+  "--secondary",
+  "--secondary-foreground",
+  "--accent",
+  "--accent-foreground",
+  "--ring",
+] as const;
+
 const HEX_COLOR_PATTERN = /^#[0-9a-f]{6}$/iu;
 
 type HslColor = {
@@ -73,7 +98,22 @@ function hslToHex({ hue, saturation, lightness }: HslColor): string {
     .join("")}`;
 }
 
-export function themePalette(themeColor: string) {
+export type ThemePalette = {
+  themeColor: string;
+  forest: string;
+  forestDeep: string;
+  mint: string;
+  focus: string;
+  focusSoft: string;
+};
+
+/**
+ * Pure derivation of the brand palette from a hex input. Returns only brand
+ * colours — semantic error / success / info / warn tokens are stable and stay
+ * in the `:root` defaults defined by `styles.css`, so they are never touched
+ * by user theme selection.
+ */
+export function themePalette(themeColor: string): ThemePalette {
   const normalized = resolveInitialThemeColor(themeColor);
   const { hue, saturation, lightness } = hexToHsl(normalized);
   const chroma = saturation < 8 ? 0 : Math.min(75, Math.max(45, saturation));
@@ -111,8 +151,12 @@ export function applyThemeColor(
   root.style.setProperty("--mint", palette.mint);
   root.style.setProperty("--theme-focus", palette.focus);
   root.style.setProperty("--theme-focus-soft", palette.focusSoft);
+  // shadcn bridge: keep these shadcn-shaped tokens aligned with the brand
+  // palette so any `@theme inline` rules in `styles.css` resolve correctly.
   root.style.setProperty("--primary", palette.forest);
   root.style.setProperty("--primary-foreground", "#ffffff");
+  root.style.setProperty("--secondary", palette.focusSoft);
+  root.style.setProperty("--secondary-foreground", palette.forestDeep);
   root.style.setProperty("--accent", palette.mint);
   root.style.setProperty("--accent-foreground", palette.forestDeep);
   root.style.setProperty("--ring", palette.focus);
