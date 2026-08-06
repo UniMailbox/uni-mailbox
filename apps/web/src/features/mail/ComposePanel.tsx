@@ -63,12 +63,17 @@ function addresses(value: string): string[] {
 }
 
 function localDateTimeValue(value?: string | null): string {
+  // `datetime-local` accepts seconds in the value attribute; including
+  // them keeps the round-trip to the server's ISO-with-milliseconds
+  // instant aligned to the second. Without seconds the input shows
+  // e.g. 15:00 for a server-stored 15:00:30 and the next reschedule
+  // drifts 30 s earlier than the original schedule.
   const date = value ? new Date(value) : new Date(Date.now() + 120_000);
   const candidate = Number.isNaN(date.getTime())
     ? new Date(Date.now() + 120_000)
     : date;
   const pad = (part: number) => part.toString().padStart(2, "0");
-  return `${candidate.getFullYear()}-${pad(candidate.getMonth() + 1)}-${pad(candidate.getDate())}T${pad(candidate.getHours())}:${pad(candidate.getMinutes())}`;
+  return `${candidate.getFullYear()}-${pad(candidate.getMonth() + 1)}-${pad(candidate.getDate())}T${pad(candidate.getHours())}:${pad(candidate.getMinutes())}:${pad(candidate.getSeconds())}`;
 }
 
 function toScheduledIso(value: string): string | null {

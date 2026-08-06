@@ -330,7 +330,7 @@ export async function processOutboundJob(
              provider_message_id = COALESCE(?, provider_message_id),
              sent_at = COALESCE(?, CURRENT_TIMESTAMP),
              updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
+         WHERE id = ? AND status = 'draft'`,
       ).bind(providerKey, providerMessageId, acceptedAt, job.messageId),
       context.env.DB.prepare(
         `UPDATE outbound_jobs
@@ -396,7 +396,7 @@ export async function processOutboundJob(
               `UPDATE messages
                SET status = 'failed', error_code = ?, error_message = ?,
                    updated_at = CURRENT_TIMESTAMP
-               WHERE id = ?`,
+               WHERE id = ? AND status = 'draft'`,
             ).bind(safe.code, safe.message, job.messageId),
           ]
         : []),

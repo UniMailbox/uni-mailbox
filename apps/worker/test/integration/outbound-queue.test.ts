@@ -37,7 +37,7 @@ describe("durable outbound Queue processing", () => {
         `INSERT INTO messages (
            id, thread_id, from_address, subject, provider_key,
            provider_connection_id, status
-         ) VALUES (?, ?, 'sender@example.com', 'Queue test', ?, ?, 'queued')`,
+         ) VALUES (?, ?, 'sender@example.com', 'Queue test', ?, ?, 'draft')`,
       ).bind(messageId, messageId, key, connectionId),
       env.DB.prepare(
         `INSERT INTO message_recipients (

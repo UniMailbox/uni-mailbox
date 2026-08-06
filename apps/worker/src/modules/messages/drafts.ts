@@ -634,10 +634,17 @@ export class DraftApplicationService {
       updatedAt: nextVersion,
     };
     const jobId = crypto.randomUUID();
+    // The pre-batch SELECT above already rejected a non-`pending` row, but
+    // a concurrent dispatcher tick can promote `pending` -> `enqueued`
+    // between SELECT and batch. We use a single INSERT ... ON CONFLICT so
+    // the "the row already exists" branch and the "row is still pending"
+    // branch are observed atomically: `WHERE status = 'pending'` on the
+    // DO UPDATE clause means a row the dispatcher has already promoted
+    // (enqueued/processing/succeeded/failed) cannot be clobbered. The
+    // messages UPDATE is guarded by `status = 'draft'` so a draft that
+    // is no longer a draft (e.g. an immediate send raced ahead) cannot
+    // be silently mutated either.
     const results = await this.context.env.DB.batch([
-      // Commit signal: bump `updated_at` and pin `provider_connection_id`
-      // for external sends. Guarded by the *previous* version so a
-      // concurrent writer cannot partially mutate us.
       this.context.env.DB.prepare(
         `UPDATE messages
          SET provider_connection_id = ?, updated_at = ?
@@ -650,32 +657,16 @@ export class DraftApplicationService {
         principal.userId,
         draft.updated_at,
       ),
-      // Reschedule: only touches a row that is *still* `pending`. If the
-      // dispatcher has already moved it to `enqueued`/`processing`, this
-      // statement is a no-op and we let the `INSERT WHERE NOT EXISTS`
-      // below handle the first-time case (it is also a no-op here because
-      // the row exists). The `created_via_schedule` flag is set on
-      // reschedule too so the log SLO split is source-of-truth.
-      this.context.env.DB.prepare(
-        `UPDATE outbound_jobs
-         SET available_at = ?, created_via_schedule = 1,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE message_id = ? AND status = 'pending'`,
-      ).bind(resolved.availableAtText, draftId),
-      // First-time schedule: only fires when no row exists for this
-      // message. We *never* use INSERT OR REPLACE because that would
-      // overwrite a row the dispatcher has already claimed — a row that
-      // has left `pending` is someone else's concern (#7) and a re-send
-      // must go through `draft.send`, not `draft.schedule`.
       this.context.env.DB.prepare(
         `INSERT INTO outbound_jobs (
            id, message_id, status, available_at, created_via_schedule
-         )
-         SELECT ?, ?, 'pending', ?, 1
-         WHERE NOT EXISTS (
-           SELECT 1 FROM outbound_jobs WHERE message_id = ?
-         )`,
-      ).bind(jobId, draftId, resolved.availableAtText, draftId),
+         ) VALUES (?, ?, 'pending', ?, 1)
+         ON CONFLICT(message_id) DO UPDATE SET
+           available_at = excluded.available_at,
+           created_via_schedule = 1,
+           updated_at = CURRENT_TIMESTAMP
+         WHERE status = 'pending'`,
+      ).bind(jobId, draftId, resolved.availableAtText),
       this.context.env.DB.prepare(
         `INSERT INTO idempotency_records (
            id, actor_user_id, operation, idempotency_key, request_hash,
@@ -700,9 +691,25 @@ export class DraftApplicationService {
       ),
     ]);
     if (results[0]?.meta.changes !== 1) {
+      // A concurrent writer (reschedule, immediate send) bumped
+      // `updated_at` out from under us, or the row's status already
+      // changed. The messages UPDATE's `status='draft'` guard caught it.
       throw new DomainError(
         "DRAFT_VERSION_CONFLICT",
         "The draft was modified by another request",
+        409,
+      );
+    }
+    // The INSERT ... ON CONFLICT statement returns 1 in both first-time
+    // schedule and reschedule (pending) cases. A return of 0 means the
+    // dispatcher's CONCURRENT promotion raced past the pre-check: the
+    // row exists and is no longer `pending`, so we must not pretend the
+    // schedule was updated.
+    const outboxResult = results[1];
+    if (outboxResult?.meta.changes === 0) {
+      throw new DomainError(
+        "SCHEDULE_ALREADY_DISPATCHED",
+        "The draft has already been dispatched and cannot be rescheduled",
         409,
       );
     }
