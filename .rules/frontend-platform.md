@@ -4,7 +4,7 @@ These rules apply to production code under `apps/web`, HTTP contracts consumed
 by the frontend under `packages/contracts/src/api`, frontend tests, and the
 frontend Playwright suite.
 
-They supplement the repository-wide rules in `docs/rules/README.md`.
+They supplement the repository-wide rules in `README.md`.
 
 ## 1. Dependency and Scope Rules
 

@@ -28,7 +28,7 @@ function assertVerifySqlSafe(sql, verifyPath) {
   if (firstNonEmptyLine.trimStart().startsWith("--")) {
     fail(
       "migration.verify_comment_prefix",
-      `${verifyPath} starts with a SQL line comment; rewrite it so the first non-empty line begins with a statement (e.g. SELECT). See docs/rules/migrations.md.`,
+      `${verifyPath} starts with a SQL line comment; rewrite it so the first non-empty line begins with a statement (e.g. SELECT). See ../.rules/migrations.md.`,
       9,
       { verifyPath },
     );

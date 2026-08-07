@@ -19,7 +19,7 @@
 
 - 周期性、模板批量、定时回复或自然语言时间。
 - Durable Object / Workflows / 秒级准点；现有 1 分钟 Cron 边界明确在 UI 文案中说明。
-- DLQ 自动消费、平台重试与业务重试合并；列入 `docs/investigations/2026-08-06-queue-investigation.md` 的后续项，不在本计划内。
+- DLQ 自动消费、平台重试与业务重试合并；列入 `../investigations/2026-08-06-queue-investigation.md` 的后续项，不在本计划内。
 
 ## Final state of the implementation
 
@@ -82,5 +82,5 @@
 
 ## Notes & follow-ups
 
-- 现有 DLQ 消费者、平台与业务重试合并仍是后续项，见 `docs/investigations/2026-08-06-queue-investigation.md`。
+- 现有 DLQ 消费者、平台与业务重试合并仍是后续项，见 `../investigations/2026-08-06-queue-investigation.md`。
 - 文案明确告诉用户"按分钟级 cron 投递，可能延迟约一分钟"；UI 不会承诺秒级准点。

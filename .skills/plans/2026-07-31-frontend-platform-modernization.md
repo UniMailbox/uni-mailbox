@@ -111,8 +111,8 @@ working copy behavior and the tests that describe it.
 
 ### Rule and acceptance artifacts
 
-- `docs/rules/frontend-platform.md`
-- `docs/plans/frontend-platform-acceptance.md`
+- `../../.rules/frontend-platform.md`
+- `frontend-platform-acceptance.md`
 
 The plan does not require splitting every existing page immediately. A page
 may remain in its existing file while its API, routing, form, and localization
@@ -1667,8 +1667,8 @@ git commit -m "test(web): enforce locale and contract standards"
 - Modify or delete: `apps/web/src/lib/api.ts`
 - Modify: `apps/web/package.json`
 - Modify: `pnpm-lock.yaml`
-- Modify: `docs/rules/frontend-platform.md`
-- Modify: `docs/plans/frontend-platform-acceptance.md`
+- Modify: `../../.rules/frontend-platform.md`
+- Modify: `frontend-platform-acceptance.md`
 - Modify: `docs/development.md`
 - Modify: `README.md`
 - Test: all frontend, contract, Worker compatibility, and E2E suites
@@ -1706,7 +1706,7 @@ Do not remove Zod or TanStack Query.
 - [ ] **Step 3: Run the complete frontend acceptance document**
 
 Execute every command and evidence check from
-`docs/plans/frontend-platform-acceptance.md`. Record the date, exact command,
+`frontend-platform-acceptance.md`. Record the date, exact command,
 result, and any environment blocker in its evidence table. Never mark a blocked
 check as passed.
 
@@ -1748,7 +1748,7 @@ Verify and document evidence for:
 - [ ] **Step 6: Commit final cleanup**
 
 ```bash
-git add apps/web/package.json pnpm-lock.yaml apps/web/src/lib/api.ts docs/rules/frontend-platform.md docs/plans/frontend-platform-acceptance.md docs/development.md README.md
+git add apps/web/package.json pnpm-lock.yaml apps/web/src/lib/api.ts ../../.rules/frontend-platform.md frontend-platform-acceptance.md docs/development.md README.md
 git commit -m "chore(web): complete frontend platform migration"
 ```
 

@@ -403,4 +403,4 @@ changing bindings.
 - Provider failure: disable the provider connection; queued jobs remain
   inspectable and recoverable.
 
-Migration, mail delivery, and setup-specific commands are in `docs/runbooks`.
+Migration, mail delivery, and setup-specific commands are in `.skills/runbooks/`.
