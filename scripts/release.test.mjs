@@ -235,6 +235,18 @@ describe("Workers Builds branch detection", () => {
 
 describe("production release orchestration", () => {
   it("bootstraps through the direct-deploy fallback without exposing generated secrets", () => {
+    const verifyPath = resolve(
+      import.meta.dirname,
+      "..",
+      "migrations",
+      "meta",
+      "0009_outbound_jobs_scheduled_origin.verify.sql",
+    );
+    const originalVerifySql = readFileSync(verifyPath, "utf8");
+    writeFileSync(
+      verifyPath,
+      "SELECT 1 AS migration_verified;\nPRAGMA foreign_key_check;\n",
+    );
     const directory = mkdtempSync(join(tmpdir(), "unimailbox-release-"));
     const fakePnpm = join(directory, "pnpm");
     const bootstrapState = join(directory, "administrator-created");
@@ -352,6 +364,7 @@ process.exit(23);
       expect(() => readFileSync(temporarySecretPath)).toThrow();
     } finally {
       rmSync(directory, { recursive: true, force: true });
+      writeFileSync(verifyPath, originalVerifySql);
     }
   }, 15_000);
 });

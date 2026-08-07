@@ -19,6 +19,22 @@ const args = process.argv.slice(2);
 const command = args[0];
 const target = parseTarget(args);
 
+function assertVerifySqlSafe(sql, verifyPath) {
+  // Split on newlines; the very first non-empty line must not start
+  // with "--" — wrangler's CLI sees that as the end-of-options marker
+  // when we used --command, and even with --file it's a footgun.
+  const firstNonEmptyLine =
+    sql.split(/\r?\n/u).find((line) => line.trim().length > 0) ?? "";
+  if (firstNonEmptyLine.trimStart().startsWith("--")) {
+    fail(
+      "migration.verify_comment_prefix",
+      `${verifyPath} starts with a SQL line comment; rewrite it so the first non-empty line begins with a statement (e.g. SELECT). See docs/rules/migrations.md.`,
+      9,
+      { verifyPath },
+    );
+  }
+}
+
 function createMigration() {
   const rawName = args[1] ?? "";
   const name = rawName
@@ -39,10 +55,22 @@ function createMigration() {
     paths.sql,
     "-- Expand-and-contract migration. Add reviewed SQL below.\nPRAGMA foreign_keys = ON;\n",
   );
-  writeFileSync(
-    paths.verify,
-    "-- Return one row with value 1 when the migration is valid.\nSELECT 1 AS migration_verified;\nPRAGMA foreign_key_check;\n",
-  );
+  const verificationSql =
+    "-- TODO: replace with a SELECT CASE that asserts the schema/data state\n" +
+    "-- this migration introduces. It must return exactly one row whose only\n" +
+    "-- column equals 1 when valid. PRAGMA foreign_key_check; below stays.\n" +
+    "SELECT CASE\n" +
+    "  WHEN (\n" +
+    "    -- TODO: assert the new state. Example:\n" +
+    "    --   (SELECT COUNT(*) FROM pragma_table_info('<table>') WHERE name = '<column>') = 1\n" +
+    "    SELECT 0\n" +
+    "  ) = 1\n" +
+    "  THEN 1\n" +
+    "  ELSE 0\n" +
+    "END AS migration_verified;\n" +
+    "PRAGMA foreign_key_check;\n";
+  writeFileSync(paths.verify, verificationSql);
+  assertVerifySqlSafe(verificationSql, paths.verify);
   writeFileSync(
     paths.metadata,
     `# ${basename.replaceAll("_", " ")}\n\n- Purpose: TODO\n- Compatibility window: TODO\n- Expected duration: TODO\n- Backfill: none\n- Verification: \`migrations/meta/${basename}.verify.sql\`\n- Recovery: fix forward with a new migration; never edit this file after release.\n`,
@@ -213,7 +241,7 @@ function status() {
   ]);
 }
 
-function verify() {
+async function verify() {
   const files = assertMigrationSet();
   for (const file of files) {
     const basename = file.replace(/\.sql$/u, "");
@@ -229,24 +257,36 @@ function verify() {
         3,
       );
     }
-    const command = [
-      "exec",
-      "wrangler",
-      "d1",
-      "execute",
-      "DB",
-      ...wranglerTargetArgs(target),
-      // Remote --file uses D1's import API and returns only an ingestion
-      // summary. --command uses the query API, which preserves SELECT rows.
-      "--command",
+    assertVerifySqlSafe(verificationSql, verifyPath);
+    const result = await withSecureTemporaryText(
+      resolve(root, ".wrangler", "release"),
+      ".sql",
       verificationSql,
-      "--json",
-    ];
-    const loggedCommand = command.map((value) =>
-      value === verificationSql ? `<contents of ${verifyPath}>` : value,
+      async (path) => {
+        const command = [
+          "exec",
+          "wrangler",
+          "d1",
+          "execute",
+          "DB",
+          ...wranglerTargetArgs(target),
+          // --file ships the SQL through D1's execute API (not the bulk import
+          // API), so SELECT results come back in JSON. -c is not used because
+          // argv parsing of any leading `--` SQL comment confuses wrangler's
+          // CLI into treating the rest as positional arguments.
+          "--file",
+          path,
+          "--json",
+        ];
+        const loggedCommand = command.map((value) =>
+          value === path ? `<contents of ${verifyPath}>` : value,
+        );
+        output("command.started", { command: "pnpm", args: loggedCommand });
+        const captureResult = capture("pnpm", command);
+        output("command.completed", { command: "pnpm", args: loggedCommand });
+        return captureResult;
+      },
     );
-    output("command.started", { command: "pnpm", args: loggedCommand });
-    const result = capture("pnpm", command);
     if (!result.ok) {
       fail("migration.verify_command_failed", result.stderr, 5, {
         verifyPath,
@@ -297,7 +337,6 @@ function verify() {
         { statements },
       );
     }
-    output("command.completed", { command: "pnpm", args: loggedCommand });
   }
   output("migration.verify.completed", { status: "ok", target, files });
 }
@@ -305,7 +344,7 @@ function verify() {
 if (command === "new") createMigration();
 else if (command === "migrate") await migrate();
 else if (command === "status") status();
-else if (command === "verify") verify();
+else if (command === "verify") await verify();
 else {
   fail(
     "migration.usage",

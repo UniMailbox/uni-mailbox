@@ -31,7 +31,7 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "schema:check": "pnpm --filter @unimailbox/worker exec drizzle-kit check --config ../../drizzle.config.ts",
     "test": "pnpm test:unit && pnpm test:worker && pnpm test:integration",
-    "test:unit": "pnpm --filter @unimailbox/contracts test && pnpm --filter @unimailbox/config test && pnpm --filter @unimailbox/email-core test && pnpm --filter @unimailbox/web test && vitest run apps/worker/test/unit scripts/*.test.mjs",
+    "test:unit": "pnpm --filter @unimailbox/contracts test && pnpm --filter @unimailbox/config test && pnpm --filter @unimailbox/email-core test && pnpm --filter @unimailbox/web test && vitest run apps/worker/test/unit && vitest run --no-file-parallelism scripts/*.test.mjs",
     "test:worker": "vitest run apps/worker/test/worker",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test",

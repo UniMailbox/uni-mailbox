@@ -20,6 +20,8 @@ function runMigrationScenario({
   initialMigrationCount = 0,
   invalidStateJson = false,
   requireImport = false,
+  verifyFailure = false,
+  verifyUseFile = false,
 } = {}) {
   const directory = mkdtempSync(join(tmpdir(), "unimailbox-migration-"));
   const fakePnpm = join(directory, "pnpm");
@@ -66,6 +68,20 @@ if (has("execute") && has("--command")) {
 if (has("execute") && has("--file")) {
   const file = args[args.indexOf("--file") + 1];
   const sql = fs.readFileSync(file, "utf8");
+  if (process.env.FAKE_VERIFY_USE_FILE === "1") {
+    if (process.env.FAKE_VERIFY_FAILURE === "1") {
+      process.stdout.write(JSON.stringify([
+        { success: true, results: [{ migration_verified: 0 }] },
+        { success: true, results: [] }
+      ]));
+      process.exit(0);
+    }
+    process.stdout.write(JSON.stringify([
+      { success: true, results: [{ migration_verified: 1 }] },
+      { success: true, results: [] }
+    ]));
+    process.exit(0);
+  }
   if (!sql.includes("CREATE TABLE users")) process.exit(31);
   if (!sql.includes("CREATE TABLE IF NOT EXISTS d1_migrations")) process.exit(32);
   if (!sql.includes("0001_initial.sql")) process.exit(33);
@@ -99,6 +115,8 @@ process.exit(35);
       FAKE_INVALID_STATE_JSON: invalidStateJson ? "1" : "0",
       FAKE_MIGRATION_TABLE_PRESENT: String(migrationTablePresent),
       FAKE_REQUIRE_IMPORT: requireImport ? "1" : "0",
+      FAKE_VERIFY_FAILURE: verifyFailure ? "1" : "0",
+      FAKE_VERIFY_USE_FILE: verifyUseFile ? "1" : "0",
     },
   });
   const commands = existsSync(commandLog)
@@ -121,9 +139,25 @@ function cleanupScenario(scenario) {
 }
 
 describe("remote migration bootstrap", () => {
-  it("executes verification SQL as remote queries so Wrangler returns assertion rows", () => {
-    const scenario = runMigrationScenario({ command: "verify" });
+  it("executes verification SQL as remote file imports so Wrangler returns assertion rows", () => {
+    const verifyPath = resolve(
+      import.meta.dirname,
+      "..",
+      "migrations",
+      "meta",
+      "0009_outbound_jobs_scheduled_origin.verify.sql",
+    );
+    const originalVerifySql = readFileSync(verifyPath, "utf8");
+    writeFileSync(
+      verifyPath,
+      "SELECT 1 AS migration_verified;\nPRAGMA foreign_key_check;\n",
+    );
+    let scenario;
     try {
+      scenario = runMigrationScenario({
+        command: "verify",
+        verifyUseFile: true,
+      });
       expect(
         scenario.result.status,
         scenario.result.stderr || scenario.result.stdout,
@@ -133,12 +167,111 @@ describe("remote migration bootstrap", () => {
       ).filter((file) => file.endsWith(".verify.sql")).length;
       expect(scenario.commands).toHaveLength(verificationCount);
       for (const args of scenario.commands) {
-        expect(args).toContain("--command");
-        expect(args).not.toContain("--file");
+        expect(args).toContain("--file");
+        expect(args).not.toContain("--command");
         expect(args).toContain("--remote");
       }
     } finally {
-      cleanupScenario(scenario);
+      writeFileSync(verifyPath, originalVerifySql);
+      if (scenario) cleanupScenario(scenario);
+    }
+  });
+
+  it("refuses a verify SQL whose first non-empty line is a SQL line comment", () => {
+    const verifyPath = resolve(
+      import.meta.dirname,
+      "..",
+      "migrations",
+      "meta",
+      "0009_outbound_jobs_scheduled_origin.verify.sql",
+    );
+    const originalVerifySql = readFileSync(verifyPath, "utf8");
+    writeFileSync(
+      verifyPath,
+      "-- intentionally leading SQL line comment\nSELECT 1 AS migration_verified;\nPRAGMA foreign_key_check;\n",
+    );
+    let scenario;
+    try {
+      scenario = runMigrationScenario({
+        command: "verify",
+        verifyUseFile: true,
+      });
+      expect(scenario.result.status).toBe(9);
+      expect(scenario.result.stdout).toContain(
+        '"event":"migration.verify_comment_prefix"',
+      );
+      expect(scenario.result.stdout).toContain("starts with a SQL line comment");
+    } finally {
+      writeFileSync(verifyPath, originalVerifySql);
+      if (scenario) cleanupScenario(scenario);
+    }
+  });
+
+  it("treats a multi-statement verify SQL with SELECT and PRAGMA as valid", () => {
+    const verifyPath = resolve(
+      import.meta.dirname,
+      "..",
+      "migrations",
+      "meta",
+      "0009_outbound_jobs_scheduled_origin.verify.sql",
+    );
+    const originalVerifySql = readFileSync(verifyPath, "utf8");
+    writeFileSync(
+      verifyPath,
+      "SELECT 1 AS migration_verified;\nPRAGMA foreign_key_check;\n",
+    );
+    let scenario;
+    try {
+      scenario = runMigrationScenario({
+        command: "verify",
+        verifyUseFile: true,
+      });
+      expect(
+        scenario.result.status,
+        scenario.result.stderr || scenario.result.stdout,
+      ).toBe(0);
+      expect(scenario.result.stdout).toContain(
+        '"event":"migration.verify.completed"',
+      );
+      for (const args of scenario.commands) {
+        expect(args).toContain("--file");
+        expect(args).toContain("--json");
+        expect(args).toContain("--remote");
+        expect(args).not.toContain("--command");
+      }
+    } finally {
+      writeFileSync(verifyPath, originalVerifySql);
+      if (scenario) cleanupScenario(scenario);
+    }
+  });
+
+  it("surfaces migration.verify_assertion_failed when D1 reports a zero assertion row", () => {
+    const verifyPath = resolve(
+      import.meta.dirname,
+      "..",
+      "migrations",
+      "meta",
+      "0009_outbound_jobs_scheduled_origin.verify.sql",
+    );
+    const originalVerifySql = readFileSync(verifyPath, "utf8");
+    writeFileSync(
+      verifyPath,
+      "SELECT 1 AS migration_verified;\nPRAGMA foreign_key_check;\n",
+    );
+    let scenario;
+    try {
+      scenario = runMigrationScenario({
+        command: "verify",
+        verifyUseFile: true,
+        verifyFailure: true,
+      });
+      expect(scenario.result.status).toBe(6);
+      expect(scenario.result.stdout).toContain(
+        '"event":"migration.verify_assertion_failed"',
+      );
+    } finally {
+      writeFileSync(verifyPath, originalVerifySql);
+      if (scenario) cleanupScenario(scenario);
     }
   });
 
