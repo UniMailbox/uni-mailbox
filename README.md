@@ -89,7 +89,7 @@ dialog:
   `03:17 UTC` daily write health into D1; a KV fixed-window rate limiter is
   the unified primitive across endpoints.
 - **Logging** — Structured `logger` with `requestId` correlation; alert and
-  recovery procedures live under `docs/runbooks/observability-alerts.md`.
+  recovery procedures live under `.skills/runbooks/observability-alerts.md`.
 
 ### Internationalization and accessibility
 
@@ -137,7 +137,7 @@ packages/config/      Runtime security and retry policy
 packages/test-kit/    Shared test fixtures
 migrations/           Reviewed D1 SQL
 scripts/              Scaffold, migration, release, and verification CLIs
-docs/runbooks/        Operator recovery procedures
+.skills/runbooks/     Operator recovery procedures
 ```
 
 ## Tech stack
@@ -218,9 +218,9 @@ require a paid plan.
 
 See [`docs/deployment.md`](docs/deployment.md) for the install / adoption /
 release checklist,
-[`docs/runbooks/attachment-storage-migration.md`](docs/runbooks/attachment-storage-migration.md)
+[`.skills/runbooks/attachment-storage-migration.md`](.skills/runbooks/attachment-storage-migration.md)
 for switching backends later, and
-[`docs/runbooks/mail-delivery-recovery.md`](docs/runbooks/mail-delivery-recovery.md)
+[`.skills/runbooks/mail-delivery-recovery.md`](.skills/runbooks/mail-delivery-recovery.md)
 for delivery incidents.
 
 > Production release is intentionally operator-gated. Real inbound routing,
@@ -235,16 +235,16 @@ for delivery incidents.
 - [Release and distribution policy](docs/releases.md)
 - [Compatibility and maintenance policy](docs/compatibility.md)
 - [Source blueprint](docs/rebuild-blueprint.md)
-- [External mail import research (POP3 / IMAP, draft)](docs/plans/external-mail-import-research.md)
+- [External mail import research (POP3 / IMAP, draft)](.skills/plans/external-mail-import-research.md)
 
 Runbooks:
 
-- [Failed migration recovery](docs/runbooks/migration-recovery.md)
-- [Outbound and webhook recovery](docs/runbooks/mail-delivery-recovery.md)
-- [Storage backend migration](docs/runbooks/attachment-storage-migration.md)
-- [Bootstrap and account recovery](docs/runbooks/setup-recovery.md)
-- [Local admin bootstrap](docs/runbooks/local-admin-bootstrap.md)
-- [Observability and alerts](docs/runbooks/observability-alerts.md)
+- [Failed migration recovery](.skills/runbooks/migration-recovery.md)
+- [Outbound and webhook recovery](.skills/runbooks/mail-delivery-recovery.md)
+- [Storage backend migration](.skills/runbooks/attachment-storage-migration.md)
+- [Bootstrap and account recovery](.skills/runbooks/setup-recovery.md)
+- [Local admin bootstrap](.skills/runbooks/local-admin-bootstrap.md)
+- [Observability and alerts](.skills/runbooks/observability-alerts.md)
 
 Project:
 

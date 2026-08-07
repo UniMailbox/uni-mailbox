@@ -3,13 +3,13 @@
 Date: 2026-07-31
 
 Design:
-`docs/superpowers/specs/2026-07-31-frontend-platform-modernization-design.md`
+`../specs/2026-07-31-frontend-platform-modernization-design.md`
 
 Implementation plan:
-`docs/superpowers/plans/2026-07-31-frontend-platform-modernization.md`
+`2026-07-31-frontend-platform-modernization.md`
 
 Rules:
-`docs/rules/frontend-platform.md`
+`../../.rules/frontend-platform.md`
 
 ## Status Vocabulary
 

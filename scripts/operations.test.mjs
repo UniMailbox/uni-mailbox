@@ -5,7 +5,7 @@ const packageJson = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 );
 const runbook = readFileSync(
-  new URL("../docs/runbooks/attachment-storage-migration.md", import.meta.url),
+  new URL("../../.skills/runbooks/attachment-storage-migration.md", import.meta.url),
   "utf8",
 );
 const deployment = readFileSync(
@@ -13,7 +13,7 @@ const deployment = readFileSync(
   "utf8",
 );
 const setupRecovery = readFileSync(
-  new URL("../docs/runbooks/setup-recovery.md", import.meta.url),
+  new URL("../../.skills/runbooks/setup-recovery.md", import.meta.url),
   "utf8",
 );
 const defaultWrangler = readFileSync(

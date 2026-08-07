@@ -333,9 +333,9 @@ pnpm test:e2e
 
 - [`README.md`](../../README.md) §"Local development"——是入口的 5 行精简版。
   本文档是它的展开。
-- [`docs/runbooks/setup-recovery.md`](setup-recovery.md)——**生产/远端**故障
+- [`setup-recovery.md`](setup-recovery.md)——**生产/远端**故障
   恢复（看的是 `release.*` / `bootstrap.*` 事件名）。本文档是**本机**流程。
-- [`docs/runbooks/migration-recovery.md`](migration-recovery.md)——D1 schema
+- [`migration-recovery.md`](migration-recovery.md)——D1 schema
   出了问题时的回滚 / Time Travel 路径，跟"admin 注入失败"是相邻但不同的失败
   域。
 - [`docs/deployment.md`](../deployment.md)——`pnpm release:production` 怎么

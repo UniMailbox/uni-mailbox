@@ -2,7 +2,7 @@
 
 This is the contributor's handbook for the local loop: clone, install, run,
 test, change, ship. Operator-facing material lives under
-[`docs/runbooks/`](runbooks/) and [`docs/deployment.md`](deployment.md); the
+[`../.skills/runbooks/`](runbooks/) and [`docs/deployment.md`](deployment.md); the
 repo layout, contracts, and architectural decisions are in
 [`docs/rebuild-blueprint.md`](rebuild-blueprint.md).
 
@@ -74,7 +74,7 @@ packages/config     Runtime security and retry policy
 packages/test-kit   Shared test fixtures
 migrations/         Reviewed D1 SQL (immutable, paired with .verify.sql and .md)
 scripts/            Scaffold, migration, release, and verification CLIs
-docs/runbooks/      Operator recovery procedures
+.skills/runbooks/   Operator recovery procedures
 ```
 
 When you are about to add a feature, use the table below to decide which
@@ -131,7 +131,7 @@ what promotes `pending` rows (whose `available_at <= now`) into
 `status='enqueued'` and pushes them into `OUTBOUND_QUEUE`. Any `available_at`
 in the future is held back here. **If you want user-facing scheduled send,
 this is the lever to extend** — see the investigation at
-[`docs/investigations/2026-08-06-queue-investigation.md`](investigations/2026-08-06-queue-investigation.md).
+[`../.skills/investigations/2026-08-06-queue-investigation.md`](investigations/2026-08-06-queue-investigation.md).
 
 ### Scheduled send (user-facing)
 
@@ -286,7 +286,7 @@ that gate; never use it outside of an active incident.
   the right local command.
 - Stuck on a Cloudflare detail? Start at
   [`docs/deployment.md`](deployment.md); recovery procedures are in
-  `docs/runbooks/`.
+  `../.skills/runbooks/`.
 - Adding a new feature? Skim the matching chapter in
   [`docs/rebuild-blueprint.md`](rebuild-blueprint.md) before writing code —
   the design choices there are the source of the contract tests in

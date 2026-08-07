@@ -80,7 +80,7 @@ Deploy to Cloudflare 按钮会从 [`UniMailbox/unimailbox-deploy`](https://githu
 - **心跳**——每分钟、每小时和每日 `03:17 UTC` 的 Scheduled trigger 会把健康
   状态写入 D1；KV 固定窗口速率限制器是所有端点统一使用的原语。
 - **日志**——结构化 `logger`，按 `requestId` 串联请求；告警与恢复流程收录在
-  `docs/runbooks/observability-alerts.md`。
+  `.skills/runbooks/observability-alerts.md`。
 
 ### 国际化与无障碍
 
@@ -126,7 +126,7 @@ packages/config/      运行时安全与重试策略
 packages/test-kit/    共享测试夹具
 migrations/           经审核的 D1 SQL
 scripts/              脚手架、迁移、发布与验证 CLI
-docs/runbooks/        运维恢复流程
+.skills/runbooks/     运维恢复流程
 ```
 
 ## 技术栈
@@ -202,9 +202,9 @@ R2 通过 [`wrangler.r2.jsonc`](wrangler.r2.jsonc) 显式启用，使冷启动�
 
 完整的安装 / adopt / release 流程见
 [`docs/deployment.md`](docs/deployment.md)；切换后端请参考
-[`docs/runbooks/attachment-storage-migration.md`](docs/runbooks/attachment-storage-migration.md)；
+[`.skills/runbooks/attachment-storage-migration.md`](.skills/runbooks/attachment-storage-migration.md)；
 投递类故障处理请参考
-[`docs/runbooks/mail-delivery-recovery.md`](docs/runbooks/mail-delivery-recovery.md)。
+[`.skills/runbooks/mail-delivery-recovery.md`](.skills/runbooks/mail-delivery-recovery.md)。
 
 > 生产发布刻意保留 operator-gated 的设计。入站路由、Queue、Cron 与 provider
 > 的退出标准无法仅靠本地 mock 验证；只有对已部署实例跑通文档中的烟囱测试，
@@ -217,16 +217,16 @@ R2 通过 [`wrangler.r2.jsonc`](wrangler.r2.jsonc) 显式启用，使冷启动�
 - [发布与分发策略](docs/releases.md)
 - [兼容性与维护策略](docs/compatibility.md)
 - [源码蓝图](docs/rebuild-blueprint.md)
-- [外部邮件导入调研（POP3 / IMAP，草案）](docs/plans/external-mail-import-research.md)
+- [外部邮件导入调研（POP3 / IMAP，草案）](.skills/plans/external-mail-import-research.md)
 
 Runbook：
 
-- [Migration 失败恢复](docs/runbooks/migration-recovery.md)
-- [出站与 Webhook 恢复](docs/runbooks/mail-delivery-recovery.md)
-- [附件后端迁移](docs/runbooks/attachment-storage-migration.md)
-- [Bootstrap 与账户恢复](docs/runbooks/setup-recovery.md)
-- [本地管理员 Bootstrap](docs/runbooks/local-admin-bootstrap.md)
-- [可观测性与告警](docs/runbooks/observability-alerts.md)
+- [Migration 失败恢复](.skills/runbooks/migration-recovery.md)
+- [出站与 Webhook 恢复](.skills/runbooks/mail-delivery-recovery.md)
+- [附件后端迁移](.skills/runbooks/attachment-storage-migration.md)
+- [Bootstrap 与账户恢复](.skills/runbooks/setup-recovery.md)
+- [本地管理员 Bootstrap](.skills/runbooks/local-admin-bootstrap.md)
+- [可观测性与告警](.skills/runbooks/observability-alerts.md)
 
 项目：
 

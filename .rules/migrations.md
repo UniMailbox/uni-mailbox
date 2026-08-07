@@ -5,8 +5,8 @@ migration runner at `scripts/migration.mjs`, and shared helpers in
 `scripts/_shared.mjs`. They govern every change that touches the shape,
 ordering, or verification of production data.
 
-They supplement the repository-wide rules in [docs/rules/README.md](./README.md)
-and the front-end rules in [docs/rules/frontend-platform.md](./frontend-platform.md).
+They supplement the repository-wide rules in [README.md](./README.md)
+and the front-end rules in [frontend-platform.md](./frontend-platform.md).
 
 ## 1. Scope
 

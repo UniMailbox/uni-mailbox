@@ -680,7 +680,7 @@ to claim full frontend completion.
 
 ## Project Rules Produced by This Work
 
-The implementation will add focused rule documents under `docs/rules` that
+The implementation will add focused rule documents under `.rules/` that
 cover:
 
 - frontend architecture and state ownership;
