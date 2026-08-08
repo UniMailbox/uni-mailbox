@@ -123,10 +123,6 @@ unimailbox://attachments/{attachment_id}        # 受保护，需 attachment.rea
 | `list_attachments`     | R      | `attachment.read`                  | 不返回二进制；只返回 metadata                                            |
 | `download_attachment`  | R      | `attachment.read` + 单独白名单授权 | 受 size cap 25 MiB                                                       |
 
-### 4.3 第三方邮箱 MCP
-
-> 不在 v1 范围。后续单独规划。
-
 ## 5. 安全模型
 
 ### 5.1 鉴权
