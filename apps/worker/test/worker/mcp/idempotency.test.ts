@@ -17,22 +17,25 @@ function dbStub() {
           return {
             async first() {
               if (!sql.includes("SELECT request_hash")) return null;
-              const [actor, operation, key] = values as [string, string, string];
-              return (
-                records.get(`${actor}:${operation}:${key}`) ?? null
-              );
+              const [actor, operation, key] = values as [
+                string,
+                string,
+                string,
+              ];
+              return records.get(`${actor}:${operation}:${key}`) ?? null;
             },
             async run() {
               if (sql.includes("INSERT INTO idempotency_records")) {
-                const [
-                  ,
-                  actor,
-                  operation,
-                  key,
-                  hash,
-                  ,
-                  responseJson,
-                ] = values as [string, string, string, string, string, number, string];
+                const [, actor, operation, key, hash, , responseJson] =
+                  values as [
+                    string,
+                    string,
+                    string,
+                    string,
+                    string,
+                    number,
+                    string,
+                  ];
                 records.set(`${actor}:${operation}:${key}`, {
                   request_hash: hash,
                   response_json: responseJson,

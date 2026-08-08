@@ -82,7 +82,11 @@ async function runListThreads(
 }> {
   const parsedInput = ListThreadsInputSchema.safeParse(rawArgs);
   if (!parsedInput.success) {
-    throw new McpToolError("invalid_args", undefined, parsedInput.error.flatten());
+    throw new McpToolError(
+      "invalid_args",
+      undefined,
+      parsedInput.error.flatten(),
+    );
   }
   const input = parsedInput.data;
 

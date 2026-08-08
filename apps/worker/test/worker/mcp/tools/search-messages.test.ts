@@ -64,7 +64,8 @@ describe("search_messages SQL builder", () => {
           `cursor|${p.createdAt}|${p.id}`,
         decode: async (c: string) => {
           const parts = c.split("|");
-          if (parts.length !== 3 || parts[0] !== "cursor") throw new Error("bad");
+          if (parts.length !== 3 || parts[0] !== "cursor")
+            throw new Error("bad");
           return { createdAt: parts[1] ?? "", id: parts[2] ?? "" };
         },
       },
@@ -77,7 +78,11 @@ describe("search_messages SQL builder", () => {
       query: "hello",
     });
     const parsed = parseSearchQuery(input.query);
-    const { sql, params } = await buildSearchMessagesQuery(stubCtx, input, parsed);
+    const { sql, params } = await buildSearchMessagesQuery(
+      stubCtx,
+      input,
+      parsed,
+    );
     expect(sql).toContain("mm.mailbox_id = ?");
     expect(sql).toContain("LIMIT ?");
     expect(params).toEqual(["mb-1", "%hello%", "%hello%", 51]);
@@ -89,7 +94,11 @@ describe("search_messages SQL builder", () => {
       query: "from:alice invoice",
     });
     const parsed = parseSearchQuery(input.query);
-    const { sql, params } = await buildSearchMessagesQuery(stubCtx, input, parsed);
+    const { sql, params } = await buildSearchMessagesQuery(
+      stubCtx,
+      input,
+      parsed,
+    );
     expect(sql).toContain("m.from_address LIKE ?");
     expect(sql).toContain("subject LIKE");
     expect(sql).toContain("text_body LIKE");
@@ -104,8 +113,14 @@ describe("search_messages SQL builder", () => {
       query: "newer_than:3d",
     });
     const parsed = parseSearchQuery(input.query, start);
-    const { sql, params } = await buildSearchMessagesQuery(stubCtx, input, parsed);
-    expect(sql).toContain("COALESCE(m.received_at, m.sent_at, m.created_at) >= ?");
+    const { sql, params } = await buildSearchMessagesQuery(
+      stubCtx,
+      input,
+      parsed,
+    );
+    expect(sql).toContain(
+      "COALESCE(m.received_at, m.sent_at, m.created_at) >= ?",
+    );
     expect(params).toContain(
       new Date(start - 3 * 24 * 60 * 60 * 1000).toISOString(),
     );
@@ -131,8 +146,14 @@ describe("search_messages SQL builder", () => {
       cursor: "cursor|2026-03-01T00:00:00Z|msg-42",
     });
     const parsed = parseSearchQuery(input.query);
-    const { sql, params } = await buildSearchMessagesQuery(stubCtx, input, parsed);
-    expect(sql).toContain("(m.created_at < ? OR (m.created_at = ? AND m.id < ?))");
+    const { sql, params } = await buildSearchMessagesQuery(
+      stubCtx,
+      input,
+      parsed,
+    );
+    expect(sql).toContain(
+      "(m.created_at < ? OR (m.created_at = ? AND m.id < ?))",
+    );
     expect(params).toContain("2026-03-01T00:00:00Z");
     expect(params).toContain("msg-42");
   });

@@ -52,7 +52,10 @@ interface ThreadMessageRow {
   created_at: string;
 }
 
-function clipPreview(text: string, byteCap: number = MAX_PREVIEW_BYTES): string {
+function clipPreview(
+  text: string,
+  byteCap: number = MAX_PREVIEW_BYTES,
+): string {
   if (text.length <= byteCap) return text;
   return text.slice(0, byteCap);
 }
@@ -106,7 +109,12 @@ export function listMailboxesResource(_ctx: AppContext): ResourceHandler {
          WHERE m.owner_user_id = ? OR mm.user_id = ?
          ORDER BY m.address`,
       )
-        .bind(principal.userId, principal.userId, principal.userId, principal.userId)
+        .bind(
+          principal.userId,
+          principal.userId,
+          principal.userId,
+          principal.userId,
+        )
         .all<MailboxRow>();
       const items = result.results.map((row) => ({
         id: row.id,
@@ -241,7 +249,8 @@ export function getMessageResource(ctx: AppContext): ResourceHandler {
         subject: redactText(message.subject),
         preview: redactedBody,
         body: wrappedBody,
-        received_at: message.received_at ?? message.sent_at ?? message.created_at,
+        received_at:
+          message.received_at ?? message.sent_at ?? message.created_at,
       };
       return {
         contents: [
@@ -287,12 +296,7 @@ export function getThreadResource(ctx: AppContext): ResourceHandler {
            AND (mb.owner_user_id = ? OR member.user_id = ?)
          LIMIT 1`,
       )
-        .bind(
-          principal.userId,
-          threadId,
-          principal.userId,
-          principal.userId,
-        )
+        .bind(principal.userId, threadId, principal.userId, principal.userId)
         .first<{ 1: number }>();
       if (!accessibility) {
         throw new McpToolError("not_found", "Thread not found");

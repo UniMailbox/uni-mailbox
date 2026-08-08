@@ -18,5 +18,7 @@ const { created } = tryCreateIndex({ indexName });
 if (created) {
   console.log(`Created Vectorize index '${indexName}' (768-dim, cosine).`);
 } else {
-  console.log(`Vectorize index '${indexName}' already exists — skipping creation.`);
+  console.log(
+    `Vectorize index '${indexName}' already exists — skipping creation.`,
+  );
 }

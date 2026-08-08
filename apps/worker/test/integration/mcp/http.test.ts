@@ -1,11 +1,5 @@
 import { applyD1Migrations, env } from "cloudflare:test";
-import {
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { InstallationStep, type Principal } from "@unimailbox/contracts";
 import { TokenService } from "../../../src/modules/identity";
 import { createHttpApp, type HttpAppContext } from "../../../src/http/router";
@@ -233,7 +227,11 @@ async function insertMessageAttachment(opts: {
 describe("MCP Streamable HTTP", () => {
   beforeAll(async () => {
     globalThis.MCP_ENABLED = true;
-    await applyD1Migrations(env.DB, (env as unknown as { TEST_MIGRATIONS?: unknown[] }).TEST_MIGRATIONS as never);
+    await applyD1Migrations(
+      env.DB,
+      (env as unknown as { TEST_MIGRATIONS?: unknown[] })
+        .TEST_MIGRATIONS as never,
+    );
   });
 
   beforeEach(async () => {
@@ -246,7 +244,10 @@ describe("MCP Streamable HTTP", () => {
       "/mcp",
       {
         method: "POST",
-        headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+        headers: {
+          "content-type": "application/json",
+          accept: "application/json, text/event-stream",
+        },
         body: JSON.stringify(initializeBody),
       },
       makeEnv(),
@@ -278,9 +279,7 @@ describe("MCP Streamable HTTP", () => {
     expect(response.status).toBe(200);
     const text = await response.text();
     const frames = collectFrames(text);
-    const init = frames.find(
-      (p) => p && p.id === 1 && p.result,
-    ) as
+    const init = frames.find((p) => p && p.id === 1 && p.result) as
       | {
           result: {
             capabilities?: Record<string, unknown>;
@@ -478,7 +477,14 @@ describe("MCP Streamable HTTP", () => {
     const messageId = "33333333-aaaa-4bbb-8ccc-dddddddddddd";
     const mailboxMessageId = "44444444-aaaa-4bbb-8ccc-dddddddddddd";
     await insertMailbox({ id: mailboxId, address: "owner@example.com" });
-    await insertMessage({ messageId, threadId, mailboxMessageId, mailboxId, subject: "hi", text: "hello" });
+    await insertMessage({
+      messageId,
+      threadId,
+      mailboxMessageId,
+      mailboxId,
+      subject: "hi",
+      text: "hello",
+    });
     const app = await bootstrap();
     const jwt = await jwtFor({
       userId,
@@ -498,7 +504,10 @@ describe("MCP Streamable HTTP", () => {
           jsonrpc: "2.0",
           id: 20,
           method: "tools/call",
-          params: { name: "summarize_thread", arguments: { thread_id: threadId } },
+          params: {
+            name: "summarize_thread",
+            arguments: { thread_id: threadId },
+          },
         }),
       },
       makeEnv(),
@@ -513,11 +522,27 @@ describe("MCP Streamable HTTP", () => {
     await insertMailbox({ id: mailboxId, address: "owner@example.com" });
     const vectorizeMock = {
       upsert: async () => ({ mutationId: "mock", ids: [] }),
-      query: async () => ({ matches: [{ id: `${mailboxId}:m1`, score: 0.9, namespace: mailboxId, metadata: { snippet: "vector snippet" } }], count: 1 }),
+      query: async () => ({
+        matches: [
+          {
+            id: `${mailboxId}:m1`,
+            score: 0.9,
+            namespace: mailboxId,
+            metadata: { snippet: "vector snippet" },
+          },
+        ],
+        count: 1,
+      }),
       insert: async () => ({ mutationId: "mock", ids: [] }),
       delete: async () => ({ mutationId: "mock", ids: [] }),
       getByIds: async () => [],
-      describe: async () => ({ name: "unimailbox-messages", description: "mock", config: { dimensions: 768, metric: "cosine" }, createdOn: new Date(0).toISOString(), vectorsCount: 1 }),
+      describe: async () => ({
+        name: "unimailbox-messages",
+        description: "mock",
+        config: { dimensions: 768, metric: "cosine" },
+        createdOn: new Date(0).toISOString(),
+        vectorsCount: 1,
+      }),
     };
     const env = { ...makeEnv(), VECTORIZE: vectorizeMock as never };
     const app = await bootstrap();
@@ -539,13 +564,19 @@ describe("MCP Streamable HTTP", () => {
           jsonrpc: "2.0",
           id: 21,
           method: "tools/call",
-          params: { name: "search_messages", arguments: { mailbox_id: mailboxId, query: "anything" } },
+          params: {
+            name: "search_messages",
+            arguments: { mailbox_id: mailboxId, query: "anything" },
+          },
         }),
       },
       env,
     );
     const payload = extractStructuredContentById(await response.text(), 21);
-    expect(payload).toMatchObject({ messages: [], semantic: [{ id: `${mailboxId}:m1`, score: 0.9 }] });
+    expect(payload).toMatchObject({
+      messages: [],
+      semantic: [{ id: `${mailboxId}:m1`, score: 0.9 }],
+    });
   });
 
   it("tools/call mark_as_read updates an inserted message", async () => {
@@ -632,7 +663,9 @@ describe("MCP Streamable HTTP", () => {
       makeEnv(),
     );
     expect(response.status).toBe(200);
-    expect(extractStructuredContentById(await response.text(), 9)).toMatchObject({
+    expect(
+      extractStructuredContentById(await response.text(), 9),
+    ).toMatchObject({
       confirmation_required: true,
       confirmation_token: expect.any(String),
       preview: {
@@ -788,7 +821,9 @@ describe("MCP Streamable HTTP", () => {
     expect(response.status).toBe(200);
     const text = await response.text();
     const payload = extractStructuredContentById(text, 6);
-    const messages = (payload?.messages ?? []) as Array<Record<string, unknown>>;
+    const messages = (payload?.messages ?? []) as Array<
+      Record<string, unknown>
+    >;
     expect(messages).toHaveLength(1);
     expect(messages[0]).toMatchObject({
       subject: "Hello",
@@ -969,9 +1004,7 @@ function extractToolNames(body: string): string[] {
       p.id === 2 &&
       p.result &&
       Array.isArray((p.result as Record<string, unknown>).tools),
-  ) as
-    | { result: { tools: Array<{ name: string }> } }
-    | undefined;
+  ) as { result: { tools: Array<{ name: string }> } } | undefined;
   return listFrame?.result.tools.map((t) => t.name) ?? [];
 }
 
@@ -987,9 +1020,7 @@ function extractStructuredContent(
       p.id === 3 &&
       p.result &&
       (p.result as Record<string, unknown>).structuredContent,
-  ) as
-    | { result: { structuredContent: Record<string, unknown> } }
-    | undefined;
+  ) as { result: { structuredContent: Record<string, unknown> } } | undefined;
   return frame?.result.structuredContent ?? null;
 }
 
@@ -1001,9 +1032,7 @@ function extractToolResultById(
   structuredContent?: Record<string, unknown>;
 } | null {
   const parsed = collectFrames(body);
-  const frame = parsed.find(
-    (p) => p && p.id === id && p.result,
-  ) as
+  const frame = parsed.find((p) => p && p.id === id && p.result) as
     | {
         result: {
           isError?: boolean;
@@ -1025,9 +1054,7 @@ function extractStructuredContentById(
       p.id === id &&
       p.result &&
       (p.result as Record<string, unknown>).structuredContent,
-  ) as
-    | { result: { structuredContent: Record<string, unknown> } }
-    | undefined;
+  ) as { result: { structuredContent: Record<string, unknown> } } | undefined;
   return frame?.result.structuredContent ?? null;
 }
 
@@ -1039,9 +1066,7 @@ function extractResourceUris(body: string, id: number): string[] {
       p.id === id &&
       p.result &&
       Array.isArray((p.result as Record<string, unknown>).resources),
-  ) as
-    | { result: { resources: Array<{ uri: string }> } }
-    | undefined;
+  ) as { result: { resources: Array<{ uri: string }> } } | undefined;
   return frame?.result.resources.map((r) => r.uri) ?? [];
 }
 
@@ -1050,9 +1075,7 @@ function extractResourceContents(
   id: number,
 ): Array<{ uri: string; mimeType?: string; text?: string }> {
   const parsed = collectFrames(body);
-  const frame = parsed.find(
-    (p) => p && p.id === id && p.result,
-  ) as
+  const frame = parsed.find((p) => p && p.id === id && p.result) as
     | {
         result: {
           contents: Array<{

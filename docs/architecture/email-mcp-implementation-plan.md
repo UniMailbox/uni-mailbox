@@ -23,19 +23,19 @@ UniMailbox（Cloud-Mail）已经是 Cloudflare Workers 上的完整邮箱产品�
 
 ## 2. 设计决策（依据见附录链接）
 
-| 决策 | 选择 | 依据 |
-|---|---|---|
-| 传输协议 | **Streamable HTTP**（`POST/GET /mcp`），stateless 模式；SSE 仅作为 Streamable HTTP 内部的 streaming 模式 | MCP 规范 2025-03-26 起 SSE 弃用；2026-07-28 仍然 deprecated；Cloudflare `createMcpHandler` 是默认 |
-| MCP SDK | `agents/mcp` (`createMcpHandler`) + `@modelcontextprotocol/sdk` | McpAgent 已被 Cloudflare 标 deprecated & feature-frozen |
-| 资源 / 工具分层 | **混合模式**：被动上下文（消息 / 线程 / 标签 / 草稿）走 Resources（`unimailbox://messages/{id}`），动作走 Tools | 业界主流（Microsoft 365 Mail、Resend、Wh1isper 均如此） |
-| 鉴权（远程 MCP） | **OAuth 2.1 + PKCE + RFC 8707 `resource` + RFC 9728 PRM + RFC 8414 AS Metadata** | MCP 规范 2026-07-28 §authorization；DCR SHOULD |
-| 鉴权（第一方复用） | 复用现有 JWT（`TokenService.verifyAccessToken`），新增 `agent_tokens` 表提供长寿命、scope 受限的 agent token | 22 个 permission key 已就位，零成本派生子权限 |
-| AI 模型 | `@cf/meta/llama-3.1-8b-instruct`（classify / summarize），`@cf/meta/llama-3.3-70b-instruct-fp8-fast`（复杂生成），`@cf/baai/bge-base-en-v1.5`（768-dim 嵌入）；**所有调用包 `env.AI_GATEWAY.run(...)`** | 缓存 / 日志 / 限流统一 |
-| 向量库 | Cloudflare Vectorize，单 index，namespace = `mailbox_id` | 多 mailbox 隔离天然方案 |
-| Durable Object | `MailboxAgent` DO（每 mailbox 一个实例），承载会话状态 / 调度动作 / 流式订阅 | 状态型 MCP 需求（spec 2026-07-28 `resources/subscribe`） |
-| 队列 | 现有 `OUTBOUND_QUEUE` 模式复用，新增 `INBOX_INDEX_QUEUE`（嵌入写入）、`AGENT_TASK_QUEUE`（长任务） | 与 5-retry + DLQ 模式一致 |
-| 附件 MCP | **默认关闭**，需用户单独授权 + 配置白名单 MIME | Wh1isper / Microsoft 365 Mail 安全实践 |
-| 引用实现 | 参考 `github.com/microsoft/mcp`（m365-mail）的工具命名 + `Wh1isper/mcp-email-server` 的安全模型 | 见 §7 |
+| 决策               | 选择                                                                                                                                                                                                    | 依据                                                                                              |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| 传输协议           | **Streamable HTTP**（`POST/GET /mcp`），stateless 模式；SSE 仅作为 Streamable HTTP 内部的 streaming 模式                                                                                                | MCP 规范 2025-03-26 起 SSE 弃用；2026-07-28 仍然 deprecated；Cloudflare `createMcpHandler` 是默认 |
+| MCP SDK            | `agents/mcp` (`createMcpHandler`) + `@modelcontextprotocol/sdk`                                                                                                                                         | McpAgent 已被 Cloudflare 标 deprecated & feature-frozen                                           |
+| 资源 / 工具分层    | **混合模式**：被动上下文（消息 / 线程 / 标签 / 草稿）走 Resources（`unimailbox://messages/{id}`），动作走 Tools                                                                                         | 业界主流（Microsoft 365 Mail、Resend、Wh1isper 均如此）                                           |
+| 鉴权（远程 MCP）   | **OAuth 2.1 + PKCE + RFC 8707 `resource` + RFC 9728 PRM + RFC 8414 AS Metadata**                                                                                                                        | MCP 规范 2026-07-28 §authorization；DCR SHOULD                                                    |
+| 鉴权（第一方复用） | 复用现有 JWT（`TokenService.verifyAccessToken`），新增 `agent_tokens` 表提供长寿命、scope 受限的 agent token                                                                                            | 22 个 permission key 已就位，零成本派生子权限                                                     |
+| AI 模型            | `@cf/meta/llama-3.1-8b-instruct`（classify / summarize），`@cf/meta/llama-3.3-70b-instruct-fp8-fast`（复杂生成），`@cf/baai/bge-base-en-v1.5`（768-dim 嵌入）；**所有调用包 `env.AI_GATEWAY.run(...)`** | 缓存 / 日志 / 限流统一                                                                            |
+| 向量库             | Cloudflare Vectorize，单 index，namespace = `mailbox_id`                                                                                                                                                | 多 mailbox 隔离天然方案                                                                           |
+| Durable Object     | `MailboxAgent` DO（每 mailbox 一个实例），承载会话状态 / 调度动作 / 流式订阅                                                                                                                            | 状态型 MCP 需求（spec 2026-07-28 `resources/subscribe`）                                          |
+| 队列               | 现有 `OUTBOUND_QUEUE` 模式复用，新增 `INBOX_INDEX_QUEUE`（嵌入写入）、`AGENT_TASK_QUEUE`（长任务）                                                                                                      | 与 5-retry + DLQ 模式一致                                                                         |
+| 附件 MCP           | **默认关闭**，需用户单独授权 + 配置白名单 MIME                                                                                                                                                          | Wh1isper / Microsoft 365 Mail 安全实践                                                            |
+| 引用实现           | 参考 `github.com/microsoft/mcp`（m365-mail）的工具命名 + `Wh1isper/mcp-email-server` 的安全模型                                                                                                         | 见 §7                                                                                             |
 
 ## 3. 架构总图
 
@@ -100,28 +100,28 @@ unimailbox://attachments/{attachment_id}        # 受保护，需 attachment.rea
 
 ### 4.2 Tools（模型控制）
 
-| 名称 | 类别 | 所需 permission | 备注 |
-|---|---|---|---|
-| `list_messages` | R | `message.read` | 支持 `mailbox_id, since, before, from, subject, label_id, limit, cursor` |
-| `search_messages` | R | `message.read` | 内置查询语法：`from:alice subject:invoice newer_than:7d` |
-| `get_message` | R | `message.read` | `format: full\|minimal\|raw`，强制 size cap 50 MiB（与 Wh1isper 一致） |
-| `list_threads` | R | `message.read` | 按 mailbox 范围聚合 |
-| `summarize_thread` | R + AI | `message.read` + `ai.summarize` | 默认 Workers AI 8B；可指定 70B |
-| `classify_message` | R + AI | `message.read` + `ai.classify` | 分类标签候选：`work / personal / spam / invoice / action_required` |
-| `extract_action_items` | R + AI | `message.read` + `ai.extract` | 返回结构化 `{ items: [{text, due, assignee}] }` |
-| `send_message` | W | `message.send` | 强制 `Idempotency-Key`；强制人工确认 token（见 §5.5） |
-| `draft_message` | W | `message.send` | 同 send_message 但仅写草稿 |
-| `reply_message` | W | `message.send` | 自动设 `In-Reply-To` + `References` |
-| `forward_message` | W | `message.send` | 可选追加正文 |
-| `mark_as_read` | W | `message.read` | 显式调用，不在 summarize 时静默 mark |
-| `mark_as_starred` | W | `message.read` | |
-| `move_message` | W | `message.delete` | folder → label |
-| `archive_message` | W | `message.delete` | |
-| `trash_message` | W | `message.delete` | 软删除，30 天后清理（与现有策略一致） |
-| `schedule_message` | W | `message.send` + `schedule.write` | 复用 `SCHEDULE_MIN_LEAD_SECONDS=90` |
-| `cancel_scheduled` | W | `schedule.write` | |
-| `list_attachments` | R | `attachment.read` | 不返回二进制；只返回 metadata |
-| `download_attachment` | R | `attachment.read` + 单独白名单授权 | 受 size cap 25 MiB |
+| 名称                   | 类别   | 所需 permission                    | 备注                                                                     |
+| ---------------------- | ------ | ---------------------------------- | ------------------------------------------------------------------------ |
+| `list_messages`        | R      | `message.read`                     | 支持 `mailbox_id, since, before, from, subject, label_id, limit, cursor` |
+| `search_messages`      | R      | `message.read`                     | 内置查询语法：`from:alice subject:invoice newer_than:7d`                 |
+| `get_message`          | R      | `message.read`                     | `format: full\|minimal\|raw`，强制 size cap 50 MiB（与 Wh1isper 一致）   |
+| `list_threads`         | R      | `message.read`                     | 按 mailbox 范围聚合                                                      |
+| `summarize_thread`     | R + AI | `message.read` + `ai.summarize`    | 默认 Workers AI 8B；可指定 70B                                           |
+| `classify_message`     | R + AI | `message.read` + `ai.classify`     | 分类标签候选：`work / personal / spam / invoice / action_required`       |
+| `extract_action_items` | R + AI | `message.read` + `ai.extract`      | 返回结构化 `{ items: [{text, due, assignee}] }`                          |
+| `send_message`         | W      | `message.send`                     | 强制 `Idempotency-Key`；强制人工确认 token（见 §5.5）                    |
+| `draft_message`        | W      | `message.send`                     | 同 send_message 但仅写草稿                                               |
+| `reply_message`        | W      | `message.send`                     | 自动设 `In-Reply-To` + `References`                                      |
+| `forward_message`      | W      | `message.send`                     | 可选追加正文                                                             |
+| `mark_as_read`         | W      | `message.read`                     | 显式调用，不在 summarize 时静默 mark                                     |
+| `mark_as_starred`      | W      | `message.read`                     |                                                                          |
+| `move_message`         | W      | `message.delete`                   | folder → label                                                           |
+| `archive_message`      | W      | `message.delete`                   |                                                                          |
+| `trash_message`        | W      | `message.delete`                   | 软删除，30 天后清理（与现有策略一致）                                    |
+| `schedule_message`     | W      | `message.send` + `schedule.write`  | 复用 `SCHEDULE_MIN_LEAD_SECONDS=90`                                      |
+| `cancel_scheduled`     | W      | `schedule.write`                   |                                                                          |
+| `list_attachments`     | R      | `attachment.read`                  | 不返回二进制；只返回 metadata                                            |
+| `download_attachment`  | R      | `attachment.read` + 单独白名单授权 | 受 size cap 25 MiB                                                       |
 
 ### 4.3 第三方邮箱 MCP
 
@@ -243,7 +243,7 @@ status, duration_ms, byte_count, recipient_count, provider_outcome_category
   - `rate-limit.ts`：复用 KV 计数器
   - `confirmation.ts`：两阶段 send 的 token store（KV，TTL 5min，单次使用）
   - `resources.ts`：5 个 Resources
-  - `tools/`：实现 §4.2 表中 read 类（list / search / get / list_threads）+ write 类（send / draft / reply / forward / mark_* / move / archive / trash）+ schedule + attachment metadata
+  - `tools/`：实现 §4.2 表中 read 类（list / search / get / list*threads）+ write 类（send / draft / reply / forward / mark*\* / move / archive / trash）+ schedule + attachment metadata
   - `idempotency.ts`：send / draft / reply / forward 强制 `Idempotency-Key` 头，复用 `admin-idempotency.ts` 中间件
 - `apps/worker/src/index.ts`：注册 `mcp` entrypoint。
 - 测试：
@@ -284,38 +284,38 @@ status, duration_ms, byte_count, recipient_count, provider_outcome_category
 
 ## 7. 引用实现对照表
 
-| 我设计的工具 | 直接对照 | 取舍 |
-|---|---|---|
-| `send_message` 两阶段确认 | Microsoft 365 Mail `mail-send-message` 单步 | 加 confirmation_token，防误发 |
-| 附件默认关闭 + 单独白名单 | Wh1isper `download_attachment` 默认关闭 | 完全采纳 |
-| `search_messages` 语义 | Resend 查询语法 | 内置 bge-base-en 兜底语义搜索 |
-| `summarize_thread` / `classify_message` | Resend + 通用 | 走 Workers AI 不出域；与 AI Gateway 集成 |
-| Resources vs Tools 分层 | Wh1isper Tools-only | 改为混合——被动上下文走 Resources，对 Wh1isper 是小幅增强 |
-| OAuth 2.1 + PKCE + RFC 8707 | Cloudflare OAuthProvider 示例 | 完全采纳 |
+| 我设计的工具                            | 直接对照                                    | 取舍                                                     |
+| --------------------------------------- | ------------------------------------------- | -------------------------------------------------------- |
+| `send_message` 两阶段确认               | Microsoft 365 Mail `mail-send-message` 单步 | 加 confirmation_token，防误发                            |
+| 附件默认关闭 + 单独白名单               | Wh1isper `download_attachment` 默认关闭     | 完全采纳                                                 |
+| `search_messages` 语义                  | Resend 查询语法                             | 内置 bge-base-en 兜底语义搜索                            |
+| `summarize_thread` / `classify_message` | Resend + 通用                               | 走 Workers AI 不出域；与 AI Gateway 集成                 |
+| Resources vs Tools 分层                 | Wh1isper Tools-only                         | 改为混合——被动上下文走 Resources，对 Wh1isper 是小幅增强 |
+| OAuth 2.1 + PKCE + RFC 8707             | Cloudflare OAuthProvider 示例               | 完全采纳                                                 |
 
 ## 8. 测试与验收矩阵
 
-| 维度 | 单测 | 集成 | E2E | 手动 |
-|---|---|---|---|---|
-| auth scope 派生 | ✓ | ✓ | | |
-| PII 脱敏 | ✓ | ✓ | | 已知含 PII 邮件回放 |
-| confirmation token | ✓ | ✓ | | |
-| idempotency | ✓ | ✓ | | |
-| Streamable HTTP 端到端 | | ✓ | ✓ | `inspector` |
-| Workers AI 摘要延迟 | | ✓ | | |
-| DO 状态机 | | ✓ | ✓ | |
-| 限流触发 | ✓ | ✓ | | 1000 req/min 触发 |
+| 维度                   | 单测 | 集成 | E2E | 手动                |
+| ---------------------- | ---- | ---- | --- | ------------------- |
+| auth scope 派生        | ✓    | ✓    |     |                     |
+| PII 脱敏               | ✓    | ✓    |     | 已知含 PII 邮件回放 |
+| confirmation token     | ✓    | ✓    |     |                     |
+| idempotency            | ✓    | ✓    |     |                     |
+| Streamable HTTP 端到端 |      | ✓    | ✓   | `inspector`         |
+| Workers AI 摘要延迟    |      | ✓    |     |                     |
+| DO 状态机              |      | ✓    | ✓   |                     |
+| 限流触发               | ✓    | ✓    |     | 1000 req/min 触发   |
 
 ## 9. 风险与回滚
 
-| 风险 | 触发条件 | 回滚方案 | 检测 |
-|---|---|---|---|
-| Workers AI 限流 / 不可用 | 5xx 率 > 5% | 降级到本地轻量分类（正则 + 关键词） | AI Gateway 日志告警 |
-| Vectorize 不可用 | upsert 5xx | 退化为 SQL LIKE + 时间过滤 | hourly 心跳 |
-| OAuth provider 漏 scope | scope 审计失败 | 撤销 token + 强制重新授权 | CI 检查 scope 列表 |
-| DO 单点过载 | 单 mailbox QPS > 50 | 分片（mailbox_id hash → 多 DO） | DO metrics |
-| PII 漏脱敏 | 抽样发现地址出现在 prompt | 关停 ai tool + 复检 | 日志审计 + 灰度开关 |
-| 提示注入突破 | 模型执行了注入指令 | 关闭 write tool + 回滚 scope | anomaly detection（写入操作 vs 用户明示意图） |
+| 风险                     | 触发条件                  | 回滚方案                            | 检测                                          |
+| ------------------------ | ------------------------- | ----------------------------------- | --------------------------------------------- |
+| Workers AI 限流 / 不可用 | 5xx 率 > 5%               | 降级到本地轻量分类（正则 + 关键词） | AI Gateway 日志告警                           |
+| Vectorize 不可用         | upsert 5xx                | 退化为 SQL LIKE + 时间过滤          | hourly 心跳                                   |
+| OAuth provider 漏 scope  | scope 审计失败            | 撤销 token + 强制重新授权           | CI 检查 scope 列表                            |
+| DO 单点过载              | 单 mailbox QPS > 50       | 分片（mailbox_id hash → 多 DO）     | DO metrics                                    |
+| PII 漏脱敏               | 抽样发现地址出现在 prompt | 关停 ai tool + 复检                 | 日志审计 + 灰度开关                           |
+| 提示注入突破             | 模型执行了注入指令        | 关闭 write tool + 回滚 scope        | anomaly detection（写入操作 vs 用户明示意图） |
 
 每条都有 feature flag（`system_settings` 行）：`mcp_enabled`, `mcp_ai_enabled`, `mcp_send_confirm_required`。
 
@@ -334,6 +334,7 @@ status, duration_ms, byte_count, recipient_count, provider_outcome_category
 ## 11. 文件落点一览
 
 新增
+
 - `apps/worker/src/entrypoints/mcp.ts`
 - `apps/worker/src/modules/mcp/`（auth / audit / pii / rate-limit / confirmation / resources / tools / idempotency）
 - `apps/worker/src/modules/agent/`（embed / summarize / classify / extract-actions / indexer / mailbox-agent-do）
@@ -344,6 +345,7 @@ status, duration_ms, byte_count, recipient_count, provider_outcome_category
 - `docs/runbooks/mcp-server.md`
 
 修改
+
 - `apps/worker/src/index.ts`：注册 mcp entrypoint
 - `apps/worker/src/platform/config.ts`：扩展 Env（含 AI / Vectorize / AI_GATEWAY / INBOX_INDEX_QUEUE / AGENT_TASK_QUEUE）
 - `packages/contracts/src/domain/index.ts`：新增 3 个 permission key + 默认 role scope
@@ -357,6 +359,7 @@ status, duration_ms, byte_count, recipient_count, provider_outcome_category
 ## 12. 附录：参考链接
 
 ### MCP 规范
+
 - [MCP 2026-07-28 规范](https://modelcontextprotocol.io/specification/2026-07-28)
 - [MCP 授权规范](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
 - [MCP 传输规范](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports)
@@ -367,6 +370,7 @@ status, duration_ms, byte_count, recipient_count, provider_outcome_category
 - [RFC 8414 Authorization Server Metadata](https://datatracker.ietf.org/doc/html/rfc8414)
 
 ### Cloudflare
+
 - [Cloudflare MCP 文档](https://developers.cloudflare.com/agents/model-context-protocol/)
 - [Cloudflare MCP Transport](https://developers.cloudflare.com/agents/model-context-protocol/transport/)
 - [Cloudflare MCP Authorization](https://developers.cloudflare.com/agents/model-context-protocol/authorization/)
@@ -374,6 +378,7 @@ status, duration_ms, byte_count, recipient_count, provider_outcome_category
 - [Workers AI 模型目录](https://developers.cloudflare.com/workers-ai/models/)
 
 ### 参考实现
+
 - [Microsoft 365 Mail MCP](https://learn.microsoft.com/en-us/microsoft-cloud/dev/mcp/microsoft-365-mcp/mail-mcp-server)
 - [Resend MCP](https://github.com/resend/resend-mcp)
 - [Wh1isper mcp-email-server](https://github.com/Wh1isper/mcp-email-server)（安全模型范本）
@@ -381,12 +386,14 @@ status, duration_ms, byte_count, recipient_count, provider_outcome_category
 - [Anthropic MCP quickstart email](https://github.com/modelcontextprotocol/quickstart-resources/tree/main/email-server)
 
 ### 安全
+
 - [OWASP LLM01 Prompt Injection](https://genai.owasp.org/llmrisk/llm01-prompt-injection/)
 - [OWASP MCP Top 10](https://github.com/OWASP/www-project-mcp-top-10)
 - [Microsoft Presidio](https://presidio.dataprivacystack.org/)
 - [Anthropic Prompt Injection 研究](https://www.anthropic.com/research/prompt-injection-defenses)
 
 ### 现有项目参考点
+
 - `docs/architecture/agent-and-mcp-blueprint.md`（被本文取代）
 - `apps/worker/src/modules/identity/index.ts::TokenService`
 - `apps/worker/src/modules/authorization/index.ts::assertPermission`
@@ -397,14 +404,14 @@ status, duration_ms, byte_count, recipient_count, provider_outcome_category
 
 ---
 
-**里程碑对齐
+\*\*里程碑对齐
 
-| 阶段 | 估时 | 累计 | 关键交付 |
-|---|---|---|---|
-| 0 基础设施 | 2-3 天 | 2-3 天 | bindings、迁移、permission key |
-| 1 第一方 MCP MVP | 1 周 | 1.5 周 | `/mcp` Streamable HTTP + 14 tools |
-| 2 AI 读路径 | 1-2 周 | 3-4 周 | summarize / classify / embed / 语义搜索 |
-| 3 AI 写路径 + DO | 2 周 | 5-6 周 | MailboxAgent DO + schedule 联动 |
-| 4 发布与生态 | 1 周 | 6-7 周 | `.well-known/*` + UI + 文档 |
+| 阶段             | 估时   | 累计   | 关键交付                                |
+| ---------------- | ------ | ------ | --------------------------------------- |
+| 0 基础设施       | 2-3 天 | 2-3 天 | bindings、迁移、permission key          |
+| 1 第一方 MCP MVP | 1 周   | 1.5 周 | `/mcp` Streamable HTTP + 14 tools       |
+| 2 AI 读路径      | 1-2 周 | 3-4 周 | summarize / classify / embed / 语义搜索 |
+| 3 AI 写路径 + DO | 2 周   | 5-6 周 | MailboxAgent DO + schedule 联动         |
+| 4 发布与生态     | 1 周   | 6-7 周 | `.well-known/*` + UI + 文档             |
 
 预计总投入 **6-7 周 / 1 人**，每阶段都有可独立灰度的 feature flag，可在任意阶段对外宣布一个能力。

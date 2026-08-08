@@ -367,7 +367,9 @@ export function markAsStarredTool(ctx: McpToolContext): WriteToolDef {
   return stateTool(ctx, "mark_as_starred");
 }
 
-function movableFolder(folder: MoveMessageInput["target_folder"]): MovableFolder {
+function movableFolder(
+  folder: MoveMessageInput["target_folder"],
+): MovableFolder {
   if (folder === "sent" || folder === "drafts") {
     throw new McpToolError(
       "invalid_args",

@@ -64,7 +64,10 @@ function dbStub(opts: DbStubOptions = {}) {
   } as unknown as D1Database;
 }
 
-function makeCtx(db: D1Database, verify: (token: string) => Promise<Principal>) {
+function makeCtx(
+  db: D1Database,
+  verify: (token: string) => Promise<Principal>,
+) {
   return {
     env: { DB: db },
     identity: {
@@ -155,10 +158,7 @@ describe("mcp authenticate", () => {
         },
       ],
     ]);
-    const ctxWithToken = makeCtx(
-      dbStub({ tokensByHash }),
-      verify,
-    );
+    const ctxWithToken = makeCtx(dbStub({ tokensByHash }), verify);
     const request = new Request("https://example.com/mcp", {
       headers: { authorization: `Bearer ${plaintext}` },
     });
@@ -219,9 +219,11 @@ describe("mcp authenticate", () => {
     const request = new Request("https://example.com/mcp", {
       headers: { authorization: `Bearer ${plaintext}` },
     });
-    await expect(authenticate(ctxWithSuspended, request)).rejects.toMatchObject({
-      code: "forbidden",
-    });
+    await expect(authenticate(ctxWithSuspended, request)).rejects.toMatchObject(
+      {
+        code: "forbidden",
+      },
+    );
   });
 
   it("validates JWT via TokenService (end-to-end)", async () => {

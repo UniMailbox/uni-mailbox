@@ -1,16 +1,12 @@
 import { applyD1Migrations, env } from "cloudflare:test";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "vitest";
-import { InstallationStep, PERMISSION_KEYS, type Principal } from "@unimailbox/contracts";
+  InstallationStep,
+  PERMISSION_KEYS,
+  type Principal,
+} from "@unimailbox/contracts";
 import { TokenService } from "../../../src/modules/identity";
-import {
-  AgentTokenApplicationService,
-} from "../../../src/modules/agent-tokens";
+import { AgentTokenApplicationService } from "../../../src/modules/agent-tokens";
 import { createHttpApp, type HttpAppContext } from "../../../src/http/router";
 import { makeEnv } from "../env-fixture";
 
@@ -119,7 +115,11 @@ function service() {
 describe("MCP discovery endpoints", () => {
   beforeAll(async () => {
     globalThis.MCP_ENABLED = true;
-    await applyD1Migrations(env.DB, (env as unknown as { TEST_MIGRATIONS?: unknown[] }).TEST_MIGRATIONS as never);
+    await applyD1Migrations(
+      env.DB,
+      (env as unknown as { TEST_MIGRATIONS?: unknown[] })
+        .TEST_MIGRATIONS as never,
+    );
   });
 
   beforeEach(async () => {
@@ -185,7 +185,11 @@ describe("MCP discovery endpoints", () => {
 describe("agent token REST surface", () => {
   beforeAll(async () => {
     globalThis.MCP_ENABLED = true;
-    await applyD1Migrations(env.DB, (env as unknown as { TEST_MIGRATIONS?: unknown[] }).TEST_MIGRATIONS as never);
+    await applyD1Migrations(
+      env.DB,
+      (env as unknown as { TEST_MIGRATIONS?: unknown[] })
+        .TEST_MIGRATIONS as never,
+    );
   });
 
   beforeEach(async () => {

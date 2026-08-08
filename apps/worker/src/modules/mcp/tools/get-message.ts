@@ -82,7 +82,11 @@ async function runGetMessage(
 ): Promise<Record<string, unknown>> {
   const parsedInput = GetMessageInputSchema.safeParse(rawArgs);
   if (!parsedInput.success) {
-    throw new McpToolError("invalid_args", undefined, parsedInput.error.flatten());
+    throw new McpToolError(
+      "invalid_args",
+      undefined,
+      parsedInput.error.flatten(),
+    );
   }
   const input = parsedInput.data;
 
@@ -153,9 +157,7 @@ async function runGetMessage(
   const redactedSubject = redactText(message.subject);
   const redactedText = redactText(message.text_body);
   const redactedHtml = minimal ? undefined : redactText(message.html_body);
-  const wrappedBody = minimal
-    ? undefined
-    : wrapUntrustedEmail(redactedText);
+  const wrappedBody = minimal ? undefined : wrapUntrustedEmail(redactedText);
 
   const attachments = await ctx.env.DB.prepare(
     `SELECT id, filename, mime_type, size_bytes, disposition

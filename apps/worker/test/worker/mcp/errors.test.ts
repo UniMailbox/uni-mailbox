@@ -50,9 +50,7 @@ describe("toMcpResult", () => {
   });
 
   it("wraps generic DomainError into the same shape", () => {
-    const result = toMcpResult(
-      new DomainError("CUSTOM_CODE", "custom", 418),
-    );
+    const result = toMcpResult(new DomainError("CUSTOM_CODE", "custom", 418));
     expect(result.structuredContent.code).toBe("CUSTOM_CODE");
     expect(result.structuredContent.message).toBe("custom");
   });

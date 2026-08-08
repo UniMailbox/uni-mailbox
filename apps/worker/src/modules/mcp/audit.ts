@@ -84,9 +84,7 @@ function projectShape(value: unknown): unknown {
       const innerType = typeof inner;
       keys[key] = {
         type: innerType,
-        ...(innerType === "string"
-          ? { length: (inner as string).length }
-          : {}),
+        ...(innerType === "string" ? { length: (inner as string).length } : {}),
       };
     }
   }

@@ -83,9 +83,8 @@ function buildD1Stub(state: D1State): D1Database {
           }
           return null;
         }
-        return (state.firstRows.get(sql) ?? state.prepareResult.first) as
-          | T
-          | null;
+        return (state.firstRows.get(sql) ??
+          state.prepareResult.first) as T | null;
       };
       runner.run = async (): Promise<{
         success: boolean;
@@ -207,7 +206,9 @@ describe("schedule_message", () => {
         text_body: "Body",
       },
     });
-    expect(result.structuredContent?.confirmation_token).toEqual(expect.any(String));
+    expect(result.structuredContent?.confirmation_token).toEqual(
+      expect.any(String),
+    );
     const outbound = fakes.d1.batches.find((b) =>
       b.sql.includes("INSERT INTO outbound_jobs"),
     );

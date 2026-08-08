@@ -17,9 +17,7 @@ declare global {
   var MCP_ENABLED: boolean | undefined;
 }
 function isMcpEnabled(): boolean {
-  return (
-    typeof globalThis !== "undefined" && globalThis.MCP_ENABLED === true
-  );
+  return typeof globalThis !== "undefined" && globalThis.MCP_ENABLED === true;
 }
 
 /**

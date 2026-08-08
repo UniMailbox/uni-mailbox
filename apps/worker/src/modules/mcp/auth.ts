@@ -91,10 +91,7 @@ async function verifyAgentToken(
     .first<AgentTokenRow>();
   if (!candidate) return null;
   const now = Date.now();
-  if (
-    typeof candidate.expires_at === "number" &&
-    candidate.expires_at < now
-  ) {
+  if (typeof candidate.expires_at === "number" && candidate.expires_at < now) {
     return null;
   }
   const scopes = parseScopes(candidate.scopes);

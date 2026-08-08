@@ -34,7 +34,10 @@ const REPLACEMENTS: Array<[RegExp, string]> = [
 ];
 
 function luhnValid(rawDigits: string): boolean {
-  const digits = rawDigits.split("").reverse().map((d) => Number.parseInt(d, 10));
+  const digits = rawDigits
+    .split("")
+    .reverse()
+    .map((d) => Number.parseInt(d, 10));
   if (digits.some((d) => Number.isNaN(d))) return false;
   let sum = 0;
   for (let i = 0; i < digits.length; i += 1) {
@@ -53,7 +56,10 @@ function luhnValid(rawDigits: string): boolean {
  * `allow` list are returned verbatim (so an agent can quote its own
  * principal address without scrubbing it).
  */
-export function redactText(input: string, allow: readonly string[] = []): string {
+export function redactText(
+  input: string,
+  allow: readonly string[] = [],
+): string {
   let result = input;
   for (const [pattern, replacement] of REPLACEMENTS) {
     result = result.replace(pattern, (match) => {

@@ -34,14 +34,19 @@ function buildD1Stub(state: D1State): D1Database {
           return runner;
         },
         async first<T>(): Promise<T | null> {
-          if (sql.includes("FROM mailbox_messages mm") && sql.includes("JOIN mailboxes mb")) {
+          if (
+            sql.includes("FROM mailbox_messages mm") &&
+            sql.includes("JOIN mailboxes mb")
+          ) {
             return (state.results.mailboxLink ?? null) as T | null;
           }
           if (sql.includes("SELECT ma.id, ma.filename")) {
             return (state.results.attachmentRow ?? null) as T | null;
           }
           if (sql.includes("SELECT mcp_attachment_download_enabled")) {
-            return (state.results.settings ?? { mcp_attachment_download_enabled: 0 }) as T | null;
+            return (state.results.settings ?? {
+              mcp_attachment_download_enabled: 0,
+            }) as T | null;
           }
           return null;
         },
@@ -128,8 +133,9 @@ describe("list_attachments", () => {
       { message_id: "msg-1" },
       { sessionId: null, requestId: "request-1" },
     );
-    const first = (result.structuredContent as { attachments: Array<{ filename: string }> })
-      .attachments[0]!;
+    const first = (
+      result.structuredContent as { attachments: Array<{ filename: string }> }
+    ).attachments[0]!;
     expect(first.filename).not.toContain("alice@example.com");
     expect(first.filename).toContain("[email]");
   });

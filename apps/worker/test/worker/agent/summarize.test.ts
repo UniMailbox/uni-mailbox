@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { summarizeThread, responseText, SUMMARY_MODEL } from "../../../src/modules/agent/summarize";
+import {
+  summarizeThread,
+  responseText,
+  SUMMARY_MODEL,
+} from "../../../src/modules/agent/summarize";
 
 type Run = (model: string, inputs: unknown) => Promise<unknown>;
 
@@ -9,7 +13,10 @@ describe("summarizeThread", () => {
     const env = { AI: { run } } as { AI: { run: Run } };
     const out = await summarizeThread(env as never, ["hello"]);
     expect(out).toHaveLength(300);
-    expect(run).toHaveBeenCalledWith(SUMMARY_MODEL, expect.objectContaining({ messages: expect.any(Array) }));
+    expect(run).toHaveBeenCalledWith(
+      SUMMARY_MODEL,
+      expect.objectContaining({ messages: expect.any(Array) }),
+    );
   });
 
   it("responseText extracts string from common shapes", () => {

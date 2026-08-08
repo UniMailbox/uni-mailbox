@@ -31,11 +31,7 @@ export async function wrapWithConfirmation<T>(
 
   if (!token) {
     const preview = await previewBuilder(args);
-    const confirmationToken = await createConfirmation(
-      ctx,
-      principal,
-      payload,
-    );
+    const confirmationToken = await createConfirmation(ctx, principal, payload);
     return {
       confirmation_required: true,
       preview,

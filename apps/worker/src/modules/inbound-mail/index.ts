@@ -274,7 +274,10 @@ export class InboundMailService {
         attachmentCount: attachmentRows.length,
       });
       if (mailbox) {
-        this.context.env.INBOX_INDEX_QUEUE?.send({ mailbox_id: mailbox.id, message_id: messageId }).catch(() => undefined);
+        this.context.env.INBOX_INDEX_QUEUE?.send({
+          mailbox_id: mailbox.id,
+          message_id: messageId,
+        }).catch(() => undefined);
       }
     } catch (error) {
       for (const fileId of attachmentFileIds) {

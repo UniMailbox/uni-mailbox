@@ -15,7 +15,11 @@ const principal: Principal = {
 };
 
 interface D1State {
-  jobLookup: { id: string; message_id: string; created_by_user_id: string } | null;
+  jobLookup: {
+    id: string;
+    message_id: string;
+    created_by_user_id: string;
+  } | null;
   deleteChanges: number;
   postDeleteStatus: string | null;
   calls: Array<{ sql: string }>;
@@ -53,13 +57,18 @@ function buildD1Stub(state: D1State): D1Database {
         },
         async first<T>(): Promise<T | null> {
           state.calls.push({ sql });
-          if (sql.includes("FROM outbound_jobs oj") && sql.includes("JOIN messages m")) {
+          if (
+            sql.includes("FROM outbound_jobs oj") &&
+            sql.includes("JOIN messages m")
+          ) {
             return (state.jobLookup ?? null) as T | null;
           }
           if (sql.includes("SELECT status FROM outbound_jobs WHERE id =")) {
-            return (state.postDeleteStatus === null
-              ? null
-              : { status: state.postDeleteStatus }) as T | null;
+            return (
+              state.postDeleteStatus === null
+                ? null
+                : { status: state.postDeleteStatus }
+            ) as T | null;
           }
           if (
             sql.includes("FROM idempotency_records") &&
@@ -71,7 +80,10 @@ function buildD1Stub(state: D1State): D1Database {
               // Hash mismatch surfaces as `idempotency_conflict` in
               // production; mirror that here so the test exercises the
               // right branch.
-              if (state.idempotency.request_hash !== state.idempotency.request_hash) {
+              if (
+                state.idempotency.request_hash !==
+                state.idempotency.request_hash
+              ) {
                 return { request_hash: "different", response_json: "{}" } as T;
               }
               return {
@@ -209,6 +221,8 @@ describe("cancel_scheduled", () => {
       permissions: new Set(["message.send"]),
     };
     const { assertScope } = await import("../../../../src/modules/mcp/auth");
-    expect(() => assertScope(denied, ["schedule.write"])).toThrowError(McpToolError);
+    expect(() => assertScope(denied, ["schedule.write"])).toThrowError(
+      McpToolError,
+    );
   });
 });

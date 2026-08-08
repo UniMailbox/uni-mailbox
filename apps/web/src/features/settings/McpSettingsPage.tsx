@@ -1,8 +1,4 @@
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ShieldCheck } from "lucide-react";
@@ -35,7 +31,10 @@ function formatDate(value: number | string | null | undefined): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "number") {
     if (!Number.isFinite(value) || value <= 0) return "";
-    return new Date(value).toISOString().replace("T", " ").replace(/\..*$/u, "");
+    return new Date(value)
+      .toISOString()
+      .replace("T", " ")
+      .replace(/\..*$/u, "");
   }
   const parsed = Date.parse(value);
   if (Number.isNaN(parsed)) return value;

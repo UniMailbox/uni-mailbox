@@ -90,13 +90,13 @@ export async function requireConfirmation(
   }
   if (parsed.used === 1) return false;
   if (parsed.principal_id !== principal.userId) return false;
-  if (payloadFingerprint(parsed.payload) !== payloadFingerprint(expectedPayload)) {
+  if (
+    payloadFingerprint(parsed.payload) !== payloadFingerprint(expectedPayload)
+  ) {
     return false;
   }
-  await ctx.env.KV.put(
-    key(id),
-    JSON.stringify({ ...parsed, used: 1 }),
-    { expirationTtl: CONSUMED_TTL_SECONDS },
-  );
+  await ctx.env.KV.put(key(id), JSON.stringify({ ...parsed, used: 1 }), {
+    expirationTtl: CONSUMED_TTL_SECONDS,
+  });
   return true;
 }

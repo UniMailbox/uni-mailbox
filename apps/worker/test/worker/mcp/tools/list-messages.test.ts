@@ -40,8 +40,12 @@ describe("list_messages SQL builder", () => {
       before: "2026-02-01T00:00:00Z",
     });
     const { sql, params } = await buildListMessagesQuery(stubCtx(), input);
-    expect(sql).toContain("COALESCE(m.received_at, m.sent_at, m.created_at) >= ?");
-    expect(sql).toContain("COALESCE(m.received_at, m.sent_at, m.created_at) < ?");
+    expect(sql).toContain(
+      "COALESCE(m.received_at, m.sent_at, m.created_at) >= ?",
+    );
+    expect(sql).toContain(
+      "COALESCE(m.received_at, m.sent_at, m.created_at) < ?",
+    );
     expect(params).toContain("2026-01-01T00:00:00Z");
     expect(params).toContain("2026-02-01T00:00:00Z");
   });
@@ -72,9 +76,7 @@ describe("list_messages SQL builder", () => {
 
   it("rejects invalid mailbox_id types", () => {
     expect(() => ListMessagesInputSchema.parse({})).toThrow();
-    expect(() =>
-      ListMessagesInputSchema.parse({ mailbox_id: "" }),
-    ).toThrow();
+    expect(() => ListMessagesInputSchema.parse({ mailbox_id: "" })).toThrow();
   });
 
   it("rejects unknown label_id values", () => {
@@ -89,7 +91,9 @@ describe("list_messages SQL builder", () => {
       cursor: "cursor|2026-03-01T00:00:00Z|msg-42",
     });
     const { sql, params } = await buildListMessagesQuery(stubCtx(), input);
-    expect(sql).toContain("(m.created_at < ? OR (m.created_at = ? AND m.id < ?))");
+    expect(sql).toContain(
+      "(m.created_at < ? OR (m.created_at = ? AND m.id < ?))",
+    );
     expect(params).toContain("2026-03-01T00:00:00Z");
     expect(params).toContain("msg-42");
   });

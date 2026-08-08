@@ -1,11 +1,5 @@
 import { applyD1Migrations, env } from "cloudflare:test";
-import {
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { InstallationStep, type Principal } from "@unimailbox/contracts";
 import { TokenService } from "../../../src/modules/identity";
 import { createHttpApp, type HttpAppContext } from "../../../src/http/router";
@@ -207,14 +201,21 @@ function parseFrames(body: string): Array<Record<string, unknown>> {
     });
 }
 
-function frameById(body: string, id: number): Record<string, unknown> | undefined {
+function frameById(
+  body: string,
+  id: number,
+): Record<string, unknown> | undefined {
   return parseFrames(body).find((frame) => frame && frame.id === id);
 }
 
 describe("MCP resources (Streamable HTTP)", () => {
   beforeAll(async () => {
     globalThis.MCP_ENABLED = true;
-    await applyD1Migrations(env.DB, (env as unknown as { TEST_MIGRATIONS?: unknown[] }).TEST_MIGRATIONS as never);
+    await applyD1Migrations(
+      env.DB,
+      (env as unknown as { TEST_MIGRATIONS?: unknown[] })
+        .TEST_MIGRATIONS as never,
+    );
   });
 
   beforeEach(async () => {
@@ -235,8 +236,9 @@ describe("MCP resources (Streamable HTTP)", () => {
     );
     expect(response.status).toBe(200);
     const frame = frameById(await response.text(), 1);
-    const templates = (frame?.result as { resourceTemplates: Array<{ uriTemplate: string }> })
-      ?.resourceTemplates;
+    const templates = (
+      frame?.result as { resourceTemplates: Array<{ uriTemplate: string }> }
+    )?.resourceTemplates;
     const uris = templates?.map((t) => t.uriTemplate) ?? [];
     expect(uris).toEqual(
       expect.arrayContaining([

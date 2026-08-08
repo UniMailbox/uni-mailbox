@@ -165,9 +165,7 @@ function toView(row: AgentTokenRow): AgentTokenView {
   };
 }
 
-function dedupeScopes(
-  scopes: readonly PermissionKey[],
-): PermissionKey[] {
+function dedupeScopes(scopes: readonly PermissionKey[]): PermissionKey[] {
   const known = new Set<string>(PERMISSION_KEYS);
   const out = new Set<PermissionKey>();
   for (const scope of scopes) {
@@ -194,7 +192,9 @@ function parseScopes(raw: string): PermissionKey[] {
   return out;
 }
 
-function normaliseExpiry(value: number | string | null | undefined): number | null {
+function normaliseExpiry(
+  value: number | string | null | undefined,
+): number | null {
   if (value === null || value === undefined) return null;
   if (typeof value === "number") {
     return Number.isFinite(value) ? Math.trunc(value) : null;

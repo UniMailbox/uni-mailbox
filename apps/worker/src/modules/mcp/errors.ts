@@ -53,11 +53,7 @@ const DEFAULT_STATUS: Record<McpErrorCode, number> = {
  * wire shape on top.
  */
 export class McpToolError extends DomainError {
-  constructor(
-    code: McpErrorCode,
-    message?: string,
-    details?: unknown,
-  ) {
+  constructor(code: McpErrorCode, message?: string, details?: unknown) {
     super(
       code,
       message ?? DEFAULT_MESSAGES[code],
@@ -77,9 +73,7 @@ export class McpToolError extends DomainError {
  * `structuredContent` field carries a machine-readable envelope with the
  * stable `code` and an optional `details` payload.
  */
-export function toMcpResult(
-  error: unknown,
-): {
+export function toMcpResult(error: unknown): {
   isError: true;
   content: Array<{ type: "text"; text: string }>;
   structuredContent: { code: string; message: string; details?: unknown };

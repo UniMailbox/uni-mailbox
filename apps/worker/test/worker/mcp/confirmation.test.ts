@@ -49,12 +49,9 @@ describe("mcp confirmation store", () => {
     const id = await createConfirmation(ctx as never, principal, {
       to: ["a@b.test"],
     });
-    const ok = await requireConfirmation(
-      ctx as never,
-      principal,
-      id,
-      { to: ["a@b.test"] },
-    );
+    const ok = await requireConfirmation(ctx as never, principal, id, {
+      to: ["a@b.test"],
+    });
     expect(ok).toBe(true);
   });
 
@@ -87,9 +84,14 @@ describe("mcp confirmation store", () => {
   it("returns false on TTL expiry", async () => {
     // Store a record with a 1-second TTL, then mutate the underlying KV
     // to simulate expiry (the stub doesn't honour TTL automatically).
-    const id = await createConfirmation(ctx as never, principal, {
-      to: ["a@b.test"],
-    }, 1);
+    const id = await createConfirmation(
+      ctx as never,
+      principal,
+      {
+        to: ["a@b.test"],
+      },
+      1,
+    );
     await env.KV.delete(`mcp:confirm:${id}`);
     const ok = await requireConfirmation(ctx as never, principal, id, {
       to: ["a@b.test"],

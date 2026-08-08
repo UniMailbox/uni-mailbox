@@ -82,10 +82,7 @@ function isBootstrapSafePath(path: string): boolean {
 
 const AgentTokenCreateInputSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  scopes: z
-    .array(z.enum(PERMISSION_KEYS))
-    .min(1)
-    .max(PERMISSION_KEYS.length),
+  scopes: z.array(z.enum(PERMISSION_KEYS)).min(1).max(PERMISSION_KEYS.length),
   expires_at: z
     .union([z.string().min(1), z.number().int().positive()])
     .nullable()
@@ -815,9 +812,7 @@ export function createHttpApp(createContext: HttpContextFactory) {
     ),
   );
   app.post("/api/v1/agent_tokens", async (context) => {
-    const input = AgentTokenCreateInputSchema.parse(
-      await context.req.json(),
-    );
+    const input = AgentTokenCreateInputSchema.parse(await context.req.json());
     const { view, plaintext } = await context
       .get("appContext")
       .agentTokens.create(context.get("principal"), input);

@@ -160,7 +160,9 @@ export function listAttachmentsTool(ctx: McpToolContext): WriteToolDef {
   };
 }
 
-async function isAttachmentDownloadEnabled(ctx: McpToolContext): Promise<boolean> {
+async function isAttachmentDownloadEnabled(
+  ctx: McpToolContext,
+): Promise<boolean> {
   const row = await ctx.env.DB.prepare(
     "SELECT mcp_attachment_download_enabled FROM system_settings WHERE id = 1",
   ).first<SettingsRow>();

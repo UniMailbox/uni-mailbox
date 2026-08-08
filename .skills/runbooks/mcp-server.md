@@ -3,7 +3,7 @@
 > This runbook covers the first-party MCP server shipped in PR #1–#8 of
 > the `feat/email-mcp-server` worktree. The MCP route lives at
 > `/mcp`; the discovery endpoints at `/.well-known/{mcp.json,
-> oauth-protected-resource, oauth-authorization-server}`; agent
+oauth-protected-resource, oauth-authorization-server}`; agent
 > token CRUD at `/api/v1/agent_tokens`.
 
 This document tells you how to:
@@ -64,11 +64,11 @@ deploy script prints the public URL once it completes.
 
 The MCP route is intentionally cold at boot. Two ways to flip it on:
 
-| Context | How |
-| --- | --- |
-| `wrangler dev` (local) | In the dev server JavaScript console, run `globalThis.MCP_ENABLED = true` and reload the page. The route becomes reachable immediately. |
-| Integration tests | `apps/worker/test/integration/mcp/http.test.ts` sets `globalThis.MCP_ENABLED = true` before constructing the Hono app. |
-| Production | PR #8 ships the discovery endpoints unconditionally, but the `/mcp` endpoint itself stays gated by the same flag. Operators must redeploy with `MCP_ENABLED=true` in the environment (e.g. via a `wrangler secret put MCP_ENABLED`) to expose it. |
+| Context                | How                                                                                                                                                                                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `wrangler dev` (local) | In the dev server JavaScript console, run `globalThis.MCP_ENABLED = true` and reload the page. The route becomes reachable immediately.                                                                                                           |
+| Integration tests      | `apps/worker/test/integration/mcp/http.test.ts` sets `globalThis.MCP_ENABLED = true` before constructing the Hono app.                                                                                                                            |
+| Production             | PR #8 ships the discovery endpoints unconditionally, but the `/mcp` endpoint itself stays gated by the same flag. Operators must redeploy with `MCP_ENABLED=true` in the environment (e.g. via a `wrangler secret put MCP_ENABLED`) to expose it. |
 
 Discovery endpoints (`/.well-known/*`) are **always reachable** —
 clients cache them before authenticating, so gating them would
@@ -141,7 +141,7 @@ Symptoms:
 
 - Inspector reports "401 Unauthorized".
 - Raw `curl` returns `WWW-Authenticate: Bearer
-  realm="unimailbox", error="invalid_token"`.
+realm="unimailbox", error="invalid_token"`.
 
 Likely causes:
 
@@ -193,11 +193,11 @@ The MCP rate-limit module
 (`apps/worker/src/modules/mcp/rate-limit.ts`) enforces three
 buckets:
 
-| Bucket | Per-minute | Per-hour | Notes |
-| --- | --- | --- | --- |
-| `read` | 60 / user | 1 000 / user | All read tools and resources |
-| `write` | 10 / user | 100 / user | `send_message`, `move_message`, `trash_message`, etc. |
-| `ai` | 20 / user | 200 / user | `summarize_thread`, `classify_message`, `extract_action_items` |
+| Bucket  | Per-minute | Per-hour     | Notes                                                          |
+| ------- | ---------- | ------------ | -------------------------------------------------------------- |
+| `read`  | 60 / user  | 1 000 / user | All read tools and resources                                   |
+| `write` | 10 / user  | 100 / user   | `send_message`, `move_message`, `trash_message`, etc.          |
+| `ai`    | 20 / user  | 200 / user   | `summarize_thread`, `classify_message`, `extract_action_items` |
 
 A throttled call surfaces as `McpToolError("rate_limited")`. The
 counter keys are `rate:mcp:<bucket>:<user-id>:<unix-minute>` and

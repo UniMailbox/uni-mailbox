@@ -30,7 +30,10 @@ export class MailboxAgent extends DurableObject<Env> {
         job_id?: unknown;
         scheduled_at?: unknown;
       };
-      if (typeof body.job_id === "string" && typeof body.scheduled_at === "string") {
+      if (
+        typeof body.job_id === "string" &&
+        typeof body.scheduled_at === "string"
+      ) {
         this.pendingActions.push({
           id: body.job_id,
           kind: "schedule",
@@ -54,7 +57,12 @@ export class MailboxAgent extends DurableObject<Env> {
     ws.send(JSON.stringify({ ack: true }));
   }
 
-  async webSocketClose(ws: WebSocket, code: number, reason: string, _wasClean: boolean) {
+  async webSocketClose(
+    ws: WebSocket,
+    code: number,
+    reason: string,
+    _wasClean: boolean,
+  ) {
     this.subscriptions.delete(ws);
     try {
       ws.close(code, reason);

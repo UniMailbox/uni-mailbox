@@ -167,7 +167,11 @@ async function requireActiveMailbox(
   )
     .bind(mailboxId)
     .first<SenderRow>();
-  if (!sender || sender.mailbox_status !== "active" || sender.domain_status !== "active") {
+  if (
+    !sender ||
+    sender.mailbox_status !== "active" ||
+    sender.domain_status !== "active"
+  ) {
     throw new McpToolError(
       "not_found",
       "The sender mailbox or domain is not active",
@@ -216,8 +220,8 @@ async function writeScheduledJob(
           await ctx.env.DB.prepare(
             `SELECT id, address FROM mailboxes
              WHERE status = 'active' AND address IN (${uniqueAddresses
-              .map(() => "?")
-              .join(",")})`,
+               .map(() => "?")
+               .join(",")})`,
           )
             .bind(...uniqueAddresses)
             .all<{ id: string; address: string }>()
@@ -254,10 +258,7 @@ async function writeScheduledJob(
                AND au.expires_at > CURRENT_TIMESTAMP
                AND au.id IN (${input.attachments.map(() => "?").join(",")})`,
           )
-            .bind(
-              ctx.principal.userId,
-              ...input.attachments,
-            )
+            .bind(ctx.principal.userId, ...input.attachments)
             .all<{
               id: string;
               object_key: string;
@@ -306,9 +307,7 @@ async function writeScheduledJob(
       ctx.env.DB.prepare(
         `INSERT INTO message_recipients (
            id, message_id, type, address, display_name
-         ) VALUES ${recipientRows
-           .map(() => "(?, ?, ?, ?, '')")
-           .join(",")}`,
+         ) VALUES ${recipientRows.map(() => "(?, ?, ?, ?, '')").join(",")}`,
       ).bind(
         ...recipientRows.flatMap((row) => [
           crypto.randomUUID(),
@@ -464,7 +463,10 @@ async function loadOwnedJob(
     throw new McpToolError("not_found", "Scheduled job not found");
   }
   if (row.created_by_user_id !== userId) {
-    throw new McpToolError("forbidden", "Scheduled job is not owned by the principal");
+    throw new McpToolError(
+      "forbidden",
+      "Scheduled job is not owned by the principal",
+    );
   }
   return row;
 }
@@ -499,7 +501,12 @@ export function cancelScheduledTool(
           // past `enqueued`. Report the new status verbatim so the agent
           // can tell "still pending" from "already dispatched" without
           // having to re-query.
-          let status: "cancelled" | "enqueued" | "processing" | "succeeded" | "failed";
+          let status:
+            | "cancelled"
+            | "enqueued"
+            | "processing"
+            | "succeeded"
+            | "failed";
           if (deleted.meta.changes === 1) {
             status = "cancelled";
           } else {

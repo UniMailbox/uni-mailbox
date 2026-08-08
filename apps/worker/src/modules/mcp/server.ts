@@ -192,7 +192,11 @@ export function buildMcpServer(ctx: McpToolContext): McpServerLike {
   }
 
   // AI read tools use a separate cost-aware rate limit and two scopes.
-  for (const factory of [summarizeThreadTool, classifyMessageTool, extractActionItemsTool]) {
+  for (const factory of [
+    summarizeThreadTool,
+    classifyMessageTool,
+    extractActionItemsTool,
+  ]) {
     const tool = factory(ctx);
     tools.set(tool.name, {
       name: tool.name,
@@ -204,11 +208,27 @@ export function buildMcpServer(ctx: McpToolContext): McpServerLike {
           assertScope(ctx.principal, ["message.read", "ai.read"]);
           await checkRateLimit(ctx.modules, ctx.principal, "ai");
           const result = await tool.handler(args, extra);
-          await auditMcpCall(ctx.modules, { tool: tool.name, principal: ctx.principal, args: shapeArgsForAudit(args), decision: "success", durationMs: Date.now() - started, requestId: ctx.requestId });
+          await auditMcpCall(ctx.modules, {
+            tool: tool.name,
+            principal: ctx.principal,
+            args: shapeArgsForAudit(args),
+            decision: "success",
+            durationMs: Date.now() - started,
+            requestId: ctx.requestId,
+          });
           return result;
         } catch (error) {
-          const code = error instanceof McpToolError ? error.code : "internal_error";
-          await auditMcpCall(ctx.modules, { tool: tool.name, principal: ctx.principal, args: shapeArgsForAudit(args), decision: mapErrorToDecision(code), durationMs: Date.now() - started, requestId: ctx.requestId, errorCode: code });
+          const code =
+            error instanceof McpToolError ? error.code : "internal_error";
+          await auditMcpCall(ctx.modules, {
+            tool: tool.name,
+            principal: ctx.principal,
+            args: shapeArgsForAudit(args),
+            decision: mapErrorToDecision(code),
+            durationMs: Date.now() - started,
+            requestId: ctx.requestId,
+            errorCode: code,
+          });
           throw error;
         }
       },
@@ -358,7 +378,10 @@ function writeToolPolicy(toolName: string): {
       // caller that holds `attachment.read`.
       return { scopes: ["message.read", "attachment.read"], rateLimit: "read" };
     default:
-      throw new McpToolError("internal", `Missing write policy for ${toolName}`);
+      throw new McpToolError(
+        "internal",
+        `Missing write policy for ${toolName}`,
+      );
   }
 }
 
@@ -375,7 +398,9 @@ function extractMailboxIdFromUri(uri: string): string | null {
     return decodeURIComponent(segments[0]);
   }
   if (
-    ["messages", "threads", "drafts", "attachments"].includes(parsed.hostname) &&
+    ["messages", "threads", "drafts", "attachments"].includes(
+      parsed.hostname,
+    ) &&
     segments.length > 0
   ) {
     return decodeURIComponent(segments[0]);
@@ -513,7 +538,8 @@ async function dispatch(
       try {
         assertScope(ctx.principal, ["message.read"]);
         const namespace = ctx.env.MAILBOX_AGENT;
-        if (!namespace) throw new McpToolError("internal", "Mailbox agent unavailable");
+        if (!namespace)
+          throw new McpToolError("internal", "Mailbox agent unavailable");
         namespace.get(namespace.idFromName(mailboxId));
         await auditMcpCall(ctx.modules, {
           tool: request.method,
@@ -529,7 +555,8 @@ async function dispatch(
           result: { ok: true },
         });
       } catch (error) {
-        const code = error instanceof McpToolError ? error.code : "internal_error";
+        const code =
+          error instanceof McpToolError ? error.code : "internal_error";
         await auditMcpCall(ctx.modules, {
           tool: request.method,
           principal: ctx.principal,
@@ -570,7 +597,10 @@ async function dispatch(
       try {
         assertScope(ctx.principal, ["message.read"]);
         await checkRateLimit(ctx.modules, ctx.principal, "read");
-        const contents = await matched.handler.read(ctx.principal, matched.params);
+        const contents = await matched.handler.read(
+          ctx.principal,
+          matched.params,
+        );
         await auditMcpCall(ctx.modules, {
           tool: `resources/read:${uri}`,
           principal: ctx.principal,

@@ -44,7 +44,10 @@ interface ParsedQuery {
  * whitespace-delimited token or a quoted string (`"…"`). Quoted values
  * preserve internal whitespace so `subject:"invoice Q4"` works.
  */
-export function parseSearchQuery(query: string, now: number = Date.now()): ParsedQuery {
+export function parseSearchQuery(
+  query: string,
+  now: number = Date.now(),
+): ParsedQuery {
   const result: ParsedQuery = { freeText: [] };
   let remaining = query;
   for (const match of remaining.matchAll(
@@ -109,9 +112,15 @@ const SEARCH_MESSAGES_TOOL = {
         type: "string",
         description: "Mailbox ULID the principal has read access to.",
       },
-      query: { type: "string", description: "Search expression (see tool description)." },
+      query: {
+        type: "string",
+        description: "Search expression (see tool description).",
+      },
       limit: { type: "number", description: "1-100; defaults to 50." },
-      cursor: { type: "string", description: "Opaque pagination cursor from a prior call." },
+      cursor: {
+        type: "string",
+        description: "Opaque pagination cursor from a prior call.",
+      },
     },
     additionalProperties: false,
   },
@@ -152,7 +161,9 @@ export async function buildSearchMessagesQuery(
     params.push(parsed.sinceIso);
   }
   for (const text of parsed.freeText) {
-    where.push("(m.subject LIKE ? COLLATE NOCASE OR m.text_body LIKE ? COLLATE NOCASE)");
+    where.push(
+      "(m.subject LIKE ? COLLATE NOCASE OR m.text_body LIKE ? COLLATE NOCASE)",
+    );
     params.push(`%${text}%`, `%${text}%`);
   }
   if (input.cursor) {
@@ -191,7 +202,11 @@ async function runSearchMessages(
 }> {
   const parsedInput = SearchMessagesInputSchema.safeParse(rawArgs);
   if (!parsedInput.success) {
-    throw new McpToolError("invalid_args", undefined, parsedInput.error.flatten());
+    throw new McpToolError(
+      "invalid_args",
+      undefined,
+      parsedInput.error.flatten(),
+    );
   }
   const input = parsedInput.data;
 
@@ -208,16 +223,18 @@ async function runSearchMessages(
     .bind(...params)
     .all<SearchRow>();
   const hasNext = result.results.length > input.limit;
-  const items = (hasNext ? result.results.slice(0, input.limit) : result.results).map(
-    (row) => ({
-      id: row.id,
-      from: redactText(row.from_address),
-      subject: redactText(row.subject),
-      preview: redactText(clip(row.text_body)),
-      received_at: row.received_at ?? row.sent_at ?? row.created_at,
-    }),
-  );
-  const lastPageRow = hasNext ? result.results[input.limit - 1] : result.results.at(-1);
+  const items = (
+    hasNext ? result.results.slice(0, input.limit) : result.results
+  ).map((row) => ({
+    id: row.id,
+    from: redactText(row.from_address),
+    subject: redactText(row.subject),
+    preview: redactText(clip(row.text_body)),
+    received_at: row.received_at ?? row.sent_at ?? row.created_at,
+  }));
+  const lastPageRow = hasNext
+    ? result.results[input.limit - 1]
+    : result.results.at(-1);
   let nextCursor: string | null = null;
   if (hasNext && lastPageRow) {
     nextCursor = await ctx.modules.cursors.encode({
@@ -225,17 +242,42 @@ async function runSearchMessages(
       id: lastPageRow.id,
     });
   }
-  let semantic: Array<{ id: string; score: number; snippet: string }> | undefined;
+  let semantic:
+    | Array<{ id: string; score: number; snippet: string }>
+    | undefined;
   if (items.length === 0 && ctx.env.VECTORIZE && parsed.freeText.length > 0) {
     try {
       const vector = await embedMessage(ctx.env, parsed.freeText.join(" "));
-      const result = await ctx.env.VECTORIZE.query(vector, { namespace: input.mailbox_id, topK: 20, returnMetadata: "indexed" });
+      const result = await ctx.env.VECTORIZE.query(vector, {
+        namespace: input.mailbox_id,
+        topK: 20,
+        returnMetadata: "indexed",
+      });
       semantic = result.matches
-        .filter((match): boolean => typeof match.id === "string" && typeof match.score === "number")
-        .map((match) => ({ id: String(match.id), score: Number(match.score), snippet: typeof (match.metadata as { snippet?: unknown } | undefined)?.snippet === "string" ? redactText((match.metadata as { snippet: string }).snippet).slice(0, 256) : "" }));
-    } catch { /* best effort */ }
+        .filter(
+          (match): boolean =>
+            typeof match.id === "string" && typeof match.score === "number",
+        )
+        .map((match) => ({
+          id: String(match.id),
+          score: Number(match.score),
+          snippet:
+            typeof (match.metadata as { snippet?: unknown } | undefined)
+              ?.snippet === "string"
+              ? redactText(
+                  (match.metadata as { snippet: string }).snippet,
+                ).slice(0, 256)
+              : "",
+        }));
+    } catch {
+      /* best effort */
+    }
   }
-  return { messages: items, next_cursor: nextCursor, ...(semantic ? { semantic } : {}) };
+  return {
+    messages: items,
+    next_cursor: nextCursor,
+    ...(semantic ? { semantic } : {}),
+  };
 }
 
 export function searchMessagesTool(ctx: McpToolContext): ReadToolDef {

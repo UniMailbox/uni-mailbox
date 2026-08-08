@@ -32,8 +32,7 @@
   /* Typography & neutrals */
   --ink: #17241f;
   --muted: #69736e;
-  --sans:
-    "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif;
+  --sans: "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif;
   --mono: "SFMono-Regular", "Cascadia Code", ui-monospace, monospace;
 
   /* Paper / canvas / lines */

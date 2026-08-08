@@ -29,8 +29,7 @@ const aiMockRun = (async (
     return { data: [new Array(VECTOR_DIMENSION).fill(VECTOR_FILL_VALUE)] };
   }
   return {
-    response:
-      '{"summary":"mock summary","labels":["work"],"action_items":[]}',
+    response: '{"summary":"mock summary","labels":["work"],"action_items":[]}',
   };
 }) as unknown as Ai["run"];
 

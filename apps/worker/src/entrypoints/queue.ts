@@ -9,7 +9,11 @@ export async function handleQueueBatch(
   env: Env,
   context: ExecutionContext,
 ): Promise<void> {
-  const indexBatch: MessageBatch<{ mailbox_id: string; message_id: string }> = batch as unknown as MessageBatch<{ mailbox_id: string; message_id: string }>;
+  const indexBatch: MessageBatch<{ mailbox_id: string; message_id: string }> =
+    batch as unknown as MessageBatch<{
+      mailbox_id: string;
+      message_id: string;
+    }>;
   if (indexBatch.queue === "unimailbox-inbox-index") {
     await handleIndexBatch(indexBatch, env);
     return;

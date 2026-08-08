@@ -36,13 +36,32 @@ const LIST_MESSAGES_TOOL = {
         type: "string",
         description: "Mailbox ULID the principal has read access to.",
       },
-      since: { type: "string", description: "ISO datetime, inclusive lower bound." },
-      before: { type: "string", description: "ISO datetime, exclusive upper bound." },
-      from: { type: "string", description: "Sender address substring (case-insensitive)." },
-      subject: { type: "string", description: "Subject substring (case-insensitive)." },
-      label_id: { type: "string", description: "Folder id (inbox, sent, drafts, archive, trash); defaults to inbox." },
+      since: {
+        type: "string",
+        description: "ISO datetime, inclusive lower bound.",
+      },
+      before: {
+        type: "string",
+        description: "ISO datetime, exclusive upper bound.",
+      },
+      from: {
+        type: "string",
+        description: "Sender address substring (case-insensitive).",
+      },
+      subject: {
+        type: "string",
+        description: "Subject substring (case-insensitive).",
+      },
+      label_id: {
+        type: "string",
+        description:
+          "Folder id (inbox, sent, drafts, archive, trash); defaults to inbox.",
+      },
       limit: { type: "number", description: "1-100; defaults to 50." },
-      cursor: { type: "string", description: "Opaque pagination cursor from a prior call." },
+      cursor: {
+        type: "string",
+        description: "Opaque pagination cursor from a prior call.",
+      },
     },
     additionalProperties: false,
   },
@@ -144,17 +163,18 @@ async function runListMessages(
     .bind(...params)
     .all<ListMessagesRow>();
   const hasNext = result.results.length > input.limit;
-  const items = (hasNext ? result.results.slice(0, input.limit) : result.results).map(
-    (row) => ({
-      id: row.id,
-      from: redactText(row.from_address),
-      subject: redactText(row.subject),
-      preview: redactText(clip(row.text_body)),
-      received_at:
-        row.received_at ?? row.sent_at ?? row.created_at,
-    }),
-  );
-  const lastPageRow = hasNext ? result.results[input.limit - 1] : result.results.at(-1);
+  const items = (
+    hasNext ? result.results.slice(0, input.limit) : result.results
+  ).map((row) => ({
+    id: row.id,
+    from: redactText(row.from_address),
+    subject: redactText(row.subject),
+    preview: redactText(clip(row.text_body)),
+    received_at: row.received_at ?? row.sent_at ?? row.created_at,
+  }));
+  const lastPageRow = hasNext
+    ? result.results[input.limit - 1]
+    : result.results.at(-1);
   let nextCursor: string | null = null;
   if (hasNext && lastPageRow) {
     nextCursor = await ctx.modules.cursors.encode({
@@ -178,9 +198,7 @@ export function listMessagesTool(ctx: McpToolContext): ReadToolDef {
     handler: async (args) => {
       const result = await runListMessages(ctx, args);
       return {
-        content: [
-          { type: "text", text: JSON.stringify(result) },
-        ],
+        content: [{ type: "text", text: JSON.stringify(result) }],
         structuredContent: result as unknown as Record<string, unknown>,
       };
     },

@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  GetMessageInputSchema,
-} from "../../../../src/modules/mcp/tools/get-message";
+import { GetMessageInputSchema } from "../../../../src/modules/mcp/tools/get-message";
 
 describe("get_message input schema", () => {
   it("defaults format to 'full' when omitted", () => {

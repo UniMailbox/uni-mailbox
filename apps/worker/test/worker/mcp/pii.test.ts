@@ -34,9 +34,7 @@ describe("redactText", () => {
   });
 
   it("redacts an 18-digit CN resident ID (with X checksum)", () => {
-    expect(redactText("ID 11010519491231002X used")).toBe(
-      "ID [id-cn] used",
-    );
+    expect(redactText("ID 11010519491231002X used")).toBe("ID [id-cn] used");
   });
 
   it("redacts an IPv4 address", () => {
@@ -81,14 +79,14 @@ describe("redactText", () => {
 describe("wrapUntrustedEmail", () => {
   it("wraps the body with the sentinel pair on dedicated lines", () => {
     const out = wrapUntrustedEmail("hello there");
-    expect(out).toBe(
-      "BEGIN_UNTRUSTED_EMAIL\nhello there\nEND_UNTRUSTED_EMAIL",
-    );
+    expect(out).toBe("BEGIN_UNTRUSTED_EMAIL\nhello there\nEND_UNTRUSTED_EMAIL");
   });
 
   it("preserves multi-line bodies", () => {
     const out = wrapUntrustedEmail("line1\nline2");
-    expect(out).toContain("BEGIN_UNTRUSTED_EMAIL\nline1\nline2\nEND_UNTRUSTED_EMAIL");
+    expect(out).toContain(
+      "BEGIN_UNTRUSTED_EMAIL\nline1\nline2\nEND_UNTRUSTED_EMAIL",
+    );
   });
 
   it("returns empty-string body untouched", () => {
