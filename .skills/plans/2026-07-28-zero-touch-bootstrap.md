@@ -70,7 +70,7 @@
 - `apps/web/src/features/settings/SettingsPage.tsx`: add account email, Cloudflare, and storage sections.
 - `apps/web/src/features/settings/SettingsPage.test.tsx`: authenticated configuration UI coverage.
 - `e2e/setup.spec.ts`, `e2e/setup-extras.spec.ts`, `e2e/login.spec.ts`: replace wizard scenarios with bootstrap/login/settings scenarios.
-- `README.md`, `docs/deployment.md`, `docs/rebuild-blueprint.md`, `../runbooks/setup-recovery.md`: document zero-touch bootstrap and authenticated configuration.
+- `README.md`, `docs/operations/deployment.md`, `docs/rebuild-blueprint.md`, `../runbooks/setup-recovery.md`: document zero-touch bootstrap and authenticated configuration.
 
 ---
 
@@ -836,7 +836,7 @@ git commit -m "feat(settings): replace setup wizard with admin settings"
 **Files:**
 
 - Modify: `README.md`
-- Modify: `docs/deployment.md`
+- Modify: `docs/operations/deployment.md`
 - Modify: `docs/rebuild-blueprint.md`
 - Modify: `../runbooks/setup-recovery.md`
 - Modify: `../runbooks/attachment-storage-migration.md`

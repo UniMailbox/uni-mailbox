@@ -216,7 +216,7 @@ the GitHub `production` Environment. R2 is opt-in via
 [`wrangler.r2.jsonc`](wrangler.r2.jsonc) so cold-start deployments do not
 require a paid plan.
 
-See [`docs/deployment.md`](docs/deployment.md) for the install / adoption /
+See [`docs/operations/deployment.md`](docs/operations/deployment.md) for the install / adoption /
 release checklist,
 [`.skills/runbooks/attachment-storage-migration.md`](.skills/runbooks/attachment-storage-migration.md)
 for switching backends later, and
@@ -231,7 +231,7 @@ for delivery incidents.
 ## Documentation and runbooks
 
 - [Local development guide](docs/development.md)
-- [Deployment guide](docs/deployment.md)
+- [Deployment guide](docs/operations/deployment.md)
 - [Release and distribution policy](docs/releases.md)
 - [Compatibility and maintenance policy](docs/compatibility.md)
 - [Source blueprint](docs/rebuild-blueprint.md)

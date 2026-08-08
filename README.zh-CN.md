@@ -201,7 +201,7 @@ R2 通过 [`wrangler.r2.jsonc`](wrangler.r2.jsonc) 显式启用，使冷启动�
 要付费计划。
 
 完整的安装 / adopt / release 流程见
-[`docs/deployment.md`](docs/deployment.md)；切换后端请参考
+[`docs/operations/deployment.md`](docs/operations/deployment.md)；切换后端请参考
 [`.skills/runbooks/attachment-storage-migration.md`](.skills/runbooks/attachment-storage-migration.md)；
 投递类故障处理请参考
 [`.skills/runbooks/mail-delivery-recovery.md`](.skills/runbooks/mail-delivery-recovery.md)。
@@ -213,7 +213,7 @@ R2 通过 [`wrangler.r2.jsonc`](wrangler.r2.jsonc) 显式启用，使冷启动�
 ## 文档与 Runbook
 
 - [本地开发指南](docs/development.md)
-- [部署指南](docs/deployment.md)
+- [部署指南](docs/operations/deployment.md)
 - [发布与分发策略](docs/releases.md)
 - [兼容性与维护策略](docs/compatibility.md)
 - [源码蓝图](docs/rebuild-blueprint.md)

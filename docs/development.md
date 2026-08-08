@@ -2,7 +2,7 @@
 
 This is the contributor's handbook for the local loop: clone, install, run,
 test, change, ship. Operator-facing material lives under
-[`../.skills/runbooks/`](runbooks/) and [`docs/deployment.md`](deployment.md); the
+[`../.skills/runbooks/`](runbooks/) and [`docs/operations/deployment.md`](../operations/deployment.md); the
 repo layout, contracts, and architectural decisions are in
 [`docs/rebuild-blueprint.md`](rebuild-blueprint.md).
 
@@ -285,7 +285,7 @@ that gate; never use it outside of an active incident.
 - Failing CI? Re-read the failing step's name — it almost always points to
   the right local command.
 - Stuck on a Cloudflare detail? Start at
-  [`docs/deployment.md`](deployment.md); recovery procedures are in
+  [`docs/operations/deployment.md`](../operations/deployment.md); recovery procedures are in
   `../.skills/runbooks/`.
 - Adding a new feature? Skim the matching chapter in
   [`docs/rebuild-blueprint.md`](rebuild-blueprint.md) before writing code —

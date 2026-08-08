@@ -338,7 +338,7 @@ pnpm test:e2e
 - [`migration-recovery.md`](migration-recovery.md)——D1 schema
   出了问题时的回滚 / Time Travel 路径，跟"admin 注入失败"是相邻但不同的失败
   域。
-- [`docs/deployment.md`](../deployment.md)——`pnpm release:production` 怎么
+- [`docs/operations/deployment.md`](../../docs/operations/deployment.md)——`pnpm release:production` 怎么
   间接调用 `bootstrap:admin`。
 - [`docs/rebuild-blueprint.md`](../rebuild-blueprint.md)——完整代码蓝图，包含
   `IDENTITY_APPLICATION_SERVICE`、`ADMIN_APPLICATION_SERVICE` 的全部方法签名。
