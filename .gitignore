@@ -13,3 +13,9 @@ task-*-report.md
 *.local
 .worktrees/
 .pnpm-store/
+
+# Agent scratch space (disposable; durable knowledge lives in docs/
+# or docs/adr/, not here).
+.agent/scratch/
+.agent/tmp/
+.agent/cache/

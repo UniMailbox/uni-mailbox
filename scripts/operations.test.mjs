@@ -9,7 +9,7 @@ const runbook = readFileSync(
   "utf8",
 );
 const deployment = readFileSync(
-  new URL("../docs/deployment.md", import.meta.url),
+  new URL("../docs/operations/deployment.md", import.meta.url),
   "utf8",
 );
 const setupRecovery = readFileSync(
