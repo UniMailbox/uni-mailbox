@@ -273,6 +273,9 @@ export class InboundMailService {
         unknownRecipient: !mailbox,
         attachmentCount: attachmentRows.length,
       });
+      if (mailbox) {
+        this.context.env.INBOX_INDEX_QUEUE?.send({ mailbox_id: mailbox.id, message_id: messageId }).catch(() => undefined);
+      }
     } catch (error) {
       for (const fileId of attachmentFileIds) {
         await deleteAttachmentFileIfUnreferenced(this.context, fileId);
